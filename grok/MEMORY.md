@@ -1,41 +1,24 @@
 # MEMORY
 
-**No app code until final confirmation + user says do it.**  
-**New app** (not edit Diary). Stack lean: **MudBlazor**.
+**No app code until user says final / do it.**  
+**New app** (not edit Diary). Stack lean: **MudBlazor** (await final confirm).
 
-## Revenue expenditure heads — **18** (from master Excel/PDF; screenshot was reference only)
-From Final Master Sheet PDF revenue pages (headers across the wide sheet):
+## HAVE (checked)
+- PDFs: Presentation UI, SRS, BRD, Final Master Sheet (Capital depts/sections/projects + DIT Revenue)
+- Conversations: Client (Priyadarshini), Manager, Savitha
+- Diary repo: schema/code/budget flow (reference only)
+- Screenshot: Annexure-B Revenue (reference only)
+- Navigation confirmed: DIT = Capital+Revenue; others Capital only; Capital=Section→Project; Revenue=Section only
+- Revenue heads confirmed **18**: RENT, TAXES, ELECTRICITY CHARGES, PRINTING & STATIONERY, POSTAGE, BANDWIDTH, SMS/EMAIL/WHATSAPP, AMC, ATS, M&R, TRAINING, PETTY OFF, AUDIT, FMS, NW RENT, PROF FEES, INSURANCE, MISC
+- PO/Justification (Annexure-B): Financial Approvals + Purchase Orders/Vendor details
+- Capital form fields from Presentation/BRD/SRS: spillover/fresh/total allotted; previous/current month; estimates; auto totals; hard-block over allotment
+- Revenue: section allotment; 18 heads; warn-only if over (client)
 
-1. RENT  
-2. TAXES  
-3. ELECTRICITY CHARGES  
-4. PRINTING & STATIONERY  
-5. POSTAGE  
-6. BANDWIDTH  
-7. SMS/EMAIL/WHATSAPP  
-8. AMC  
-9. ATS  
-10. M&R  
-11. TRAINING  
-12. PETTY OFF  
-13. AUDIT  
-14. FMS  
-15. NW RENT  
-16. PROF FEES  
-17. INSURANCE  
-18. MISC  
+## NEED before coding (blocking)
+1. **MudBlazor final confirm** (yes/no for new app stack)
+2. **Actual Excel `.xlsx`** still not in workspace (only PDF + screenshot). Google Sheet was private. Needed especially if Capital allotment amount columns exist in Excel beyond the PDF.
+3. **Phase 1 scope:** entry forms + DB only (client), or also masters/hierarchy/team/dashboard (manager)?
+4. Explicit **“do it”**
 
-User confirmed count is **18**. Screenshot was reference only — do not replace this list with the screenshot’s 16-head crop.
-
-### PO / Justification (Annexure-B on same master sheet)
-1. Financial Approvals from the competent authority  
-2. Relevant Purchase Orders and Vendor details
-
-## Navigation (confirmed earlier)
-Only **DIT** has Capital + Revenue. Other depts Capital only. Capital → Section → Project. Revenue → Section only (no project).
-
-## Still waiting
-1. Confirm Revenue heads = exactly these 16 from Annexure-B?  
-2. Capital amount columns (spillover/fresh) — still not in these exports  
-3. MudBlazor final confirm  
-4. Then “do it”
+## Next step (after 1–4)
+**DB design first** (tables for new app) → your approval → then UI/API. No code until then.
