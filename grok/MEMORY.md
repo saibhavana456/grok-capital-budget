@@ -3,49 +3,33 @@
 **No app code until final confirmation + user says do it.**  
 **New app** (not edit Diary). Stack lean: **MudBlazor**.
 
-## Latest source user sent (screenshot) — use this for Revenue heads
-**Sheet tab visible:** `Annexure-B Revenue 2026-27`  
-**Title on sheet:** Estimation for Revenue Budget FY 2026-27 (**Rs. in Cr. & excluding taxes**)  
-**Other tabs visible in screenshot (names only, not opened):** Revenue Worksheet · Revenue Budget · Revenue Budget Rn · FORMAT I  
-**Department row:** Department of Information Technology  
+## Revenue expenditure heads — **18** (from master Excel/PDF; screenshot was reference only)
+From Final Master Sheet PDF revenue pages (headers across the wide sheet):
 
-### Columns visible (left → right)
-1. Sr. No.  
-2. Section Name  
-3. FMS  
-4. AMC  
-5. ATS  
-6. M&R  
-7. RENT  
-8. NW RENT  
-9. POSTAGE  
-10. AUDIT  
-11. SUB FEE  
+1. RENT  
+2. TAXES  
+3. ELECTRICITY CHARGES  
+4. PRINTING & STATIONERY  
+5. POSTAGE  
+6. BANDWIDTH  
+7. SMS/EMAIL/WHATSAPP  
+8. AMC  
+9. ATS  
+10. M&R  
+11. TRAINING  
 12. PETTY OFF  
-13. ESCROW  
-14. INSURANCE  
-15. TRAINING  
-16. MISC  
-17. BANDWIDTH  
-18. PROF. FEES  
-19. TOTAL  
+13. AUDIT  
+14. FMS  
+15. NW RENT  
+16. PROF FEES  
+17. INSURANCE  
+18. MISC  
 
-→ **16 expenditure heads** + TOTAL (TOTAL looks like row sum of the heads).  
-Amounts are numeric (Cr.); many `0.00`; some cells yellow-highlighted in the screenshot.
+User confirmed count is **18**. Screenshot was reference only — do not replace this list with the screenshot’s 16-head crop.
 
-### Sections visible in this screenshot (partial list from image)
-Includes numbered sections such as Branch Automation, Private Cloud Infrastructure, ATM Switch, Mobile Banking/UPI, CBS…, IT Security, Networking, Software Development - Inhouse, Central Helpdesk, DMS, etc. (about 30 main numbers with 18.A / 18.B). Full 1–N list not fully readable beyond what’s on screen — **do not invent missing names**.
-
-### PO / Justification
-Earlier PDF **Annexure-B** text: Justification includes (i) Financial Approvals (ii) Relevant Purchase Orders and Vendor details.  
-This Revenue estimation screenshot does **not** show a justification column in the visible grid.
-
-## Earlier PDF (still on file) — Capital + extra Revenue view
-- Capital: departments I–XV; DIT sections + projects  
-- PDF Revenue pages also showed other head names (e.g. TAXES, ELECTRICITY CHARGES, PRINTING & STATIONERY, SMS/EMAIL/WHATSAPP) that are **not** in this Annexure-B screenshot  
-- This screenshot adds **SUB FEE** and **ESCROW**, which were **not** clear on the PDF crop  
-
-**Rule:** For Revenue heads, prefer **this Annexure-B screenshot** until user provides another sheet. Ask if PDF heads vs this sheet heads should be merged.
+### PO / Justification (Annexure-B on same master sheet)
+1. Financial Approvals from the competent authority  
+2. Relevant Purchase Orders and Vendor details
 
 ## Navigation (confirmed earlier)
 Only **DIT** has Capital + Revenue. Other depts Capital only. Capital → Section → Project. Revenue → Section only (no project).
