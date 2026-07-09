@@ -1,7 +1,17 @@
 # MEMORY
 
 **No app code until final confirmation + user says do it.**  
-**New app** (not edit Diary). Stack lean: **MudBlazor** (user will confirm today). Excel later.
+**New app** (not edit Diary). Stack lean: **MudBlazor** (user will confirm today).
+
+## Excel
+- Link shared: `https://docs.google.com/spreadsheets/d/106aygTp4ZL1O1rmkw7jpDjI3ZoSz5fTU/...`
+- **Cannot read yet** — Google returns sign-in / 401 (not public). Need: set link to “Anyone with the link”, or upload `.xlsx` to chat/repo, or email/drive downloadable file.
+
+## PO / Justification (from docs + client call — YES it is required)
+- BRD/SRS in-scope: capture **Purchase Order details, invoice details, project status, milestones**; planning with **justification**
+- BRD sample page: field **“Justifications (PO details, invoice details, etc.)”** before Submit
+- Client call: PO/justification columns exist in first BRD; keep on **same entry page** (bottom), save to DB; free-text OK (no heavy validation stated)
+- Diary `BUDGET_UTILIZATION` today: **no** justification/PO column — new app must add this
 
 ## Confirmed navigation (client Priyadarshini) — YES
 - **Only DIT** has both **IT Capital** and **IT Revenue**
