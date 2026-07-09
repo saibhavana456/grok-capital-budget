@@ -1,44 +1,28 @@
-# MEMORY (single source for this agent)
+# MEMORY
 
-**Mode:** planning only — no app code until user says “do it”.  
-**Rule:** no assumptions; ask in chat if missing.
+**No app code until final confirmation + user says do it.**  
+**New app** (not edit Diary). Stack lean: **MudBlazor** (user will confirm today). Excel later.
 
-## Status
-- Have: 3 PDFs, 4 conversations, Diary repo (schema + data)
-- Missing: Excel from Priyadarshini (still useful; Diary has sample/master-ish data already)
-- Stack: not confirmed yet (SRS says Angular; Diary is Blazor Server + .NET 8 + Oracle)
+## Confirmed navigation (client Priyadarshini) — YES
+- **Only DIT** has both **IT Capital** and **IT Revenue**
+- **Other departments:** Capital only (no Revenue)
+- **Capital:** Department → (DIT: pick Capital) → Section → **Project** → entry form
+- **Revenue (DIT only):** Department → pick Revenue → Section → entry form (**no project**)
 
-## Diary checked (https://github.com/saibhavana456/Diary)
-- Schema user: `DIT_DIARY`
-- Relevant tables exist: `DEPARTMENTS`, `SECTIONS`, `BUDGET_UTILIZATION`, `PROJECT_MASTER` / `PROJECTS_MASTER`, `MANPOWER_DETAILS`, `EMPLOYEE_MASTER`, `TEAM_MASTER`
-- `BUDGET_UTILIZATION` data in export: **151 rows**, FY **2025-26**, month **December** only, vertical **DIT**, **101 Capital / 50 Revenue**, **66 section names**, **149 project names**
-- `DEPARTMENTS` data: **1 row** (DIT)
-- `SECTIONS` data: **10 rows** (sample/demo names — not the same list as budget section strings)
-- Diary budget UI today = dashboard/details + Excel upload — **not** Priyadarshini dual-panel monthly entry form
+## What each conversation asked
+| Who | Ask |
+|-----|-----|
+| Client | Monthly Capital/Revenue **entry portal** + Oracle DB; allotments in DB; she does Power BI later |
+| Manager | Also Department/Section/Project masters, CM→CGM hierarchy, team by PF, auto-fetch on login, dashboard filters; check Diary tables |
+| Savitha | Start schema; hierarchy UI; Capital=project, Revenue=section |
 
-## Navigation (Priyadarshini) — use unless user says otherwise
-1. Pick Department  
-2. If **DIT** → choose **Capital** or **Revenue**; else Capital only  
-3. Capital: Section → Project → entry form  
-4. Revenue: Section only → entry form (no project)  
-5. Submit saves DB; allotments come from DB; Capital hard-block over allotment (SRS); Revenue warn-only (client)
+## Diary today (reference only — we build NEW app)
+**Flow:** Blazor page → Service → EF `AppDbContext` → Oracle `DIT_DIARY`  
+**Budget flow:** `/budget/dashboard` + `/budget/details` → `BudgetService` → table `BUDGET_UTILIZATION`  
+**Budget logic now:** load all rows; filter Capital/Revenue + FY/Month/Section; pie/KPIs; Excel upload/export; inline edit of `ACTUAL_BUDGET` only. **No** Priyadarshini wizard, no previous/current dual panel, no next-month estimate, no justification/PO, no revenue expenditure-head lines.  
+**Team flow:** `/teammanagement` → Dept/Section/Employee CRUD (`SECTIONS` has TEAM_LEAD/AGM/DGM/GM/CGM/CTO).
 
-## DB first — yes, you are right
-Correct order for this project:
-1. **Finalize / design DB** (reuse Diary tables where fit; add only what Priyadarshini form needs that Diary lacks)
-2. Seed/map master data
-3. Then UI + server logic
-4. Then validations / dashboard later as decided
+**Data in export:** `BUDGET_UTILIZATION` 151 rows (101 Capital / 50 Revenue), FY 2025-26, December, vertical DIT. Note: Diary Revenue rows still store a `PROJECT_NAME` value — **different from client rule** (Revenue = section only).
 
-Do **not** start UI coding before DB design is agreed.
-
-## Gaps vs Priyadarshini form (must design — do not invent columns yet)
-Diary `BUDGET_UTILIZATION` has: FY, Month, Vertical, Project, Fresh, Spillover, Actual, Type, Total, Section.  
-Missing vs client form: previous/cumulative panel fields, next-month estimates, justification/PO text, revenue **expenditure-head** line items, clear allotment-master vs monthly-entry split.
-
-## Open questions (answer in chat)
-1. Build **inside Diary** or **new app** in this repo (share Diary Oracle)?  
-2. MVP: entry-only first, or masters/hierarchy/dashboard too?  
-3. Confirm stack: Blazor like Diary, or Angular like SRS?  
-4. Excel still coming, or use Diary data only for now?  
-5. Confirm: follow Priyadarshini navigation above?
+## DB first
+Yes. Design new-app tables (can mirror Diary names/patterns) before UI. Wait for MudBlazor confirm + Excel when you can share (email/drive/link OK).
