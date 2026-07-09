@@ -3,43 +3,55 @@
 **No app code until final confirmation + user says do it.**  
 **New app** (not edit Diary). Stack lean: **MudBlazor**.
 
-## Master sheet received
-File: `Final Master Sheet of IT Capital and Revenue Budget.pdf` (16 pages). Checked via text + page images. No assumptions beyond what is printed.
+## Latest source user sent (screenshot) — use this for Revenue heads
+**Sheet tab visible:** `Annexure-B Revenue 2026-27`  
+**Title on sheet:** Estimation for Revenue Budget FY 2026-27 (**Rs. in Cr. & excluding taxes**)  
+**Other tabs visible in screenshot (names only, not opened):** Revenue Worksheet · Revenue Budget · Revenue Budget Rn · FORMAT I  
+**Department row:** Department of Information Technology  
 
-### A) IT CAPITAL — “IT CAPITAL BUDGET - DEPARTMENT DETAILS”
-Hierarchy shown as **Department → (for DIT) Section → Project**.
+### Columns visible (left → right)
+1. Sr. No.  
+2. Section Name  
+3. FMS  
+4. AMC  
+5. ATS  
+6. M&R  
+7. RENT  
+8. NW RENT  
+9. POSTAGE  
+10. AUDIT  
+11. SUB FEE  
+12. PETTY OFF  
+13. ESCROW  
+14. INSURANCE  
+15. TRAINING  
+16. MISC  
+17. BANDWIDTH  
+18. PROF. FEES  
+19. TOTAL  
 
-**Departments listed (Roman I–XV):**
-I DIT · II Digitization · III Operations Vertical · IV Analytics · V Corporate Relationship & Transaction Banking · VI CISO · VII CC & MAB · VIII Risk Management · IX Finance & Accounts · X Credit Compliance & Monitoring · XI DFB & IB · XII Central Reconciliation, Transaction Monitoring & AML · XIII Compliance · XIV Procurement · XV Data Protection Office
+→ **16 expenditure heads** + TOTAL (TOTAL looks like row sum of the heads).  
+Amounts are numeric (Cr.); many `0.00`; some cells yellow-highlighted in the screenshot.
 
-**DIT Capital sections (examples from sheet):** Branch Automation, Private Cloud Infrastructure, ATM Switch, UPI, IMPS and SMS Banking, CBS Infra…, CBS-Overseas, New Initiative, Treasury Application, IT Security, Networking, EFRMS, Internet Banking, NEFT & RTGS, Software Development, Procured Software, … through BCP (full list in PDF pages 1–6).  
-**Projects** under DIT use numbering like `1.1`, `1.2`, `10.2` (e.g. Security Solutions for proposed third site).
+### Sections visible in this screenshot (partial list from image)
+Includes numbered sections such as Branch Automation, Private Cloud Infrastructure, ATM Switch, Mobile Banking/UPI, CBS…, IT Security, Networking, Software Development - Inhouse, Central Helpdesk, DMS, etc. (about 30 main numbers with 18.A / 18.B). Full 1–N list not fully readable beyond what’s on screen — **do not invent missing names**.
 
-Other departments list numbered capital items under the department (sheet shows department totals rows). Exact section-vs-project nesting for non-DIT is **as printed per department** — do not invent extra levels.
+### PO / Justification
+Earlier PDF **Annexure-B** text: Justification includes (i) Financial Approvals (ii) Relevant Purchase Orders and Vendor details.  
+This Revenue estimation screenshot does **not** show a justification column in the visible grid.
 
-### B) IT REVENUE — DIT only in this sheet
-Title: **DIT Revenue Budget FY 2026-27**  
-Subtitle: IT BUDGET UTILIZATION FROM APRIL-26 TO MAY-26 (**Rs. in Cr. & excluding taxes**)
+## Earlier PDF (still on file) — Capital + extra Revenue view
+- Capital: departments I–XV; DIT sections + projects  
+- PDF Revenue pages also showed other head names (e.g. TAXES, ELECTRICITY CHARGES, PRINTING & STATIONERY, SMS/EMAIL/WHATSAPP) that are **not** in this Annexure-B screenshot  
+- This screenshot adds **SUB FEE** and **ESCROW**, which were **not** clear on the PDF crop  
 
-**Section Name list (Sr 1–53)** under Department of Information Technology only (pages 9 + 13). Includes Branch Automation … through Ind AS (53). TOTAL (A) row present (values 0.00 in this export).
+**Rule:** For Revenue heads, prefer **this Annexure-B screenshot** until user provides another sheet. Ask if PDF heads vs this sheet heads should be merged.
 
-**Expenditure head columns visible on sheet:**
-RENT, TAXES, ELECTRICITY CHARGES, PRINTING & STATIONERY, POSTAGE, BANDWIDTH, SMS/EMAIL/WHATSAPP, AMC, ATS, M&R, TRAINING, PETTY OFF, AUDIT, FMS, NW RENT, PROF FEES, INSURANCE, MISC  
-(= **18 heads** visible in this PDF export)
-
-### C) PO / Justification — YES on sheet
-**Annexure-B — Justification Includes:**
-1. Financial Approvals from the competent authority  
-2. Relevant Purchase Orders and Vendor details  
-
-Matches client call + BRD (justification/PO on entry).
-
-### D) What this PDF export does NOT show (do not invent)
-- Filled capital spillover/fresh/allotment amount columns (this export is mostly names + empty revenue grid / 0.00 totals)
-- Non-DIT revenue (none in this sheet — aligns with client: Revenue = DIT only)
-
-## Navigation (confirmed)
+## Navigation (confirmed earlier)
 Only **DIT** has Capital + Revenue. Other depts Capital only. Capital → Section → Project. Revenue → Section only (no project).
 
 ## Still waiting
-MudBlazor final confirm · any missing amount columns if original Excel has more than this PDF · then “do it”.
+1. Confirm Revenue heads = exactly these 16 from Annexure-B?  
+2. Capital amount columns (spillover/fresh) — still not in these exports  
+3. MudBlazor final confirm  
+4. Then “do it”
