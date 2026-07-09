@@ -28,7 +28,17 @@ Persistent working memory for this production planning engagement. Update this f
 **NOT RECEIVED YET.** User said they will provide Excel with departments, sections, projects, capital columns, revenue columns/heads. Schema cannot be finalized without it.
 
 ## Immediate next user actions needed
-See `grok/open-questions/BLOCKERS.md`.
+See `grok/open-questions/BLOCKERS.md` and `grok/open-questions/MVP_EXPLAINED.md`.
+
+## Diary reference (checked)
+- Repo: https://github.com/saibhavana456/Diary
+- Notes: `sources/DIARY_REPO_ANALYSIS.md`
+- Stack there: **Blazor Server + .NET 8 + MudBlazor + Oracle** (not Angular)
+- Has `BUDGET_UTILIZATION` + Capital/Revenue dashboard/details; **missing** full Priyadarshini monthly entry wizard
+
+## Navigation (client)
+- Careful restatement: `sources/NAVIGATION_CLIENT_PRIYADARSHINI.md`
+- User asked to follow Priyadarshini conversation for navigation — awaiting explicit “yes, use that”
 
 ## Do not forget
 - Capital and Revenue are different concepts (project-wise vs section-wise).
@@ -36,3 +46,4 @@ See `grok/open-questions/BLOCKERS.md`.
 - Client said master allotment updated **directly in DB** (no admin UI for allotment); Manager wants Admin for Department/Section masters — different scopes.
 - Capital validation: SRS/BRD = **hard block** if over allotment; Revenue (client) = **warning popup only, do not block**.
 - Revenue UI: client later preferred **show all expenditure heads as rows** (not only dropdown+add row). Manager preferred dropdown of applicable heads. Conflict.
+- SRS says Angular; Diary is Blazor — **user will confirm stack later**.

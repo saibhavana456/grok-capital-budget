@@ -55,7 +55,9 @@ Each item needs an explicit user/client/manager decision before coding.
 | Savitha | Budget type comes **after section** (and for capital after project); map capital/revenue on section/project. |
 | Manager | Menus like “Submit Capital Budget” / “Submit Revenue Budget”; whoever has project can do capital; don’t hardcode “only DIT has capital”. |
 
-**Status:** OPEN — critical for navigation design.
+**Client path carefully restated:** `sources/NAVIGATION_CLIENT_PRIYADARSHINI.md`  
+**User asked to follow client conversation carefully for navigation.** Pending explicit confirmation: “use Priyadarshini navigation as source of truth”.  
+**Status:** OPEN — awaiting user confirmation (leaning client per latest instruction).
 
 ## CONFLICT-07 — Does Revenue attach to Project?
 | Side | Claim |
@@ -89,9 +91,10 @@ Each item needs an explicit user/client/manager decision before coding.
 |------|--------|
 | Manager/Savitha | Check BB repo / Project Management tables (manpower, project master, budget utilization); reuse patterns; may not create duplicate tables if already exist. |
 | Client | New database; Excel will seed data. |
-| This workspace | **No BB repo present.** |
+| User update | Provided Diary repo: https://github.com/saibhavana456/Diary |
 
-**Status:** BLOCKED until BB repo access or export of table DDLs is provided.
+**Diary inspection done** (`sources/DIARY_REPO_ANALYSIS.md`): related tables + budget dashboard exist; Priyadarshini entry form does **not** fully exist there.  
+**Status:** PARTIALLY RESOLVED (repo found). Still need D1/D2/D3 decision (new app vs extend Diary vs share schema).
 
 ## CONFLICT-11 — Previous month display mode
 | Side | Claim |

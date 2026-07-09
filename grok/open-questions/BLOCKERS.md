@@ -12,31 +12,44 @@
 **Without this:** Cannot finalize DB seed, dropdowns, or validation examples.
 
 ## B2. Decision on MVP scope
+See plain-language explanation: `MVP_EXPLAINED.md`.
+
 Choose one (or write a custom split):
-1. **MVP-A (Client-leaning):** Capital + Revenue entry screens + Oracle tables + save/fetch monthly data. No portal dashboard. No org hierarchy UI. Masters loaded via SQL/Excel.
-2. **MVP-B (Manager-leaning):** Department/Section/Project masters + hierarchy/team + capital/revenue entry + dashboard filters; integrate with existing portal patterns.
-3. **MVP-C (Phased):** Phase 1 = MVP-A; Phase 2 = masters/hierarchy/team; Phase 3 = dashboard/AD hardening.
+1. **MVP-A (Client-leaning):** Capital + Revenue entry screens + DB + save/fetch/validate. No portal dashboard. No org hierarchy UI first.
+2. **MVP-B (Manager-leaning):** Masters + hierarchy/team + entry + dashboard filters; integrate Diary patterns.
+3. **MVP-C (Phased):** Phase 1 = A; Phase 2 = masters/hierarchy/team; Phase 3 = dashboard/AD.
 
-**Need user to pick.**
+**Also choose deployment shape:**
+- **D1:** New app in `grok-capital-budget` repo (greenfield code)
+- **D2:** Add feature modules into existing Diary (`saibhavana456/Diary`)
+- **D3:** New app code, but reuse/share Diary Oracle schema (`DIT_DIARY`) where suitable
 
-## B3. BB / existing Project Management repo
-Manager asked to inspect BB repo tables. **Not in this workspace.**
+**Need user to pick A/B/C and D1/D2/D3.**
 
-**Need one of:**
-- Git URL / access to BB repo, or
-- Exported DDL / screenshots of Project Master, Manpower, Budget Utilization tables, or
-- Written confirmation: “ignore BB for now; greenfield Oracle schema only”.
+## B3. Diary / BB reference repo — PARTIALLY RESOLVED
+User provided: https://github.com/saibhavana456/Diary  
+Analysis saved: `sources/DIARY_REPO_ANALYSIS.md`
+
+**Verified present:** DEPARTMENTS, SECTIONS, BUDGET_UTILIZATION, PROJECT_MASTER, PROJECTS_MASTER, MANPOWER_DETAILS, TEAM_MASTER, Budget dashboard/details Blazor pages, Team Management.
+
+**Still need user decision:**
+- Extend Diary’s `BUDGET_UTILIZATION` vs create new tables for Priyadarshini entry model
+- D1 / D2 / D3 above
 
 ## B4. Conflict resolutions
-Need decisions on CONFLICT-01 through CONFLICT-11 in `memory/CONFLICTS.md` (especially 01, 02, 05, 06, 07, 08, 09, 10).
+Need decisions on CONFLICT-01 through CONFLICT-11 in `memory/CONFLICTS.md` (especially 01, 02, 05, 07, 08, 09).
+
+**CONFLICT-06 (navigation):** Client path restated carefully in `sources/NAVIGATION_CLIENT_PRIYADARSHINI.md`. Waiting for user confirmation that we follow **client navigation** as source of truth for entry flow.
+
+**CONFLICT-10 (BB repo):** Diary provided and inspected — update status to partially resolved; still need reuse vs copy decision.
 
 ## B5. Environment facts (production)
 Not provided yet — ask when implementation starts:
-- Oracle connection / schema naming standards
+- Oracle connection / schema naming standards (Diary uses `DIT_DIARY` — confirm if same)
 - AD / SSO integration approach for bank intranet
 - Hosting (IIS? internal URL?)
 - Git branching policy of bank team
-- Whether Angular + .NET Core 8 is mandatory for this repo (SRS says yes)
+- Stack confirmation: SRS says Angular + .NET Core 8; **Diary is Blazor Server + .NET 8 + Oracle**. User will confirm later.
 
 ## B6. Sample end-to-end scenario
 Need one worked example from Excel (one Capital project + one Revenue section) with:

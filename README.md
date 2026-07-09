@@ -12,5 +12,12 @@ Union Bank of India — **IT Capital & Revenue Budget Monitoring and Management 
 - Agent rules: [`CLAUDE.md`](CLAUDE.md)
 - Grok working memory: [`grok/GROK.md`](grok/GROK.md)
 
-## Stack stated in SRS (not scaffolded yet)
-Angular + .NET Core 8 + Oracle 19c (intranet, AD login) — confirm before any scaffolding.
+## Reference repo inspected
+- Diary: https://github.com/saibhavana456/Diary — notes in `grok/sources/DIARY_REPO_ANALYSIS.md`
+- Client navigation restatement: `grok/sources/NAVIGATION_CLIENT_PRIYADARSHINI.md`
+- MVP A/B/C explained: `grok/open-questions/MVP_EXPLAINED.md`
+
+## Stack
+- SRS text: Angular + .NET Core 8 + Oracle 19c
+- Diary actual: Blazor Server + .NET 8 + MudBlazor + Oracle
+- User will confirm stack later — not scaffolded yet.

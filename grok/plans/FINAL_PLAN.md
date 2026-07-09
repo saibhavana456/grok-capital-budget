@@ -228,9 +228,14 @@ Allowed now: planning docs, `grok/` memory, questions.
 
 Please reply with:
 1. The **Excel** file  
-2. MVP choice: **A / B / C** (see BLOCKERS)  
-3. Answers to critical conflicts: **01, 02, 05, 06, 07, 08, 09, 10**  
-4. BB repo access **or** “greenfield only”  
-5. Confirm stack: Angular + .NET Core 8 + Oracle 19c for this repo?  
+2. MVP choice: **A / B / C** + deployment shape **D1 / D2 / D3** (see `open-questions/MVP_EXPLAINED.md`)  
+3. Confirm navigation: follow **Priyadarshini path** in `sources/NAVIGATION_CLIENT_PRIYADARSHINI.md`? (Yes/No)  
+4. Answers still needed: conflicts **01, 02, 05, 07, 08, 09** (10 partially resolved via Diary)  
+5. Stack: confirm later is fine — note Diary is **Blazor/.NET8/Oracle**, SRS text says **Angular/.NET8/Oracle**  
+
+### Update after Diary inspection
+- Reference patterns exist (Departments, Sections hierarchy fields, Budget Utilization Capital/Revenue dashboard, Project masters, Manpower PF).
+- Priyadarshini dual-panel monthly entry + revenue heads + justification is **not** fully implemented in Diary today.
+- “From scratch” = yes for the new entry product behavior; not necessarily yes for inventing every bank table if D2/D3 chosen.
 
 Until then I will **not** write application code.
