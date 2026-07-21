@@ -1,40 +1,28 @@
 # MEMORY
 
-**MudBlazor. Schema: IT_CAPITAL.** DDL: `grok/IT_CAPITAL_FULL_SCHEMA.sql`  
-No UI code until user says do it. Do not invent features.
+**MudBlazor. Schema: IT_CAPITAL.** Plan: `grok/BUILD_PLAN.md`  
+DDL: `grok/IT_CAPITAL_FULL_SCHEMA.sql` — freeze after open answers. No UI until “do it”.
+
+## Latest BRD (Pdf_new… 11 pages, Priyadarshini UB_BRD_V1.0, With Revenue Updated)
+- Capital + Revenue web entry → validate in UI → Oracle DB → Power BI/Data Lake
+- Capital: spillover/fresh/estimates; hard block if actual > allotted (spill+fresh)
+- Revenue: DIT heads (FMS/AMC/ATS/NER/…); dynamic rows; hard block + exact error message
+- Scope lists PO/invoice/milestones (Capital) — sample UI does not show separate fields
+- Maker-Checker **not** in this BRD (is in other Word photo doc) → OPEN
+- Out of scope: financial txn processing; external financial system integration unless planned
+
+## Personal SCV (reuse pattern only)
+- AD validateDomainUser + captcha + JWT + USER_TOKEN
+- EncryptoData AES; SQL Server STAFF_DETAILS + login_question; Oracle app DB
+- Finacle NOT for login
+
+## Diary (reference only)
+- DEPARTMENTS/SECTIONS pattern; BUDGET_UTILIZATION similar only; no login; MudBlazor/.NET8
 
 ## Locked earlier
-- TOTAL = spillover+fresh (app-calc). Justification = one field.
-- Month names. 18 revenue heads. DIT only revenue. Soft delete `IS_ACTIVE`.
-- Login: PF + AD password + captcha → JWT → USER_TOKEN (Personal/SCV).
-- Staff from SQL Server STAFF_DETAILS (no Oracle employee master).
-- Hierarchy tables + REPORTS_TO_PF + project assignment + write lock UK.
+- Month names; 18 heads from master; TOTAL calc; one justification; AD+captcha login; STAFF_DETAILS lookup; hierarchy tables designed; write lock UK
 
-## New docs uploaded 2026-07-21 (photos of Word + Excel) — facts only
-Files: `Excel_new_e529.pdf` (Capital master sheet FY 2026-27), `Photo_compressed_1__e327.pdf` (SRS-style UI/requirements).
-
-### Same as Priyadarshini / earlier (NOT new)
-- Home link → IT Budget portal
-- Capital: Dept → Section → Project → details
-- DIT: choose Capital or Revenue; non-DIT Capital only
-- Revenue: Section only (no project)
-- Capital page: allotment spillover/fresh/total read-only; previous month read-only; current month enter actuals + next-month estimates; auto totals
-- Capital validation: actual ≤ allotted (spillover/fresh/total)
-- Justification on page; 18 heads master; Oracle; Power BI reporting after DB
-
-### NEW / clearer in this Word doc (not in our earlier locked list)
-1. **Maker-Checker** for Capital AND Revenue: save pending → Checker Approve / Reject / Return
-2. **One Maker + one Checker per department**; audit trails
-3. Admin (DIT Admin Section) maintains masters: Department, Section, Project, Expenditure Head
-4. Justification max **5000** characters (UI + DB aligned)
-5. Revenue amounts: blank → store **0**; never NULL / blank / negative
-6. Revenue UI: Add-row dropdown OR show all 18 heads; no duplicate head in one submit
-7. Flow diagram: Portal → Oracle DB → BI views → Power BI dashboards (Oracle **19c** named)
-
-### POSSIBLE CONFLICT — do not assume which wins
-- Earlier Priyadarshini notes: Revenue over allotment = **warn, allow submit**
-- New Word photo: total heads must not exceed section allotted + popup *"Revenue Utilization for the respective section has exceeded the allotted budget"*
-→ Ask user/client before coding Revenue hard-block vs warn-only.
-
-### Excel PDF
-- Same Capital hierarchy master (Dept / Section / Project), amounts in **Rs. Crore excluding taxes**, sheet FY **2026-27** — master list reference, not a new screen type.
+## Must confirm before build
+1. Maker-Checker yes/no
+2. PO/invoice/milestones separate vs justification only
+3. Revenue hard-block (BRD) vs earlier warn-only talk
