@@ -3,49 +3,164 @@
 @inject ICapitalService CapitalService
 @inject ISnackbar Snackbar
 
-<MudText Typo="Typo.h5" Class="mb-3" Style="color:#003366;font-weight:700;">Capital Entry Detail</MudText>
+<MudText Typo="Typo.h5" Style="color:#003366;font-weight:700;">Capital Entry Detail</MudText>
 
-@if (_entry == null)
+@if (_loading)
 {
-    <MudProgressLinear Indeterminate="true" />
+    <MudProgressLinear Indeterminate="true" Class="mt-3" />
+}
+else if (_entry == null)
+{
+    <MudAlert Severity="Severity.Warning" Class="mt-3">Entry not found.</MudAlert>
 }
 else
 {
-    <MudPaper Class="pa-4" Elevation="1">
+    <MudText Typo="Typo.body2" Class="mb-3" Style="color:#64748b;">
+        @(_context?.DeptName) · @(_context?.SectionName) · @(_context?.ProjectName) · Amounts in Rs. Crore
+    </MudText>
+
+    <MudPaper Class="pa-3 mb-3" Elevation="1">
         <MudGrid>
-            <MudItem xs="12" md="6">
-                <MudText>FY: <b>@_entry.FinancialYear</b></MudText>
-                <MudText>Month: <b>@_entry.EntryMonth</b></MudText>
-                <MudText>Status: <StatusChip Status="@_entry.EntryStatus" /></MudText>
-                <MudText>Submitted by: <b>@_entry.SubmittedByPf</b></MudText>
-                <MudText>Checked by: <b>@(_entry.CheckedByPf ?? "-")</b></MudText>
+            <MudItem xs="6" sm="4" md="2">
+                <MudText Typo="Typo.caption">Financial Year</MudText>
+                <MudText Typo="Typo.subtitle2"><b>@_entry.FinancialYear</b></MudText>
             </MudItem>
-            <MudItem xs="12" md="6">
-                <MudText>Actual Spillover: <b>@_entry.ActualSpillover.ToString("0.00")</b></MudText>
-                <MudText>Actual Fresh: <b>@_entry.ActualFresh.ToString("0.00")</b></MudText>
-                <MudText>Actual Total: <b>@_entry.ActualTotal.ToString("0.00")</b></MudText>
-                <MudText>Est Spillover Next: <b>@_entry.EstSpilloverNext.ToString("0.00")</b></MudText>
-                <MudText>Est Fresh Next: <b>@_entry.EstFreshNext.ToString("0.00")</b></MudText>
+            <MudItem xs="6" sm="4" md="2">
+                <MudText Typo="Typo.caption">Entry month</MudText>
+                <MudText Typo="Typo.subtitle2"><b>@_entry.EntryMonth</b></MudText>
+            </MudItem>
+            <MudItem xs="6" sm="4" md="2">
+                <MudText Typo="Typo.caption">Status</MudText>
+                <StatusChip Status="@_entry.EntryStatus" />
+            </MudItem>
+            <MudItem xs="6" sm="4" md="3">
+                <MudText Typo="Typo.caption">Submitted by</MudText>
+                <MudText Typo="Typo.subtitle2"><b>@(_entry.SubmittedByPf ?? "-")</b></MudText>
+            </MudItem>
+            <MudItem xs="6" sm="4" md="3">
+                <MudText Typo="Typo.caption">Checked by</MudText>
+                <MudText Typo="Typo.subtitle2"><b>@(_entry.CheckedByPf ?? "-")</b></MudText>
             </MudItem>
         </MudGrid>
-        <MudText Class="mt-3">Justification</MudText>
-        <MudPaper Class="pa-3 mt-1" Style="background:#f8fafc;">@(_entry.JustificationText ?? "-")</MudPaper>
+    </MudPaper>
+
+    <MudGrid>
+        <MudItem xs="12" md="6">
+            <MudPaper Class="pa-4 mb-3 panel-readonly" Elevation="0">
+                <MudText Typo="Typo.subtitle2" Class="mb-2" Style="color:#003366;">Allotted (read-only)</MudText>
+                <MudGrid>
+                    <MudItem xs="4"><MudText Typo="Typo.caption">Spillover</MudText><MudText><b>@(_context?.SpilloverAllotted.ToString("0.00") ?? "0.00")</b></MudText></MudItem>
+                    <MudItem xs="4"><MudText Typo="Typo.caption">Fresh</MudText><MudText><b>@(_context?.FreshAllotted.ToString("0.00") ?? "0.00")</b></MudText></MudItem>
+                    <MudItem xs="4"><MudText Typo="Typo.caption">Total</MudText><MudText><b>@(_context?.TotalAllotted.ToString("0.00") ?? "0.00")</b></MudText></MudItem>
+                </MudGrid>
+            </MudPaper>
+
+            <MudPaper Class="pa-4 panel-readonly" Elevation="0">
+                <MudText Typo="Typo.subtitle2" Class="mb-2" Style="color:#003366;">
+                    Budget details for previous month (@PrevMonth.ToUpperInvariant()) — Approved, read-only
+                </MudText>
+                <MudGrid>
+                    <MudItem xs="4">
+                        <MudText Typo="Typo.caption">Spillover (@PrevMonth)</MudText>
+                        <MudText><b>@(_context?.PrevSpillover.ToString("0.00") ?? "0.00")</b></MudText>
+                    </MudItem>
+                    <MudItem xs="4">
+                        <MudText Typo="Typo.caption">Fresh (@PrevMonth)</MudText>
+                        <MudText><b>@(_context?.PrevFresh.ToString("0.00") ?? "0.00")</b></MudText>
+                    </MudItem>
+                    <MudItem xs="4">
+                        <MudText Typo="Typo.caption">Total (@PrevMonth)</MudText>
+                        <MudText><b>@(_context?.PrevTotal.ToString("0.00") ?? "0.00")</b></MudText>
+                    </MudItem>
+                </MudGrid>
+            </MudPaper>
+        </MudItem>
+
+        <MudItem xs="12" md="6">
+            <MudPaper Class="pa-4 panel-entry" Elevation="0">
+                <MudText Typo="Typo.subtitle2" Class="mb-2" Style="color:#003366;">
+                    Budget details for current month (@CurrMonth.ToUpperInvariant())
+                </MudText>
+                <MudGrid Class="mb-3">
+                    <MudItem xs="4">
+                        <MudText Typo="Typo.caption">Actual Spillover (@CurrMonth)</MudText>
+                        <MudText><b>@_entry.ActualSpillover.ToString("0.00")</b></MudText>
+                    </MudItem>
+                    <MudItem xs="4">
+                        <MudText Typo="Typo.caption">Actual Fresh (@CurrMonth)</MudText>
+                        <MudText><b>@_entry.ActualFresh.ToString("0.00")</b></MudText>
+                    </MudItem>
+                    <MudItem xs="4">
+                        <MudText Typo="Typo.caption">Actual Total (@CurrMonth)</MudText>
+                        <MudText><b>@_entry.ActualTotal.ToString("0.00")</b></MudText>
+                    </MudItem>
+                </MudGrid>
+
+                <MudDivider Class="my-3" />
+
+                <MudText Typo="Typo.subtitle2" Class="mb-2" Style="color:#003366;">
+                    Estimates for next month (@NextMon.ToUpperInvariant())
+                </MudText>
+                <MudGrid>
+                    <MudItem xs="4">
+                        <MudText Typo="Typo.caption">Est. Spillover (@NextMon)</MudText>
+                        <MudText><b>@_entry.EstSpilloverNext.ToString("0.00")</b></MudText>
+                    </MudItem>
+                    <MudItem xs="4">
+                        <MudText Typo="Typo.caption">Est. Fresh (@NextMon)</MudText>
+                        <MudText><b>@_entry.EstFreshNext.ToString("0.00")</b></MudText>
+                    </MudItem>
+                    <MudItem xs="4">
+                        <MudText Typo="Typo.caption">Est. Total (@NextMon)</MudText>
+                        <MudText><b>@_entry.EstTotalNext.ToString("0.00")</b></MudText>
+                    </MudItem>
+                </MudGrid>
+            </MudPaper>
+        </MudItem>
+    </MudGrid>
+
+    <MudPaper Class="pa-4 mt-3" Elevation="1">
+        <MudText Typo="Typo.subtitle2" Class="mb-2">Justifications (PO details, Invoice details, etc.)</MudText>
+        <MudPaper Class="pa-3" Style="background:#f8fafc;white-space:pre-wrap;">@(_entry.JustificationText ?? "-")</MudPaper>
         @if (!string.IsNullOrWhiteSpace(_entry.CheckerRemark))
         {
-            <MudText Class="mt-3">Checker Remark</MudText>
-            <MudPaper Class="pa-3 mt-1">@_entry.CheckerRemark</MudPaper>
+            <MudText Typo="Typo.subtitle2" Class="mt-3 mb-2">Checker Remark</MudText>
+            <MudPaper Class="pa-3" Style="background:#fff7ed;">@_entry.CheckerRemark</MudPaper>
         }
-        <MudButton Class="mt-4" Variant="Variant.Text" Href="/capital/submissions">Back to list</MudButton>
     </MudPaper>
+
+    <MudButton Class="mt-4" Variant="Variant.Outlined" Color="Color.Primary" Href="/capital/submissions">Back to list</MudButton>
 }
 
 @code {
     [Parameter] public long EntryId { get; set; }
+
+    private bool _loading = true;
     private CapitalMonthlyEntry? _entry;
+    private CapitalEntryFormDto? _context;
+
+    private string CurrMonth => _entry?.EntryMonth ?? "";
+    private string PrevMonth => string.IsNullOrEmpty(CurrMonth) ? "" : AppConstants.PreviousMonth(CurrMonth);
+    private string NextMon => string.IsNullOrEmpty(CurrMonth) ? "" : AppConstants.NextMonth(CurrMonth);
 
     protected override async Task OnInitializedAsync()
     {
-        _entry = await CapitalService.GetEntryAsync(EntryId);
-        if (_entry == null) Snackbar.Add("Entry not found.", Severity.Warning);
+        try
+        {
+            _entry = await CapitalService.GetEntryAsync(EntryId);
+            if (_entry != null)
+            {
+                _context = await CapitalService.BuildFormAsync(
+                    _entry.ProjectId, _entry.FinancialYear, _entry.EntryMonth);
+            }
+            else
+            {
+                Snackbar.Add("Entry not found.", Severity.Warning);
+            }
+        }
+        finally
+        {
+            _loading = false;
+        }
     }
 }

@@ -1,43 +1,125 @@
 @page "/revenue/view/{EntryId:long}"
 @attribute [Authorize]
 @inject IRevenueService RevenueService
+@inject IMasterService MasterService
 @inject ISnackbar Snackbar
 
-<MudText Typo="Typo.h5" Class="mb-3" Style="color:#003366;font-weight:700;">Revenue Entry Detail</MudText>
+<MudText Typo="Typo.h5" Style="color:#003366;font-weight:700;">Revenue Entry Detail</MudText>
 
-@if (_entry == null)
+@if (_loading)
 {
-    <MudProgressLinear Indeterminate="true" />
+    <MudProgressLinear Indeterminate="true" Class="mt-3" />
+}
+else if (_entry == null)
+{
+    <MudAlert Severity="Severity.Warning" Class="mt-3">Entry not found.</MudAlert>
 }
 else
 {
+    <MudText Typo="Typo.body2" Class="mb-3" Style="color:#64748b;">
+        DIT · Section: @(_entry.Section?.SectionName) · Entry month: <b>@_entry.EntryMonth</b> · Amounts in Rs. Crore
+    </MudText>
+
+    <MudPaper Class="pa-3 mb-3" Elevation="1">
+        <MudGrid>
+            <MudItem xs="6" sm="4" md="2">
+                <MudText Typo="Typo.caption">Financial Year</MudText>
+                <MudText Typo="Typo.subtitle2"><b>@_entry.FinancialYear</b></MudText>
+            </MudItem>
+            <MudItem xs="6" sm="4" md="2">
+                <MudText Typo="Typo.caption">Month</MudText>
+                <MudText Typo="Typo.subtitle2"><b>@_entry.EntryMonth</b></MudText>
+            </MudItem>
+            <MudItem xs="6" sm="4" md="2">
+                <MudText Typo="Typo.caption">Status</MudText>
+                <StatusChip Status="@_entry.EntryStatus" />
+            </MudItem>
+            <MudItem xs="6" sm="4" md="2">
+                <MudText Typo="Typo.caption">Section allotment</MudText>
+                <MudText Typo="Typo.subtitle2"><b>@_allotted.ToString("0.00")</b></MudText>
+            </MudItem>
+            <MudItem xs="6" sm="4" md="2">
+                <MudText Typo="Typo.caption">Entered total</MudText>
+                <MudText Typo="Typo.subtitle2"><b>@_enteredTotal.ToString("0.00")</b></MudText>
+            </MudItem>
+            <MudItem xs="6" sm="4" md="2">
+                <MudText Typo="Typo.caption">Submitted by</MudText>
+                <MudText Typo="Typo.subtitle2"><b>@(_entry.SubmittedByPf ?? "-")</b></MudText>
+            </MudItem>
+        </MudGrid>
+    </MudPaper>
+
     <MudPaper Class="pa-4" Elevation="1">
-        <MudText>FY: <b>@_entry.FinancialYear</b> · Month: <b>@_entry.EntryMonth</b></MudText>
-        <MudText>Section: <b>@(_entry.Section?.SectionName)</b></MudText>
-        <MudText>Status: <StatusChip Status="@_entry.EntryStatus" /></MudText>
-        <MudTable Items="_entry.Lines.OrderBy(l => l.Head?.DisplayOrder).ToList()" Dense="true" Class="mt-3" Elevation="0">
+        <MudText Typo="Typo.subtitle2" Class="mb-3" Style="color:#003366;">
+            Expenditure heads — @_entry.EntryMonth.ToUpperInvariant()
+        </MudText>
+        <MudTable Items="_lines" Dense="true" Hover="true" Striped="true" Elevation="0"
+                  FixedHeader="true" Height="420px">
             <HeaderContent>
-                <MudTh>Head</MudTh>
-                <MudTh>Amount</MudTh>
+                <MudTh Style="width:80px;">#</MudTh>
+                <MudTh>Expenditure Head</MudTh>
+                <MudTh Style="text-align:right;">Amount for @_entry.EntryMonth (Rs. Cr)</MudTh>
             </HeaderContent>
             <RowTemplate>
+                <MudTd>@(context.Head?.DisplayOrder)</MudTd>
                 <MudTd>@(context.Head?.HeadName)</MudTd>
-                <MudTd>@context.Amount.ToString("0.00")</MudTd>
+                <MudTd Style="text-align:right;font-weight:600;">@context.Amount.ToString("0.00")</MudTd>
             </RowTemplate>
         </MudTable>
-        <MudText Class="mt-3">Justification</MudText>
-        <MudPaper Class="pa-3 mt-1" Style="background:#f8fafc;">@(_entry.JustificationText ?? "-")</MudPaper>
-        <MudButton Class="mt-4" Variant="Variant.Text" Href="/revenue/submissions">Back</MudButton>
+        <MudStack Row="true" Justify="Justify.FlexEnd" Class="mt-3">
+            <MudText Typo="Typo.subtitle1">
+                Total for @_entry.EntryMonth: <b>@_enteredTotal.ToString("0.00")</b>
+                / Allotted <b>@_allotted.ToString("0.00")</b>
+            </MudText>
+        </MudStack>
     </MudPaper>
+
+    <MudPaper Class="pa-4 mt-3" Elevation="1">
+        <MudText Typo="Typo.subtitle2" Class="mb-2">Justifications (PO details, Invoice details, etc.)</MudText>
+        <MudPaper Class="pa-3" Style="background:#f8fafc;white-space:pre-wrap;">@(_entry.JustificationText ?? "-")</MudPaper>
+        @if (!string.IsNullOrWhiteSpace(_entry.CheckerRemark))
+        {
+            <MudText Typo="Typo.subtitle2" Class="mt-3 mb-2">Checker Remark</MudText>
+            <MudPaper Class="pa-3" Style="background:#fff7ed;">@_entry.CheckerRemark</MudPaper>
+        }
+        <MudText Typo="Typo.caption" Class="mt-2" Style="color:#64748b;">
+            Checked by: @(_entry.CheckedByPf ?? "-")
+        </MudText>
+    </MudPaper>
+
+    <MudButton Class="mt-4" Variant="Variant.Outlined" Color="Color.Primary" Href="/revenue/submissions">Back to list</MudButton>
 }
 
 @code {
     [Parameter] public long EntryId { get; set; }
+
+    private bool _loading = true;
     private RevenueMonthlyEntry? _entry;
+    private List<RevenueMonthlyEntryLine> _lines = new();
+    private decimal _allotted;
+    private decimal _enteredTotal;
 
     protected override async Task OnInitializedAsync()
     {
-        _entry = await RevenueService.GetEntryAsync(EntryId);
-        if (_entry == null) Snackbar.Add("Entry not found.", Severity.Warning);
+        try
+        {
+            _entry = await RevenueService.GetEntryAsync(EntryId);
+            if (_entry == null)
+            {
+                Snackbar.Add("Entry not found.", Severity.Warning);
+                return;
+            }
+
+            _lines = _entry.Lines.OrderBy(l => l.Head?.DisplayOrder ?? 0).ToList();
+            _enteredTotal = _lines.Sum(l => l.Amount);
+
+            var form = await RevenueService.BuildFormAsync(
+                _entry.SectionId, _entry.FinancialYear, _entry.EntryMonth);
+            _allotted = form?.TotalAllotted ?? 0;
+        }
+        finally
+        {
+            _loading = false;
+        }
     }
 }
