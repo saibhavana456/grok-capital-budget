@@ -95,3 +95,31 @@ html, body {
   border-radius: 8px;
   padding: 16px;
 }
+
+.checker-page .checker-table {
+  width: 100%;
+}
+
+.checker-page .checker-actions-cell {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.checker-page .checker-actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: flex-end;
+  align-items: center;
+}
+
+@media (max-width: 600px) {
+  .checker-page .checker-actions-cell {
+    text-align: left;
+    white-space: normal;
+  }
+
+  .checker-page .checker-actions {
+    justify-content: flex-start;
+  }
+}
