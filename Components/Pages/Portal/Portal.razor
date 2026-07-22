@@ -7,16 +7,32 @@
 @inject ISnackbar Snackbar
 
 <MudText Typo="Typo.h5" Style="color:#003366;font-weight:700;">IT Budget Portal</MudText>
-<MudText Typo="Typo.body2" Class="mb-4" Style="color:#64748b;">
-    Select Department → Section → Project (Capital) or Section (Revenue for DIT)
-</MudText>
 
 @if (_loading)
 {
     <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
 }
+else if (_isCheckerOnly)
+{
+    <MudText Typo="Typo.body2" Class="mb-3" Style="color:#64748b;">
+        Checker role — entry is Maker-only. Review pending Capital and Revenue submissions from Checker Review.
+    </MudText>
+    <MudPaper Class="pa-4 mb-4" Elevation="1">
+        <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Dense="true" Class="mb-3">
+            Capital entry and Revenue entry allow <b>MAKER</b> and <b>ADMIN</b> only.
+            As Checker (PF @_userPf), use <b>Checker Review</b> to Approve / Return / Reject.
+        </MudAlert>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" Href="/checker">
+            Go to Checker Review
+        </MudButton>
+    </MudPaper>
+}
 else
 {
+    <MudText Typo="Typo.body2" Class="mb-4" Style="color:#64748b;">
+        Select Department → Section → Project (Capital) or Section (Revenue for DIT)
+    </MudText>
+
     <MudPaper Class="pa-4 mb-4" Elevation="1">
         <MudGrid>
             <MudItem xs="12" md="4">
@@ -77,8 +93,11 @@ else
     private long? _projectId;
     private string _budgetType = "CAPITAL";
     private bool _showBudgetType;
+    private bool _isCheckerOnly;
+    private string _userPf = "";
 
     private bool CanContinue =>
+        !_isCheckerOnly &&
         _deptId.HasValue && _sectionId.HasValue &&
         ((_budgetType == "REVENUE" && _showBudgetType) || _projectId.HasValue);
 
@@ -86,8 +105,15 @@ else
     {
         try
         {
-            _departments = await MasterService.GetDepartmentsAsync();
             var user = AuthService.CurrentUser;
+            _userPf = user?.PfNo ?? "";
+            // Entry pages allow MAKER,ADMIN only — same rule for Capital and Revenue
+            _isCheckerOnly = user?.RoleCode == AppConstants.Roles.Checker;
+
+            if (_isCheckerOnly)
+                return;
+
+            _departments = await MasterService.GetDepartmentsAsync();
             if (user?.DeptId != null)
             {
                 _deptId = user.DeptId;
@@ -131,6 +157,8 @@ else
 
     private void Continue()
     {
+        if (_isCheckerOnly) return;
+
         if (_budgetType == "REVENUE" && _showBudgetType)
         {
             Nav.NavigateTo($"/revenue/entry?sectionId={_sectionId}");
