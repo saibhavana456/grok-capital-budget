@@ -6,70 +6,173 @@
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
 
-<MudText Typo="Typo.h5" Style="color:#003366;font-weight:700;">Checker Review</MudText>
-<MudText Typo="Typo.body2" Class="mb-4" Style="color:#64748b;">
-    Approve / Return / Reject pending Capital and Revenue submissions for your department
-</MudText>
+<MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center" Class="mb-2">
+    <div>
+        <MudText Typo="Typo.h5" Style="color:#003366;font-weight:700;">Checker Review</MudText>
+        <MudText Typo="Typo.body2" Style="color:#64748b;">
+            Pending items for your department only — Approve, Return, or Reject
+        </MudText>
+    </div>
+    <MudStack Row="true" Spacing="2">
+        <MudChip T="string" Color="Color.Warning" Variant="Variant.Filled">
+            Capital pending: @_capital.Count
+        </MudChip>
+        <MudChip T="string" Color="Color.Info" Variant="Variant.Filled">
+            Revenue pending: @_revenue.Count
+        </MudChip>
+    </MudStack>
+</MudStack>
 
-<MudTabs Elevation="1" Rounded="true" ApplyEffectsToContainer="true" PanelClass="pa-4">
-    <MudTabPanel Text="Capital Pending">
-        <MudTable Items="_capital" Dense="true" Hover="true">
-            <HeaderContent>
-                <MudTh>FY</MudTh><MudTh>Month</MudTh><MudTh>Section</MudTh><MudTh>Project</MudTh><MudTh>Maker</MudTh><MudTh>Actions</MudTh>
-            </HeaderContent>
-            <RowTemplate>
-                <MudTd>@context.FinancialYear</MudTd>
-                <MudTd>@context.Month</MudTd>
-                <MudTd>@context.SectionName</MudTd>
-                <MudTd>@context.ProjectName</MudTd>
-                <MudTd>@context.SubmittedByPf</MudTd>
-                <MudTd>
-                    <MudButton Size="Size.Small" Color="Color.Success" OnClick="@(() => ActCapital(context.EntryId, "APPROVED"))">Approve</MudButton>
-                    <MudButton Size="Size.Small" Color="Color.Warning" OnClick="@(() => ActCapital(context.EntryId, "RETURNED"))">Return</MudButton>
-                    <MudButton Size="Size.Small" Color="Color.Error" OnClick="@(() => ActCapital(context.EntryId, "REJECTED"))">Reject</MudButton>
-                    <MudLink Href="@($"/capital/view/{context.EntryId}")" Class="ml-2">View</MudLink>
-                </MudTd>
-            </RowTemplate>
-        </MudTable>
-    </MudTabPanel>
-    <MudTabPanel Text="Revenue Pending">
-        <MudTable Items="_revenue" Dense="true" Hover="true">
-            <HeaderContent>
-                <MudTh>FY</MudTh><MudTh>Month</MudTh><MudTh>Section</MudTh><MudTh>Total</MudTh><MudTh>Maker</MudTh><MudTh>Actions</MudTh>
-            </HeaderContent>
-            <RowTemplate>
-                <MudTd>@context.FinancialYear</MudTd>
-                <MudTd>@context.Month</MudTd>
-                <MudTd>@context.SectionName</MudTd>
-                <MudTd>@context.TotalAmount.ToString("0.00")</MudTd>
-                <MudTd>@context.SubmittedByPf</MudTd>
-                <MudTd>
-                    <MudButton Size="Size.Small" Color="Color.Success" OnClick="@(() => ActRevenue(context.EntryId, "APPROVED"))">Approve</MudButton>
-                    <MudButton Size="Size.Small" Color="Color.Warning" OnClick="@(() => ActRevenue(context.EntryId, "RETURNED"))">Return</MudButton>
-                    <MudButton Size="Size.Small" Color="Color.Error" OnClick="@(() => ActRevenue(context.EntryId, "REJECTED"))">Reject</MudButton>
-                    <MudLink Href="@($"/revenue/view/{context.EntryId}")" Class="ml-2">View</MudLink>
-                </MudTd>
-            </RowTemplate>
-        </MudTable>
-    </MudTabPanel>
-</MudTabs>
+<MudPaper Class="mt-3" Elevation="1" Style="border-radius:10px;overflow:hidden;">
+    <MudTabs Elevation="0" Rounded="false" ApplyEffectsToContainer="true"
+             PanelClass="pa-4" TabPanelClass="px-2"
+             ActivePanelIndexChanged="OnTabChanged">
+        <MudTabPanel Text="@($"Capital Pending ({_capital.Count})")">
+            @if (_loading)
+            {
+                <MudProgressLinear Indeterminate="true" />
+            }
+            else if (_capital.Count == 0)
+            {
+                <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="my-2">
+                    No pending Capital submissions for your department.
+                </MudAlert>
+            }
+            else
+            {
+                <MudTable Items="_capital" Hover="true" Dense="false" Striped="true"
+                          Breakpoint="Breakpoint.Sm" Elevation="0"
+                          FixedHeader="true" Height="520px">
+                    <ColGroup>
+                        <col style="width:100px;" />
+                        <col style="width:110px;" />
+                        <col />
+                        <col />
+                        <col style="width:110px;" />
+                        <col style="width:320px;" />
+                    </ColGroup>
+                    <HeaderContent>
+                        <MudTh>FY</MudTh>
+                        <MudTh>Month</MudTh>
+                        <MudTh>Section</MudTh>
+                        <MudTh>Project</MudTh>
+                        <MudTh>Maker PF</MudTh>
+                        <MudTh>Actions</MudTh>
+                    </HeaderContent>
+                    <RowTemplate>
+                        <MudTd DataLabel="FY">@context.FinancialYear</MudTd>
+                        <MudTd DataLabel="Month"><b>@context.Month</b></MudTd>
+                        <MudTd DataLabel="Section">@context.SectionName</MudTd>
+                        <MudTd DataLabel="Project">@context.ProjectName</MudTd>
+                        <MudTd DataLabel="Maker">@context.SubmittedByPf</MudTd>
+                        <MudTd DataLabel="Actions">
+                            <MudStack Row="true" Spacing="1" Wrap="Wrap.Wrap">
+                                <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Success"
+                                           OnClick="@(() => ActCapital(context.EntryId, "APPROVED"))">Approve</MudButton>
+                                <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Warning"
+                                           OnClick="@(() => ActCapital(context.EntryId, "RETURNED"))">Return</MudButton>
+                                <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Error"
+                                           OnClick="@(() => ActCapital(context.EntryId, "REJECTED"))">Reject</MudButton>
+                                <MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Primary"
+                                           Href="@($"/capital/view/{context.EntryId}")">View</MudButton>
+                            </MudStack>
+                        </MudTd>
+                    </RowTemplate>
+                    <PagerContent>
+                        <MudTablePager PageSizeOptions="new int[] { 5, 10, 25 }" />
+                    </PagerContent>
+                </MudTable>
+            }
+        </MudTabPanel>
+
+        <MudTabPanel Text="@($"Revenue Pending ({_revenue.Count})")">
+            @if (_loading)
+            {
+                <MudProgressLinear Indeterminate="true" />
+            }
+            else if (_revenue.Count == 0)
+            {
+                <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="my-2">
+                    No pending Revenue submissions for your department.
+                </MudAlert>
+            }
+            else
+            {
+                <MudTable Items="_revenue" Hover="true" Dense="false" Striped="true"
+                          Breakpoint="Breakpoint.Sm" Elevation="0"
+                          FixedHeader="true" Height="520px">
+                    <ColGroup>
+                        <col style="width:100px;" />
+                        <col style="width:110px;" />
+                        <col />
+                        <col style="width:120px;" />
+                        <col style="width:110px;" />
+                        <col style="width:320px;" />
+                    </ColGroup>
+                    <HeaderContent>
+                        <MudTh>FY</MudTh>
+                        <MudTh>Month</MudTh>
+                        <MudTh>Section</MudTh>
+                        <MudTh>Total (Cr)</MudTh>
+                        <MudTh>Maker PF</MudTh>
+                        <MudTh>Actions</MudTh>
+                    </HeaderContent>
+                    <RowTemplate>
+                        <MudTd DataLabel="FY">@context.FinancialYear</MudTd>
+                        <MudTd DataLabel="Month"><b>@context.Month</b></MudTd>
+                        <MudTd DataLabel="Section">@context.SectionName</MudTd>
+                        <MudTd DataLabel="Total">@context.TotalAmount.ToString("0.00")</MudTd>
+                        <MudTd DataLabel="Maker">@context.SubmittedByPf</MudTd>
+                        <MudTd DataLabel="Actions">
+                            <MudStack Row="true" Spacing="1" Wrap="Wrap.Wrap">
+                                <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Success"
+                                           OnClick="@(() => ActRevenue(context.EntryId, "APPROVED"))">Approve</MudButton>
+                                <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Warning"
+                                           OnClick="@(() => ActRevenue(context.EntryId, "RETURNED"))">Return</MudButton>
+                                <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Error"
+                                           OnClick="@(() => ActRevenue(context.EntryId, "REJECTED"))">Reject</MudButton>
+                                <MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Primary"
+                                           Href="@($"/revenue/view/{context.EntryId}")">View</MudButton>
+                            </MudStack>
+                        </MudTd>
+                    </RowTemplate>
+                    <PagerContent>
+                        <MudTablePager PageSizeOptions="new int[] { 5, 10, 25 }" />
+                    </PagerContent>
+                </MudTable>
+            }
+        </MudTabPanel>
+    </MudTabs>
+</MudPaper>
 
 @code {
     private List<CapitalSubmissionListItem> _capital = new();
     private List<RevenueSubmissionListItem> _revenue = new();
+    private bool _loading = true;
 
     protected override async Task OnInitializedAsync() => await Reload();
 
+    private Task OnTabChanged(int _) => Task.CompletedTask;
+
     private async Task Reload()
     {
-        var pf = AuthService.CurrentUser?.PfNo ?? "";
-        _capital = await CapitalService.GetPendingForCheckerAsync(pf);
-        _revenue = await RevenueService.GetPendingForCheckerAsync(pf);
+        _loading = true;
+        try
+        {
+            var pf = AuthService.CurrentUser?.PfNo ?? "";
+            _capital = await CapitalService.GetPendingForCheckerAsync(pf);
+            _revenue = await RevenueService.GetPendingForCheckerAsync(pf);
+        }
+        finally
+        {
+            _loading = false;
+        }
     }
 
     private async Task ActCapital(long id, string action)
     {
-        var remark = await PromptRemark(action);
+        var (confirmed, remark) = await PromptRemark(action);
+        if (!confirmed) return;
         var result = await CapitalService.CheckerActionAsync(id, action, AuthService.CurrentUser!.PfNo, remark);
         Snackbar.Add(result.Message, result.Success ? Severity.Success : Severity.Error);
         await Reload();
@@ -77,21 +180,28 @@
 
     private async Task ActRevenue(long id, string action)
     {
-        var remark = await PromptRemark(action);
+        var (confirmed, remark) = await PromptRemark(action);
+        if (!confirmed) return;
         var result = await RevenueService.CheckerActionAsync(id, action, AuthService.CurrentUser!.PfNo, remark);
         Snackbar.Add(result.Message, result.Success ? Severity.Success : Severity.Error);
         await Reload();
     }
 
-    private async Task<string?> PromptRemark(string action)
+    private async Task<(bool Confirmed, string? Remark)> PromptRemark(string action)
     {
         var parameters = new DialogParameters<RemarkDialog>
         {
-            { x => x.Title, $"{action} — Remark (optional)" }
+            { x => x.Title, $"{action} — Remark (optional for Approve)" }
         };
-        var dialog = await DialogService.ShowAsync<RemarkDialog>("Checker Remark", parameters);
+        var options = new DialogOptions
+        {
+            CloseOnEscapeKey = true,
+            MaxWidth = MaxWidth.Small,
+            FullWidth = true
+        };
+        var dialog = await DialogService.ShowAsync<RemarkDialog>("Checker Remark", parameters, options);
         var result = await dialog.Result;
-        if (result == null || result.Canceled) return null;
-        return result.Data as string;
+        if (result == null || result.Canceled) return (false, null);
+        return (true, result.Data as string);
     }
 }
