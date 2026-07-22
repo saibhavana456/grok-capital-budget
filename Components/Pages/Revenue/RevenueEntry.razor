@@ -9,7 +9,8 @@
 @if (_form != null)
 {
     <MudText Typo="Typo.body2" Class="mb-3" Style="color:#64748b;">
-        DIT · Section: @_form.SectionName · Allotted: @_form.TotalAllotted.ToString("0.00") Cr · No project
+        DIT · Section: @_form.SectionName · Entry month: <b>@_form.EntryMonth</b> ·
+        Allotted: @_form.TotalAllotted.ToString("0.00") Cr · No project
     </MudText>
 
     <MudGrid Class="mb-3">
@@ -35,7 +36,7 @@
     <MudTable Items="_form.Lines" Dense="true" Hover="true" Elevation="1">
         <HeaderContent>
             <MudTh>Expenditure Head</MudTh>
-            <MudTh>Amount (Rs. Crore)</MudTh>
+            <MudTh>Amount for @_form.EntryMonth (Rs. Crore)</MudTh>
         </HeaderContent>
         <RowTemplate>
             <MudTd DataLabel="Head">@context.HeadName</MudTd>

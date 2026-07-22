@@ -29,4 +29,20 @@ public static class AppConstants
     public const int JustificationMaxLength = 5000;
     public const string DefaultFinancialYear = "2026-27";
     public const string SessionUserKey = "IT_BUDGET_USER";
+
+    /// <summary>Previous month in Indian FY order (April…March).</summary>
+    public static string PreviousMonth(string month)
+    {
+        var idx = Array.FindIndex(FyMonths, m => string.Equals(m, month, StringComparison.OrdinalIgnoreCase));
+        if (idx < 0) return month;
+        return idx == 0 ? FyMonths[^1] : FyMonths[idx - 1];
+    }
+
+    /// <summary>Next month in Indian FY order (April…March).</summary>
+    public static string NextMonth(string month)
+    {
+        var idx = Array.FindIndex(FyMonths, m => string.Equals(m, month, StringComparison.OrdinalIgnoreCase));
+        if (idx < 0) return month;
+        return idx >= FyMonths.Length - 1 ? FyMonths[0] : FyMonths[idx + 1];
+    }
 }
