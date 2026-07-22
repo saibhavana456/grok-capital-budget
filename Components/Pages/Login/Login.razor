@@ -134,7 +134,9 @@
             if (AuthStateProvider is CustomAuthStateProvider custom)
                 await custom.MarkUserAsAuthenticated(result.User);
 
-            Nav.NavigateTo("/portal", forceLoad: true);
+            // Same circuit — do not forceLoad (that wiped auth and bounced back to /login)
+            Nav.NavigateTo("/portal");
+            return;
         }
         catch (Exception ex)
         {

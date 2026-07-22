@@ -4,6 +4,8 @@
 @code {
     protected override void OnInitialized()
     {
-        Nav.NavigateTo("/login", forceLoad: true);
+        // Soft navigate — keep Blazor circuit; forceLoad was clearing session auth
+        var returnUrl = Uri.EscapeDataString(Nav.ToBaseRelativePath(Nav.Uri));
+        Nav.NavigateTo($"/login?ReturnUrl=/{returnUrl}", forceLoad: false);
     }
 }

@@ -9,17 +9,22 @@
     <link rel="stylesheet" href="bootstrap/bootstrap.min.css" />
     <link rel="stylesheet" href="app.css" />
     <link rel="stylesheet" href="css/ubi-theme.css" />
-    <link rel="stylesheet" href="IT_BUDGET_MONITORING_PORTAL.styles.css" />
     <link rel="icon" type="image/png" href="favicon.png" />
     <link href="https://fonts.googleapis.com/css?family=Roboto:300,400,500,700&display=swap" rel="stylesheet" />
     <link href="_content/MudBlazor/MudBlazor.min.css" rel="stylesheet" />
-    <HeadOutlet @rendermode="InteractiveServer" />
+    <HeadOutlet @rendermode="InteractiveServerNoPrerender" />
 </head>
 
 <body>
-    <Routes @rendermode="InteractiveServer" />
+    @* prerender:false so ProtectedSessionStorage auth restore works before [Authorize] *@
+    <Routes @rendermode="InteractiveServerNoPrerender" />
     <script src="_framework/blazor.web.js"></script>
     <script src="_content/MudBlazor/MudBlazor.min.js"></script>
 </body>
 
 </html>
+
+@code {
+    private static readonly InteractiveServerRenderMode InteractiveServerNoPrerender =
+        new(prerender: false);
+}
