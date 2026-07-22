@@ -18,6 +18,27 @@ var oracleConn = builder.Configuration.GetConnectionString("OracleDb") ?? string
 if (oracleConn.StartsWith("ENC:", StringComparison.OrdinalIgnoreCase))
     oracleConn = EncryptoData.DecryptAes(oracleConn["ENC:".Length..]);
 
+// Safe diagnostic (no password): shows which connect string VS actually loaded
+{
+    var safe = oracleConn;
+    foreach (var key in new[] { "Password=", "Pwd=" })
+    {
+        var i = safe.IndexOf(key, StringComparison.OrdinalIgnoreCase);
+        if (i < 0) continue;
+        var start = i + key.Length;
+        var end = safe.IndexOf(';', start);
+        if (end < 0) end = safe.Length;
+        safe = safe[..start] + "***" + safe[end..];
+    }
+    Console.WriteLine($"[OracleDb loaded] Env={builder.Environment.EnvironmentName} | {safe}");
+    if (safe.Contains("YOUR_SCHEMA_USER", StringComparison.OrdinalIgnoreCase) ||
+        safe.Contains("YOUR_PASSWORD", StringComparison.OrdinalIgnoreCase))
+    {
+        Console.WriteLine("[OracleDb WARNING] Placeholder User/Password still present. " +
+                          "Edit appsettings.Development.json (Development overrides appsettings.json).");
+    }
+}
+
 builder.Services.AddPooledDbContextFactory<AppDbContext>(options =>
     options.UseOracle(oracleConn));
 builder.Services.AddScoped(sp =>
