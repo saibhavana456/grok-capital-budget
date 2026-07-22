@@ -134,7 +134,7 @@
             if (AuthStateProvider is CustomAuthStateProvider custom)
                 await custom.MarkUserAsAuthenticated(result.User);
 
-            Nav.NavigateTo("/portal");
+            Nav.NavigateTo("/portal", forceLoad: true);
         }
         catch (Exception ex)
         {
