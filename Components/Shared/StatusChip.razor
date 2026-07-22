@@ -1,0 +1,15 @@
+@* Status chip for PENDING / APPROVED / REJECTED / RETURNED *@
+<MudChip T="string" Class="@CssClass" Size="Size.Small">@Status</MudChip>
+
+@code {
+    [Parameter] public string Status { get; set; } = "";
+
+    private string CssClass => Status?.ToUpperInvariant() switch
+    {
+        "PENDING" => "status-chip-pending",
+        "APPROVED" => "status-chip-approved",
+        "REJECTED" => "status-chip-rejected",
+        "RETURNED" => "status-chip-returned",
+        _ => ""
+    };
+}

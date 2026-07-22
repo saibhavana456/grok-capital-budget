@@ -1,0 +1,47 @@
+@page "/revenue/submissions"
+@attribute [Authorize]
+@inject IRevenueService RevenueService
+@inject IAuthService AuthService
+@inject ISnackbar Snackbar
+
+<MudText Typo="Typo.h5" Style="color:#003366;font-weight:700;">Revenue Submissions</MudText>
+<MudText Typo="Typo.body2" Class="mb-4" Style="color:#64748b;">
+    Financial Year · Month · Section · Total · Status · Action
+</MudText>
+
+<MudTable Items="_rows" Hover="true" Dense="true" Elevation="1" Loading="_loading">
+    <HeaderContent>
+        <MudTh>Financial Year</MudTh>
+        <MudTh>Month</MudTh>
+        <MudTh>Section</MudTh>
+        <MudTh>Total (Cr)</MudTh>
+        <MudTh>Status</MudTh>
+        <MudTh>Action</MudTh>
+    </HeaderContent>
+    <RowTemplate>
+        <MudTd>@context.FinancialYear</MudTd>
+        <MudTd>@context.Month</MudTd>
+        <MudTd>@context.SectionName</MudTd>
+        <MudTd>@context.TotalAmount.ToString("0.00")</MudTd>
+        <MudTd><StatusChip Status="@context.Status" /></MudTd>
+        <MudTd><MudLink Href="@($"/revenue/view/{context.EntryId}")">View</MudLink></MudTd>
+    </RowTemplate>
+    <PagerContent><MudTablePager /></PagerContent>
+</MudTable>
+
+@code {
+    private List<RevenueSubmissionListItem> _rows = new();
+    private bool _loading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var user = AuthService.CurrentUser;
+            string? makerFilter = user?.RoleCode == AppConstants.Roles.Maker ? user.PfNo : null;
+            _rows = await RevenueService.GetSubmissionsAsync(makerFilter, user?.DeptId);
+        }
+        catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }
+        finally { _loading = false; }
+    }
+}

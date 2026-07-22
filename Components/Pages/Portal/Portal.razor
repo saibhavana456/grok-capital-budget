@@ -1,0 +1,145 @@
+@page "/"
+@page "/portal"
+@attribute [Authorize]
+@inject IMasterService MasterService
+@inject IAuthService AuthService
+@inject NavigationManager Nav
+@inject ISnackbar Snackbar
+
+<MudText Typo="Typo.h5" Style="color:#003366;font-weight:700;">IT Budget Portal</MudText>
+<MudText Typo="Typo.body2" Class="mb-4" Style="color:#64748b;">
+    Select Department → Section → Project (Capital) or Section (Revenue for DIT)
+</MudText>
+
+@if (_loading)
+{
+    <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+}
+else
+{
+    <MudPaper Class="pa-4 mb-4" Elevation="1">
+        <MudGrid>
+            <MudItem xs="12" md="4">
+                <MudSelect T="long?" Label="Department" Variant="Variant.Outlined"
+                           Value="_deptId" ValueChanged="OnDeptChanged" AnchorOrigin="Origin.BottomCenter">
+                    @foreach (var d in _departments)
+                    {
+                        <MudSelectItem T="long?" Value="@((long?)d.DeptId)">@d.DeptName</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="12" md="4">
+                <MudSelect T="long?" Label="Section" Variant="Variant.Outlined"
+                           Value="_sectionId" ValueChanged="OnSectionChanged" Disabled="_sections.Count==0">
+                    @foreach (var s in _sections)
+                    {
+                        <MudSelectItem T="long?" Value="@((long?)s.SectionId)">@s.SectionName</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="12" md="4">
+                @if (_showBudgetType)
+                {
+                    <MudSelect T="string" @bind-Value="_budgetType" Label="Budget Type" Variant="Variant.Outlined">
+                        <MudSelectItem Value="@("CAPITAL")">Capital</MudSelectItem>
+                        <MudSelectItem Value="@("REVENUE")">Revenue</MudSelectItem>
+                    </MudSelect>
+                }
+            </MudItem>
+        </MudGrid>
+
+        @if (_budgetType == "CAPITAL" || !_showBudgetType)
+        {
+            <MudSelect T="long?" @bind-Value="_projectId" Label="Project" Variant="Variant.Outlined"
+                       Class="mt-3" Disabled="_projects.Count==0">
+                @foreach (var p in _projects)
+                {
+                    <MudSelectItem T="long?" Value="@((long?)p.ProjectId)">@p.ProjectName</MudSelectItem>
+                }
+            </MudSelect>
+        }
+
+        <MudStack Row="true" Class="mt-4" Spacing="2">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="!CanContinue" OnClick="Continue">
+                Continue to Entry
+            </MudButton>
+            <MudButton Variant="Variant.Outlined" Color="Color.Primary" Href="/capital/submissions">Capital Submissions</MudButton>
+            <MudButton Variant="Variant.Outlined" Color="Color.Primary" Href="/revenue/submissions">Revenue Submissions</MudButton>
+        </MudStack>
+    </MudPaper>
+}
+
+@code {
+    private bool _loading = true;
+    private List<Department> _departments = new();
+    private List<Section> _sections = new();
+    private List<Project> _projects = new();
+    private long? _deptId;
+    private long? _sectionId;
+    private long? _projectId;
+    private string _budgetType = "CAPITAL";
+    private bool _showBudgetType;
+
+    private bool CanContinue =>
+        _deptId.HasValue && _sectionId.HasValue &&
+        ((_budgetType == "REVENUE" && _showBudgetType) || _projectId.HasValue);
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _departments = await MasterService.GetDepartmentsAsync();
+            var user = AuthService.CurrentUser;
+            if (user?.DeptId != null)
+            {
+                _deptId = user.DeptId;
+                await OnDeptChanged(_deptId);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task OnDeptChanged(long? deptId)
+    {
+        _deptId = deptId;
+        _sectionId = null;
+        _projectId = null;
+        _sections.Clear();
+        _projects.Clear();
+        _showBudgetType = false;
+        _budgetType = "CAPITAL";
+
+        if (!deptId.HasValue) return;
+        var dept = _departments.FirstOrDefault(d => d.DeptId == deptId.Value);
+        _showBudgetType = dept?.HasRevenue == "Y";
+        _sections = await MasterService.GetSectionsByDeptAsync(deptId.Value);
+    }
+
+    private async Task OnSectionChanged(long? sectionId)
+    {
+        _sectionId = sectionId;
+        _projectId = null;
+        _projects.Clear();
+        if (!sectionId.HasValue) return;
+        _projects = await MasterService.GetProjectsBySectionAsync(sectionId.Value);
+    }
+
+    private void Continue()
+    {
+        if (_budgetType == "REVENUE" && _showBudgetType)
+        {
+            Nav.NavigateTo($"/revenue/entry?sectionId={_sectionId}");
+        }
+        else
+        {
+            Nav.NavigateTo($"/capital/entry?projectId={_projectId}");
+        }
+    }
+}

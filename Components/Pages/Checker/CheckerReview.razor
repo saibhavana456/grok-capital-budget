@@ -1,0 +1,97 @@
+@page "/checker"
+@attribute [Authorize(Roles = "CHECKER,ADMIN")]
+@inject ICapitalService CapitalService
+@inject IRevenueService RevenueService
+@inject IAuthService AuthService
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+
+<MudText Typo="Typo.h5" Style="color:#003366;font-weight:700;">Checker Review</MudText>
+<MudText Typo="Typo.body2" Class="mb-4" Style="color:#64748b;">
+    Approve / Return / Reject pending Capital and Revenue submissions for your department
+</MudText>
+
+<MudTabs Elevation="1" Rounded="true" ApplyEffectsToContainer="true" PanelClass="pa-4">
+    <MudTabPanel Text="Capital Pending">
+        <MudTable Items="_capital" Dense="true" Hover="true">
+            <HeaderContent>
+                <MudTh>FY</MudTh><MudTh>Month</MudTh><MudTh>Section</MudTh><MudTh>Project</MudTh><MudTh>Maker</MudTh><MudTh>Actions</MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd>@context.FinancialYear</MudTd>
+                <MudTd>@context.Month</MudTd>
+                <MudTd>@context.SectionName</MudTd>
+                <MudTd>@context.ProjectName</MudTd>
+                <MudTd>@context.SubmittedByPf</MudTd>
+                <MudTd>
+                    <MudButton Size="Size.Small" Color="Color.Success" OnClick="@(() => ActCapital(context.EntryId, "APPROVED"))">Approve</MudButton>
+                    <MudButton Size="Size.Small" Color="Color.Warning" OnClick="@(() => ActCapital(context.EntryId, "RETURNED"))">Return</MudButton>
+                    <MudButton Size="Size.Small" Color="Color.Error" OnClick="@(() => ActCapital(context.EntryId, "REJECTED"))">Reject</MudButton>
+                    <MudLink Href="@($"/capital/view/{context.EntryId}")" Class="ml-2">View</MudLink>
+                </MudTd>
+            </RowTemplate>
+        </MudTable>
+    </MudTabPanel>
+    <MudTabPanel Text="Revenue Pending">
+        <MudTable Items="_revenue" Dense="true" Hover="true">
+            <HeaderContent>
+                <MudTh>FY</MudTh><MudTh>Month</MudTh><MudTh>Section</MudTh><MudTh>Total</MudTh><MudTh>Maker</MudTh><MudTh>Actions</MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd>@context.FinancialYear</MudTd>
+                <MudTd>@context.Month</MudTd>
+                <MudTd>@context.SectionName</MudTd>
+                <MudTd>@context.TotalAmount.ToString("0.00")</MudTd>
+                <MudTd>@context.SubmittedByPf</MudTd>
+                <MudTd>
+                    <MudButton Size="Size.Small" Color="Color.Success" OnClick="@(() => ActRevenue(context.EntryId, "APPROVED"))">Approve</MudButton>
+                    <MudButton Size="Size.Small" Color="Color.Warning" OnClick="@(() => ActRevenue(context.EntryId, "RETURNED"))">Return</MudButton>
+                    <MudButton Size="Size.Small" Color="Color.Error" OnClick="@(() => ActRevenue(context.EntryId, "REJECTED"))">Reject</MudButton>
+                    <MudLink Href="@($"/revenue/view/{context.EntryId}")" Class="ml-2">View</MudLink>
+                </MudTd>
+            </RowTemplate>
+        </MudTable>
+    </MudTabPanel>
+</MudTabs>
+
+@code {
+    private List<CapitalSubmissionListItem> _capital = new();
+    private List<RevenueSubmissionListItem> _revenue = new();
+
+    protected override async Task OnInitializedAsync() => await Reload();
+
+    private async Task Reload()
+    {
+        var pf = AuthService.CurrentUser?.PfNo ?? "";
+        _capital = await CapitalService.GetPendingForCheckerAsync(pf);
+        _revenue = await RevenueService.GetPendingForCheckerAsync(pf);
+    }
+
+    private async Task ActCapital(long id, string action)
+    {
+        var remark = await PromptRemark(action);
+        var result = await CapitalService.CheckerActionAsync(id, action, AuthService.CurrentUser!.PfNo, remark);
+        Snackbar.Add(result.Message, result.Success ? Severity.Success : Severity.Error);
+        await Reload();
+    }
+
+    private async Task ActRevenue(long id, string action)
+    {
+        var remark = await PromptRemark(action);
+        var result = await RevenueService.CheckerActionAsync(id, action, AuthService.CurrentUser!.PfNo, remark);
+        Snackbar.Add(result.Message, result.Success ? Severity.Success : Severity.Error);
+        await Reload();
+    }
+
+    private async Task<string?> PromptRemark(string action)
+    {
+        var parameters = new DialogParameters<RemarkDialog>
+        {
+            { x => x.Title, $"{action} — Remark (optional)" }
+        };
+        var dialog = await DialogService.ShowAsync<RemarkDialog>("Checker Remark", parameters);
+        var result = await dialog.Result;
+        if (result == null || result.Canceled) return null;
+        return result.Data as string;
+    }
+}

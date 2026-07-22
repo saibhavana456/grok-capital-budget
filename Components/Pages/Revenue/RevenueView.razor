@@ -1,0 +1,43 @@
+@page "/revenue/view/{EntryId:long}"
+@attribute [Authorize]
+@inject IRevenueService RevenueService
+@inject ISnackbar Snackbar
+
+<MudText Typo="Typo.h5" Class="mb-3" Style="color:#003366;font-weight:700;">Revenue Entry Detail</MudText>
+
+@if (_entry == null)
+{
+    <MudProgressLinear Indeterminate="true" />
+}
+else
+{
+    <MudPaper Class="pa-4" Elevation="1">
+        <MudText>FY: <b>@_entry.FinancialYear</b> · Month: <b>@_entry.EntryMonth</b></MudText>
+        <MudText>Section: <b>@(_entry.Section?.SectionName)</b></MudText>
+        <MudText>Status: <StatusChip Status="@_entry.EntryStatus" /></MudText>
+        <MudTable Items="_entry.Lines.OrderBy(l => l.Head?.DisplayOrder).ToList()" Dense="true" Class="mt-3" Elevation="0">
+            <HeaderContent>
+                <MudTh>Head</MudTh>
+                <MudTh>Amount</MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd>@(context.Head?.HeadName)</MudTd>
+                <MudTd>@context.Amount.ToString("0.00")</MudTd>
+            </RowTemplate>
+        </MudTable>
+        <MudText Class="mt-3">Justification</MudText>
+        <MudPaper Class="pa-3 mt-1" Style="background:#f8fafc;">@(_entry.JustificationText ?? "-")</MudPaper>
+        <MudButton Class="mt-4" Variant="Variant.Text" Href="/revenue/submissions">Back</MudButton>
+    </MudPaper>
+}
+
+@code {
+    [Parameter] public long EntryId { get; set; }
+    private RevenueMonthlyEntry? _entry;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _entry = await RevenueService.GetEntryAsync(EntryId);
+        if (_entry == null) Snackbar.Add("Entry not found.", Severity.Warning);
+    }
+}

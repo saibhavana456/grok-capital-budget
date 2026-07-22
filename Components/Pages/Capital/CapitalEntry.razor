@@ -1,0 +1,141 @@
+@page "/capital/entry"
+@attribute [Authorize(Roles = "MAKER,ADMIN")]
+@inject ICapitalService CapitalService
+@inject IAuthService AuthService
+@inject NavigationManager Nav
+@inject ISnackbar Snackbar
+
+<MudText Typo="Typo.h5" Style="color:#003366;font-weight:700;">Capital Monthly Entry</MudText>
+@if (_form != null)
+{
+    <MudText Typo="Typo.body2" Class="mb-3" Style="color:#64748b;">
+        @_form.DeptName · @_form.SectionName · @_form.ProjectName · Amounts in Rs. Crore
+    </MudText>
+
+    <MudGrid Class="mb-3">
+        <MudItem xs="12" md="4">
+            <MudSelect T="string" Value="_form.FinancialYear" Label="Financial Year" Variant="Variant.Outlined"
+                       ValueChanged="OnFyChanged">
+                <MudSelectItem Value="@("2026-27")">2026-27</MudSelectItem>
+                <MudSelectItem Value="@("2025-26")">2025-26</MudSelectItem>
+            </MudSelect>
+        </MudItem>
+        <MudItem xs="12" md="4">
+            <MudSelect T="string" Value="_form.EntryMonth" Label="Month" Variant="Variant.Outlined"
+                       ValueChanged="OnMonthChanged">
+                @foreach (var m in AppConstants.FyMonths)
+                {
+                    <MudSelectItem Value="@m">@m</MudSelectItem>
+                }
+            </MudSelect>
+        </MudItem>
+    </MudGrid>
+
+    <MudGrid>
+        <MudItem xs="12" md="6">
+            <div class="panel-readonly mb-3">
+                <MudText Typo="Typo.subtitle2" Class="mb-2">Allotted (read-only)</MudText>
+                <MudText>Spillover: <b>@_form.SpilloverAllotted.ToString("0.00")</b></MudText>
+                <MudText>Fresh: <b>@_form.FreshAllotted.ToString("0.00")</b></MudText>
+                <MudText>Total: <b>@_form.TotalAllotted.ToString("0.00")</b></MudText>
+            </div>
+            <div class="panel-readonly">
+                <MudText Typo="Typo.subtitle2" Class="mb-2">Previous month (Approved, read-only)</MudText>
+                <MudText>Spillover: <b>@_form.PrevSpillover.ToString("0.00")</b></MudText>
+                <MudText>Fresh: <b>@_form.PrevFresh.ToString("0.00")</b></MudText>
+                <MudText>Total: <b>@_form.PrevTotal.ToString("0.00")</b></MudText>
+            </div>
+        </MudItem>
+        <MudItem xs="12" md="6">
+            <div class="panel-entry">
+                <MudText Typo="Typo.subtitle2" Class="mb-2">Current month actuals</MudText>
+                <MudNumericField @bind-Value="_form.ActualSpillover" Label="Actual Spillover" Variant="Variant.Outlined" Min="0" Class="mb-2" />
+                <MudNumericField @bind-Value="_form.ActualFresh" Label="Actual Fresh" Variant="Variant.Outlined" Min="0" Class="mb-2" />
+                <MudText Class="mb-3">Actual Total (calc): <b>@((_form.ActualSpillover + _form.ActualFresh).ToString("0.00"))</b></MudText>
+
+                <MudText Typo="Typo.subtitle2" Class="mb-2">Next month estimate</MudText>
+                <MudNumericField @bind-Value="_form.EstSpilloverNext" Label="Est. Spillover Next" Variant="Variant.Outlined" Min="0" Class="mb-2" />
+                <MudNumericField @bind-Value="_form.EstFreshNext" Label="Est. Fresh Next" Variant="Variant.Outlined" Min="0" Class="mb-2" />
+                <MudText Class="mb-3">Est. Total (calc): <b>@((_form.EstSpilloverNext + _form.EstFreshNext).ToString("0.00"))</b></MudText>
+            </div>
+        </MudItem>
+    </MudGrid>
+
+    <MudTextField @bind-Value="_form.JustificationText"
+                  Label="Justification / Remarks"
+                  Variant="Variant.Outlined"
+                  Lines="4"
+                  Class="mt-3"
+                  Counter="AppConstants.JustificationMaxLength"
+                  MaxLength="AppConstants.JustificationMaxLength"
+                  HelperText="@($"{(_form.JustificationText?.Length ?? 0)} / {AppConstants.JustificationMaxLength}")" />
+
+    <MudStack Row="true" Class="mt-4" Spacing="2">
+        <MudButton Variant="Variant.Filled" Color="Color.Secondary" Disabled="_busy" OnClick="Submit"
+                   Style="background:#c8102e;">
+            @(_busy ? "Submitting..." : "Submit for Approval")
+        </MudButton>
+        <MudButton Variant="Variant.Text" Href="/portal">Back</MudButton>
+    </MudStack>
+}
+
+@code {
+    [SupplyParameterFromQuery] public long? ProjectId { get; set; }
+
+    private CapitalEntryFormDto? _form;
+    private bool _busy;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!ProjectId.HasValue)
+        {
+            Snackbar.Add("Project is required.", Severity.Warning);
+            Nav.NavigateTo("/portal");
+            return;
+        }
+        await Load();
+    }
+
+    private async Task Load()
+    {
+        _form = await CapitalService.BuildFormAsync(
+            ProjectId!.Value,
+            AppConstants.DefaultFinancialYear,
+            "July");
+        if (_form == null)
+            Snackbar.Add("Unable to load capital form.", Severity.Error);
+    }
+
+    private async Task OnMonthChanged(string month)
+    {
+        if (_form == null || !ProjectId.HasValue) return;
+        _form = await CapitalService.BuildFormAsync(ProjectId.Value, _form.FinancialYear, month);
+    }
+
+    private async Task OnFyChanged(string fy)
+    {
+        if (_form == null || !ProjectId.HasValue) return;
+        _form = await CapitalService.BuildFormAsync(ProjectId.Value, fy, _form.EntryMonth);
+    }
+
+    private async Task Submit()
+    {
+        if (_form == null) return;
+        var user = AuthService.CurrentUser;
+        if (user == null) { Nav.NavigateTo("/login"); return; }
+
+        _busy = true;
+        try
+        {
+            var result = await CapitalService.SubmitAsync(_form, user.PfNo);
+            if (!result.Success)
+            {
+                Snackbar.Add(result.Message, Severity.Error);
+                return;
+            }
+            Snackbar.Add(result.Message, Severity.Success);
+            Nav.NavigateTo("/capital/submissions");
+        }
+        finally { _busy = false; }
+    }
+}

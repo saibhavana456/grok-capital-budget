@@ -1,0 +1,105 @@
+@page "/revenue/entry"
+@attribute [Authorize(Roles = "MAKER,ADMIN")]
+@inject IRevenueService RevenueService
+@inject IAuthService AuthService
+@inject NavigationManager Nav
+@inject ISnackbar Snackbar
+
+<MudText Typo="Typo.h5" Style="color:#003366;font-weight:700;">Revenue Monthly Entry</MudText>
+@if (_form != null)
+{
+    <MudText Typo="Typo.body2" Class="mb-3" Style="color:#64748b;">
+        DIT · Section: @_form.SectionName · Allotted: @_form.TotalAllotted.ToString("0.00") Cr · No project
+    </MudText>
+
+    <MudGrid Class="mb-3">
+        <MudItem xs="12" md="4">
+            <MudSelect T="string" @bind-Value="_form.FinancialYear" Label="Financial Year" Variant="Variant.Outlined">
+                <MudSelectItem Value="@("2026-27")">2026-27</MudSelectItem>
+                <MudSelectItem Value="@("2025-26")">2025-26</MudSelectItem>
+            </MudSelect>
+        </MudItem>
+        <MudItem xs="12" md="4">
+            <MudSelect T="string" Value="_form.EntryMonth" Label="Month" Variant="Variant.Outlined" ValueChanged="OnMonthChanged">
+                @foreach (var m in AppConstants.FyMonths)
+                {
+                    <MudSelectItem Value="@m">@m</MudSelectItem>
+                }
+            </MudSelect>
+        </MudItem>
+        <MudItem xs="12" md="4" Class="d-flex align-center">
+            <MudText>Entered total: <b>@_form.Lines.Sum(l => l.Amount).ToString("0.00")</b> / @_form.TotalAllotted.ToString("0.00")</MudText>
+        </MudItem>
+    </MudGrid>
+
+    <MudTable Items="_form.Lines" Dense="true" Hover="true" Elevation="1">
+        <HeaderContent>
+            <MudTh>Expenditure Head</MudTh>
+            <MudTh>Amount (Rs. Crore)</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="Head">@context.HeadName</MudTd>
+            <MudTd DataLabel="Amount">
+                <MudNumericField @bind-Value="context.Amount" Variant="Variant.Outlined" Min="0" Margin="Margin.Dense" />
+            </MudTd>
+        </RowTemplate>
+    </MudTable>
+
+    <MudTextField @bind-Value="_form.JustificationText"
+                  Label="Justification / Remarks"
+                  Variant="Variant.Outlined"
+                  Lines="4"
+                  Class="mt-3"
+                  MaxLength="AppConstants.JustificationMaxLength"
+                  HelperText="@($"{(_form.JustificationText?.Length ?? 0)} / {AppConstants.JustificationMaxLength}")" />
+
+    <MudStack Row="true" Class="mt-4" Spacing="2">
+        <MudButton Variant="Variant.Filled" Color="Color.Secondary" Disabled="_busy" OnClick="Submit"
+                   Style="background:#c8102e;">
+            @(_busy ? "Submitting..." : "Submit for Approval")
+        </MudButton>
+        <MudButton Variant="Variant.Text" Href="/portal">Back</MudButton>
+    </MudStack>
+}
+
+@code {
+    [SupplyParameterFromQuery] public long? SectionId { get; set; }
+    private RevenueEntryFormDto? _form;
+    private bool _busy;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!SectionId.HasValue)
+        {
+            Snackbar.Add("Section is required for Revenue.", Severity.Warning);
+            Nav.NavigateTo("/portal");
+            return;
+        }
+        _form = await RevenueService.BuildFormAsync(SectionId.Value, AppConstants.DefaultFinancialYear, "July");
+        if (_form == null)
+            Snackbar.Add("Revenue is only for DIT sections (HAS_REVENUE=Y).", Severity.Error);
+    }
+
+    private async Task OnMonthChanged(string month)
+    {
+        if (_form == null || !SectionId.HasValue) return;
+        var fy = _form.FinancialYear;
+        _form = await RevenueService.BuildFormAsync(SectionId.Value, fy, month);
+    }
+
+    private async Task Submit()
+    {
+        if (_form == null) return;
+        var user = AuthService.CurrentUser;
+        if (user == null) { Nav.NavigateTo("/login"); return; }
+        _busy = true;
+        try
+        {
+            var result = await RevenueService.SubmitAsync(_form, user.PfNo);
+            if (!result.Success) { Snackbar.Add(result.Message, Severity.Error); return; }
+            Snackbar.Add(result.Message, Severity.Success);
+            Nav.NavigateTo("/revenue/submissions");
+        }
+        finally { _busy = false; }
+    }
+}

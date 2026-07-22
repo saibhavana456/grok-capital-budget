@@ -1,0 +1,32 @@
+@inherits LayoutComponentBase
+
+<MudThemeProvider Theme="_theme" />
+<MudPopoverProvider />
+<MudDialogProvider />
+<MudSnackbarProvider />
+
+<div class="ubi-header">
+    <MudContainer MaxWidth="MaxWidth.False" Class="py-2 px-4">
+        <MudText Typo="Typo.subtitle1" Style="color:#fff;font-weight:600;">
+            Union Bank of India | IT Capital &amp; Revenue Budget Monitoring
+        </MudText>
+    </MudContainer>
+</div>
+
+@Body
+
+<footer class="ubi-footer py-2 text-center">
+    AD login · Oracle app data
+</footer>
+
+@code {
+    private readonly MudTheme _theme = new()
+    {
+        PaletteLight = new PaletteLight
+        {
+            Primary = "#003366",
+            Secondary = "#c8102e",
+            AppbarBackground = "#002147"
+        }
+    };
+}

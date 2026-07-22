@@ -1,0 +1,97 @@
+:root {
+  --ubi-navy: #003366;
+  --ubi-navy-deep: #002147;
+  --ubi-red: #c8102e;
+  --ubi-bg: #eef1f5;
+  --ubi-card: #ffffff;
+}
+
+html, body {
+  margin: 0;
+  background: var(--ubi-bg);
+  font-family: Roboto, "Segoe UI", sans-serif;
+}
+
+.ubi-header {
+  background: var(--ubi-navy-deep);
+  color: #fff;
+  border-bottom: 4px solid var(--ubi-red);
+}
+
+.ubi-footer {
+  background: var(--ubi-navy-deep);
+  color: #fff;
+  font-size: 0.8rem;
+}
+
+.login-shell {
+  min-height: calc(100vh - 96px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background:
+    radial-gradient(circle at 15% 20%, rgba(200, 16, 46, 0.08), transparent 40%),
+    radial-gradient(circle at 85% 10%, rgba(0, 51, 102, 0.12), transparent 35%),
+    linear-gradient(180deg, #e8edf3 0%, #f5f7fa 100%);
+}
+
+.login-card {
+  width: 100%;
+  max-width: 440px;
+  background: var(--ubi-card);
+  border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(0, 33, 71, 0.12);
+  padding: 32px 28px;
+}
+
+.login-title {
+  color: var(--ubi-navy);
+  font-weight: 700;
+  text-align: center;
+}
+
+.login-accent {
+  width: 48px;
+  height: 3px;
+  background: var(--ubi-red);
+  margin: 10px auto 24px;
+}
+
+.nav-tabs-ubi {
+  background: #fff;
+  border-bottom: 1px solid #d9dee7;
+}
+
+.nav-tabs-ubi a {
+  color: #334155;
+  text-decoration: none;
+  padding: 14px 18px;
+  display: inline-block;
+  font-weight: 500;
+}
+
+.nav-tabs-ubi a.active {
+  color: var(--ubi-navy);
+  font-weight: 700;
+  border-bottom: 3px solid var(--ubi-red);
+}
+
+.status-chip-pending { background: #fff3cd !important; color: #856404 !important; }
+.status-chip-approved { background: #d4edda !important; color: #155724 !important; }
+.status-chip-rejected { background: #f8d7da !important; color: #721c24 !important; }
+.status-chip-returned { background: #e2e3e5 !important; color: #383d41 !important; }
+
+.panel-readonly {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 16px;
+}
+
+.panel-entry {
+  background: #fff;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 16px;
+}

@@ -1,0 +1,19 @@
+<MudDialog>
+    <DialogContent>
+        <MudText Class="mb-2">@Title</MudText>
+        <MudTextField @bind-Value="_remark" Label="Remark" Variant="Variant.Outlined" Lines="3" />
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Ok">OK</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = null!;
+    [Parameter] public string Title { get; set; } = "Remark";
+    private string _remark = "";
+
+    private void Cancel() => MudDialog.Cancel();
+    private void Ok() => MudDialog.Close(DialogResult.Ok(_remark));
+}

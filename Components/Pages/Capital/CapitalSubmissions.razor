@@ -1,0 +1,58 @@
+@page "/capital/submissions"
+@attribute [Authorize]
+@inject ICapitalService CapitalService
+@inject IAuthService AuthService
+@inject NavigationManager Nav
+@inject ISnackbar Snackbar
+
+<MudText Typo="Typo.h5" Style="color:#003366;font-weight:700;">Capital Submissions</MudText>
+<MudText Typo="Typo.body2" Class="mb-4" Style="color:#64748b;">
+    Financial Year · Month · Section · Project · Status · Action
+</MudText>
+
+<MudTable Items="_rows" Hover="true" Dense="true" Elevation="1" Loading="_loading">
+    <HeaderContent>
+        <MudTh>Financial Year</MudTh>
+        <MudTh>Month</MudTh>
+        <MudTh>Section</MudTh>
+        <MudTh>Project</MudTh>
+        <MudTh>Status</MudTh>
+        <MudTh>Action</MudTh>
+    </HeaderContent>
+    <RowTemplate>
+        <MudTd>@context.FinancialYear</MudTd>
+        <MudTd>@context.Month</MudTd>
+        <MudTd>@context.SectionName</MudTd>
+        <MudTd>@context.ProjectName</MudTd>
+        <MudTd><StatusChip Status="@context.Status" /></MudTd>
+        <MudTd>
+            <MudLink Href="@($"/capital/view/{context.EntryId}")">View</MudLink>
+        </MudTd>
+    </RowTemplate>
+    <PagerContent>
+        <MudTablePager />
+    </PagerContent>
+</MudTable>
+
+@code {
+    private List<CapitalSubmissionListItem> _rows = new();
+    private bool _loading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var user = AuthService.CurrentUser;
+            string? makerFilter = null;
+            if (user?.RoleCode == AppConstants.Roles.Maker)
+                makerFilter = user.PfNo;
+
+            _rows = await CapitalService.GetSubmissionsAsync(makerFilter, user?.DeptId);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally { _loading = false; }
+    }
+}

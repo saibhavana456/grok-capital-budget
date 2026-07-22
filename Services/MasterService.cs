@@ -1,0 +1,160 @@
+using IT_BUDGET_MONITORING_PORTAL.Data;
+using IT_BUDGET_MONITORING_PORTAL.Interfaces;
+using IT_BUDGET_MONITORING_PORTAL.Models.DTOs;
+using IT_BUDGET_MONITORING_PORTAL.Models.Entities;
+using Microsoft.EntityFrameworkCore;
+
+namespace IT_BUDGET_MONITORING_PORTAL.Services;
+
+public class MasterService : IMasterService
+{
+    private readonly AppDbContext _db;
+
+    public MasterService(AppDbContext db) => _db = db;
+
+    public Task<List<Department>> GetDepartmentsAsync(bool activeOnly = true) =>
+        _db.Departments.AsNoTracking()
+            .Where(d => !activeOnly || d.IsActive == "Y")
+            .OrderBy(d => d.DeptName)
+            .ToListAsync();
+
+    public Task<List<Section>> GetSectionsByDeptAsync(long deptId, bool activeOnly = true) =>
+        _db.Sections.AsNoTracking()
+            .Where(s => s.DeptId == deptId && (!activeOnly || s.IsActive == "Y"))
+            .OrderBy(s => s.SectionName)
+            .ToListAsync();
+
+    public Task<List<Project>> GetProjectsBySectionAsync(long sectionId, bool activeOnly = true) =>
+        _db.Projects.AsNoTracking()
+            .Where(p => p.SectionId == sectionId && (!activeOnly || p.IsActive == "Y"))
+            .OrderBy(p => p.ProjectName)
+            .ToListAsync();
+
+    public Task<List<RevenueHead>> GetRevenueHeadsAsync() =>
+        _db.RevenueHeads.AsNoTracking()
+            .Where(h => h.IsActive == "Y")
+            .OrderBy(h => h.DisplayOrder)
+            .ToListAsync();
+
+    public Task<Department?> GetDepartmentAsync(long deptId) =>
+        _db.Departments.AsNoTracking().FirstOrDefaultAsync(d => d.DeptId == deptId);
+
+    public Task<Section?> GetSectionAsync(long sectionId) =>
+        _db.Sections.Include(s => s.Department).AsNoTracking()
+            .FirstOrDefaultAsync(s => s.SectionId == sectionId);
+
+    public Task<Project?> GetProjectAsync(long projectId) =>
+        _db.Projects.Include(p => p.Section)!.ThenInclude(s => s!.Department)
+            .AsNoTracking().FirstOrDefaultAsync(p => p.ProjectId == projectId);
+
+    public async Task<ServiceResult> SaveDepartmentAsync(Department dept, string actorPf)
+    {
+        if (string.IsNullOrWhiteSpace(dept.DeptName))
+            return ServiceResult.Fail("Department name is required.");
+
+        if (dept.DeptId == 0)
+        {
+            dept.CreatedAt = DateTime.Now;
+            dept.CreatedBy = actorPf;
+            dept.IsActive = "Y";
+            _db.Departments.Add(dept);
+        }
+        else
+        {
+            var existing = await _db.Departments.FirstOrDefaultAsync(d => d.DeptId == dept.DeptId);
+            if (existing == null) return ServiceResult.Fail("Department not found.");
+            existing.DeptCode = dept.DeptCode;
+            existing.DeptName = dept.DeptName;
+            existing.HasRevenue = dept.HasRevenue;
+            existing.MakerPf = dept.MakerPf;
+            existing.CheckerPf = dept.CheckerPf;
+            existing.UpdatedAt = DateTime.Now;
+            existing.UpdatedBy = actorPf;
+        }
+        await _db.SaveChangesAsync();
+        return ServiceResult.Ok("Department saved.");
+    }
+
+    public async Task<ServiceResult> SaveSectionAsync(Section section, string actorPf)
+    {
+        if (string.IsNullOrWhiteSpace(section.SectionName))
+            return ServiceResult.Fail("Section name is required.");
+
+        if (section.SectionId == 0)
+        {
+            section.CreatedAt = DateTime.Now;
+            section.CreatedBy = actorPf;
+            section.IsActive = "Y";
+            _db.Sections.Add(section);
+        }
+        else
+        {
+            var existing = await _db.Sections.FirstOrDefaultAsync(s => s.SectionId == section.SectionId);
+            if (existing == null) return ServiceResult.Fail("Section not found.");
+            existing.SectionCode = section.SectionCode;
+            existing.SectionName = section.SectionName;
+            existing.Description = section.Description;
+            existing.DeptId = section.DeptId;
+            existing.UpdatedAt = DateTime.Now;
+            existing.UpdatedBy = actorPf;
+        }
+        await _db.SaveChangesAsync();
+        return ServiceResult.Ok("Section saved.");
+    }
+
+    public async Task<ServiceResult> SaveProjectAsync(Project project, string actorPf)
+    {
+        if (string.IsNullOrWhiteSpace(project.ProjectName))
+            return ServiceResult.Fail("Project name is required.");
+
+        if (project.ProjectId == 0)
+        {
+            project.CreatedAt = DateTime.Now;
+            project.CreatedBy = actorPf;
+            project.IsActive = "Y";
+            _db.Projects.Add(project);
+        }
+        else
+        {
+            var existing = await _db.Projects.FirstOrDefaultAsync(p => p.ProjectId == project.ProjectId);
+            if (existing == null) return ServiceResult.Fail("Project not found.");
+            existing.ProjectCode = project.ProjectCode;
+            existing.ProjectName = project.ProjectName;
+            existing.SectionId = project.SectionId;
+            existing.UpdatedAt = DateTime.Now;
+            existing.UpdatedBy = actorPf;
+        }
+        await _db.SaveChangesAsync();
+        return ServiceResult.Ok("Project saved.");
+    }
+
+    public async Task SoftDeleteDepartmentAsync(long deptId, string actorPf)
+    {
+        var d = await _db.Departments.FirstOrDefaultAsync(x => x.DeptId == deptId);
+        if (d == null) return;
+        d.IsActive = "N";
+        d.UpdatedAt = DateTime.Now;
+        d.UpdatedBy = actorPf;
+        await _db.SaveChangesAsync();
+    }
+
+    public async Task SoftDeleteSectionAsync(long sectionId, string actorPf)
+    {
+        var s = await _db.Sections.FirstOrDefaultAsync(x => x.SectionId == sectionId);
+        if (s == null) return;
+        s.IsActive = "N";
+        s.UpdatedAt = DateTime.Now;
+        s.UpdatedBy = actorPf;
+        await _db.SaveChangesAsync();
+    }
+
+    public async Task SoftDeleteProjectAsync(long projectId, string actorPf)
+    {
+        var p = await _db.Projects.FirstOrDefaultAsync(x => x.ProjectId == projectId);
+        if (p == null) return;
+        p.IsActive = "N";
+        p.UpdatedAt = DateTime.Now;
+        p.UpdatedBy = actorPf;
+        await _db.SaveChangesAsync();
+    }
+}

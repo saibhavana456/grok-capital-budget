@@ -1,23 +1,89 @@
 ﻿@inherits LayoutComponentBase
+@inject AuthenticationStateProvider AuthStateProvider
+@inject NavigationManager Nav
+@inject IAuthService AuthService
 
-<div class="page">
-    <div class="sidebar">
-        <NavMenu />
+<MudThemeProvider Theme="_theme" />
+<MudPopoverProvider />
+<MudDialogProvider />
+<MudSnackbarProvider />
+
+<div class="ubi-header">
+    <MudContainer MaxWidth="MaxWidth.False" Class="py-2 px-4">
+        <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center">
+            <MudText Typo="Typo.subtitle1" Style="color:#fff;font-weight:600;">
+                Union Bank of India | IT Budget
+            </MudText>
+            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                @if (_user != null)
+                {
+                    <MudText Typo="Typo.body2" Style="color:#fff;">
+                        PF @_user.PfNo · @_user.RoleCode
+                    </MudText>
+                    <MudButton Variant="Variant.Text" Style="color:#fff;" OnClick="Logout">Logout</MudButton>
+                }
+            </MudStack>
+        </MudStack>
+    </MudContainer>
+</div>
+
+@if (_user != null)
+{
+    <div class="nav-tabs-ubi px-4">
+        <NavLink href="/portal" Match="NavLinkMatch.Prefix">IT Budget</NavLink>
+        <NavLink href="/capital/submissions">Capital Submissions</NavLink>
+        <NavLink href="/revenue/submissions">Revenue Submissions</NavLink>
+        @if (_user.RoleCode == AppConstants.Roles.Checker || _user.RoleCode == AppConstants.Roles.Admin)
+        {
+            <NavLink href="/checker">Checker Review</NavLink>
+        }
+        @if (_user.RoleCode == AppConstants.Roles.Admin)
+        {
+            <NavLink href="/admin/masters">Admin Masters</NavLink>
+        }
     </div>
+}
 
-    <main>
-        <div class="top-row px-4">
-            <a href="https://learn.microsoft.com/aspnet/core/" target="_blank">About</a>
-        </div>
+<main class="pa-4" style="min-height:calc(100vh - 140px);">
+    @Body
+</main>
 
-        <article class="content px-4">
-            @Body
-        </article>
-    </main>
-</div>
+<footer class="ubi-footer py-2 text-center">
+    AD login · Oracle app data · Phase 1 entry + Maker-Checker
+</footer>
 
-<div id="blazor-error-ui">
-    An unhandled error has occurred.
-    <a href="" class="reload">Reload</a>
-    <a class="dismiss">🗙</a>
-</div>
+@code {
+    private LoggedInUserDto? _user;
+
+    private readonly MudTheme _theme = new()
+    {
+        PaletteLight = new PaletteLight
+        {
+            Primary = "#003366",
+            Secondary = "#c8102e",
+            AppbarBackground = "#002147",
+            Background = "#eef1f5",
+            Surface = "#ffffff"
+        }
+    };
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        var state = await AuthStateProvider.GetAuthenticationStateAsync();
+        _user = AuthService.CurrentUser;
+        if (_user == null && state.User.Identity?.IsAuthenticated == true)
+        {
+            // restored from session into AuthService by provider
+            _user = AuthService.CurrentUser;
+        }
+        StateHasChanged();
+    }
+
+    private async Task Logout()
+    {
+        if (AuthStateProvider is CustomAuthStateProvider custom)
+            await custom.MarkUserAsLoggedOut();
+        Nav.NavigateTo("/login", forceLoad: true);
+    }
+}

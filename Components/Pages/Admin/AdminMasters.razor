@@ -1,0 +1,235 @@
+@page "/admin/masters"
+@attribute [Authorize(Roles = "ADMIN")]
+@inject IMasterService MasterService
+@inject IAuthService AuthService
+@inject ISnackbar Snackbar
+
+<MudText Typo="Typo.h5" Style="color:#003366;font-weight:700;">Admin Masters</MudText>
+<MudText Typo="Typo.body2" Class="mb-4" Style="color:#64748b;">Department · Section · Project (soft delete via IS_ACTIVE)</MudText>
+
+<MudTabs Elevation="1" Rounded="true" PanelClass="pa-4">
+    <MudTabPanel Text="Departments">
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" Class="mb-3" OnClick="NewDept">Add Department</MudButton>
+        <MudTable Items="_departments" Dense="true" Hover="true">
+            <HeaderContent>
+                <MudTh>Code</MudTh><MudTh>Name</MudTh><MudTh>Has Revenue</MudTh><MudTh>Maker PF</MudTh><MudTh>Checker PF</MudTh><MudTh>Active</MudTh><MudTh></MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd>@context.DeptCode</MudTd>
+                <MudTd>@context.DeptName</MudTd>
+                <MudTd>@context.HasRevenue</MudTd>
+                <MudTd>@context.MakerPf</MudTd>
+                <MudTd>@context.CheckerPf</MudTd>
+                <MudTd>@context.IsActive</MudTd>
+                <MudTd>
+                    <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(() => EditDept(context))" />
+                    <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error"
+                                   OnClick="@(() => SoftDeleteDept(context.DeptId))" />
+                </MudTd>
+            </RowTemplate>
+        </MudTable>
+
+        @if (_editDept != null)
+        {
+            <MudPaper Class="pa-4 mt-3" Elevation="1">
+                <MudText Typo="Typo.subtitle1" Class="mb-2">@(_editDept.DeptId == 0 ? "New" : "Edit") Department</MudText>
+                <MudTextField @bind-Value="_editDept.DeptCode" Label="Code" Variant="Variant.Outlined" Class="mb-2" />
+                <MudTextField @bind-Value="_editDept.DeptName" Label="Name" Variant="Variant.Outlined" Class="mb-2" />
+                <MudSelect T="string" @bind-Value="_editDept.HasRevenue" Label="Has Revenue" Variant="Variant.Outlined" Class="mb-2">
+                    <MudSelectItem Value="@("Y")">Y (DIT)</MudSelectItem>
+                    <MudSelectItem Value="@("N")">N</MudSelectItem>
+                </MudSelect>
+                <MudTextField @bind-Value="_editDept.MakerPf" Label="Maker PF" Variant="Variant.Outlined" Class="mb-2" />
+                <MudTextField @bind-Value="_editDept.CheckerPf" Label="Checker PF" Variant="Variant.Outlined" Class="mb-2" />
+                <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveDept">Save</MudButton>
+                <MudButton OnClick="() => _editDept = null">Cancel</MudButton>
+            </MudPaper>
+        }
+    </MudTabPanel>
+
+    <MudTabPanel Text="Sections">
+        <MudSelect T="long?" Value="_filterDeptId" Label="Department" Variant="Variant.Outlined" Class="mb-3"
+                   ValueChanged="OnFilterDept">
+            @foreach (var d in _departments)
+            {
+                <MudSelectItem T="long?" Value="@((long?)d.DeptId)">@d.DeptName</MudSelectItem>
+            }
+        </MudSelect>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" Class="mb-3" Disabled="!_filterDeptId.HasValue" OnClick="NewSection">Add Section</MudButton>
+        <MudTable Items="_sections" Dense="true" Hover="true">
+            <HeaderContent>
+                <MudTh>Code</MudTh><MudTh>Name</MudTh><MudTh>Active</MudTh><MudTh></MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd>@context.SectionCode</MudTd>
+                <MudTd>@context.SectionName</MudTd>
+                <MudTd>@context.IsActive</MudTd>
+                <MudTd>
+                    <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(() => EditSection(context))" />
+                    <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error"
+                                   OnClick="@(() => SoftDeleteSection(context.SectionId))" />
+                </MudTd>
+            </RowTemplate>
+        </MudTable>
+        @if (_editSection != null)
+        {
+            <MudPaper Class="pa-4 mt-3">
+                <MudTextField @bind-Value="_editSection.SectionCode" Label="Code" Variant="Variant.Outlined" Class="mb-2" />
+                <MudTextField @bind-Value="_editSection.SectionName" Label="Name" Variant="Variant.Outlined" Class="mb-2" />
+                <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveSection">Save</MudButton>
+                <MudButton OnClick="() => _editSection = null">Cancel</MudButton>
+            </MudPaper>
+        }
+    </MudTabPanel>
+
+    <MudTabPanel Text="Projects">
+        <MudSelect T="long?" Value="_filterSectionId" Label="Section" Variant="Variant.Outlined" Class="mb-3"
+                   ValueChanged="OnFilterSection">
+            @foreach (var s in _sections)
+            {
+                <MudSelectItem T="long?" Value="@((long?)s.SectionId)">@s.SectionName</MudSelectItem>
+            }
+        </MudSelect>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" Class="mb-3" Disabled="!_filterSectionId.HasValue" OnClick="NewProject">Add Project</MudButton>
+        <MudTable Items="_projects" Dense="true" Hover="true">
+            <HeaderContent>
+                <MudTh>Code</MudTh><MudTh>Name</MudTh><MudTh>Active</MudTh><MudTh></MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd>@context.ProjectCode</MudTd>
+                <MudTd>@context.ProjectName</MudTd>
+                <MudTd>@context.IsActive</MudTd>
+                <MudTd>
+                    <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(() => EditProject(context))" />
+                    <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error"
+                                   OnClick="@(() => SoftDeleteProject(context.ProjectId))" />
+                </MudTd>
+            </RowTemplate>
+        </MudTable>
+        @if (_editProject != null)
+        {
+            <MudPaper Class="pa-4 mt-3">
+                <MudTextField @bind-Value="_editProject.ProjectCode" Label="Code" Variant="Variant.Outlined" Class="mb-2" />
+                <MudTextField @bind-Value="_editProject.ProjectName" Label="Name" Variant="Variant.Outlined" Class="mb-2" />
+                <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveProject">Save</MudButton>
+                <MudButton OnClick="() => _editProject = null">Cancel</MudButton>
+            </MudPaper>
+        }
+    </MudTabPanel>
+
+    <MudTabPanel Text="Revenue Heads">
+        <MudTable Items="_heads" Dense="true">
+            <HeaderContent>
+                <MudTh>Order</MudTh><MudTh>Code</MudTh><MudTh>Name</MudTh><MudTh>Active</MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd>@context.DisplayOrder</MudTd>
+                <MudTd>@context.HeadCode</MudTd>
+                <MudTd>@context.HeadName</MudTd>
+                <MudTd>@context.IsActive</MudTd>
+            </RowTemplate>
+        </MudTable>
+        <MudText Typo="Typo.caption" Class="mt-2">18 heads are master-seeded from Excel (read-only in Phase 1).</MudText>
+    </MudTabPanel>
+</MudTabs>
+
+@code {
+    private List<Department> _departments = new();
+    private List<Section> _sections = new();
+    private List<Project> _projects = new();
+    private List<RevenueHead> _heads = new();
+    private Department? _editDept;
+    private Section? _editSection;
+    private Project? _editProject;
+    private long? _filterDeptId;
+    private long? _filterSectionId;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await ReloadDepts();
+        _heads = await MasterService.GetRevenueHeadsAsync();
+    }
+
+    private async Task ReloadDepts() =>
+        _departments = await MasterService.GetDepartmentsAsync(false);
+
+    private void NewDept() => _editDept = new Department { HasRevenue = "N", IsActive = "Y" };
+    private void EditDept(Department d) => _editDept = new Department
+    {
+        DeptId = d.DeptId, DeptCode = d.DeptCode, DeptName = d.DeptName,
+        HasRevenue = d.HasRevenue, MakerPf = d.MakerPf, CheckerPf = d.CheckerPf, IsActive = d.IsActive
+    };
+
+    private async Task SaveDept()
+    {
+        if (_editDept == null) return;
+        var r = await MasterService.SaveDepartmentAsync(_editDept, AuthService.CurrentUser!.PfNo);
+        Snackbar.Add(r.Message, r.Success ? Severity.Success : Severity.Error);
+        _editDept = null;
+        await ReloadDepts();
+    }
+
+    private async Task SoftDeleteDept(long id)
+    {
+        await MasterService.SoftDeleteDepartmentAsync(id, AuthService.CurrentUser!.PfNo);
+        await ReloadDepts();
+    }
+
+    private async Task OnFilterDept(long? id)
+    {
+        _filterDeptId = id;
+        _sections = id.HasValue ? await MasterService.GetSectionsByDeptAsync(id.Value, false) : new();
+        _projects.Clear();
+        _filterSectionId = null;
+    }
+
+    private void NewSection() => _editSection = new Section { DeptId = _filterDeptId!.Value, IsActive = "Y" };
+    private void EditSection(Section s) => _editSection = new Section
+    {
+        SectionId = s.SectionId, DeptId = s.DeptId, SectionCode = s.SectionCode,
+        SectionName = s.SectionName, Description = s.Description, IsActive = s.IsActive
+    };
+
+    private async Task SaveSection()
+    {
+        if (_editSection == null) return;
+        var r = await MasterService.SaveSectionAsync(_editSection, AuthService.CurrentUser!.PfNo);
+        Snackbar.Add(r.Message, r.Success ? Severity.Success : Severity.Error);
+        _editSection = null;
+        await OnFilterDept(_filterDeptId);
+    }
+
+    private async Task SoftDeleteSection(long id)
+    {
+        await MasterService.SoftDeleteSectionAsync(id, AuthService.CurrentUser!.PfNo);
+        await OnFilterDept(_filterDeptId);
+    }
+
+    private async Task OnFilterSection(long? id)
+    {
+        _filterSectionId = id;
+        _projects = id.HasValue ? await MasterService.GetProjectsBySectionAsync(id.Value, false) : new();
+    }
+
+    private void NewProject() => _editProject = new Project { SectionId = _filterSectionId!.Value, IsActive = "Y" };
+    private void EditProject(Project p) => _editProject = new Project
+    {
+        ProjectId = p.ProjectId, SectionId = p.SectionId, ProjectCode = p.ProjectCode,
+        ProjectName = p.ProjectName, IsActive = p.IsActive
+    };
+
+    private async Task SaveProject()
+    {
+        if (_editProject == null) return;
+        var r = await MasterService.SaveProjectAsync(_editProject, AuthService.CurrentUser!.PfNo);
+        Snackbar.Add(r.Message, r.Success ? Severity.Success : Severity.Error);
+        _editProject = null;
+        await OnFilterSection(_filterSectionId);
+    }
+
+    private async Task SoftDeleteProject(long id)
+    {
+        await MasterService.SoftDeleteProjectAsync(id, AuthService.CurrentUser!.PfNo);
+        await OnFilterSection(_filterSectionId);
+    }
+}

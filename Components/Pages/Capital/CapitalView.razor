@@ -1,0 +1,51 @@
+@page "/capital/view/{EntryId:long}"
+@attribute [Authorize]
+@inject ICapitalService CapitalService
+@inject ISnackbar Snackbar
+
+<MudText Typo="Typo.h5" Class="mb-3" Style="color:#003366;font-weight:700;">Capital Entry Detail</MudText>
+
+@if (_entry == null)
+{
+    <MudProgressLinear Indeterminate="true" />
+}
+else
+{
+    <MudPaper Class="pa-4" Elevation="1">
+        <MudGrid>
+            <MudItem xs="12" md="6">
+                <MudText>FY: <b>@_entry.FinancialYear</b></MudText>
+                <MudText>Month: <b>@_entry.EntryMonth</b></MudText>
+                <MudText>Status: <StatusChip Status="@_entry.EntryStatus" /></MudText>
+                <MudText>Submitted by: <b>@_entry.SubmittedByPf</b></MudText>
+                <MudText>Checked by: <b>@(_entry.CheckedByPf ?? "-")</b></MudText>
+            </MudItem>
+            <MudItem xs="12" md="6">
+                <MudText>Actual Spillover: <b>@_entry.ActualSpillover.ToString("0.00")</b></MudText>
+                <MudText>Actual Fresh: <b>@_entry.ActualFresh.ToString("0.00")</b></MudText>
+                <MudText>Actual Total: <b>@_entry.ActualTotal.ToString("0.00")</b></MudText>
+                <MudText>Est Spillover Next: <b>@_entry.EstSpilloverNext.ToString("0.00")</b></MudText>
+                <MudText>Est Fresh Next: <b>@_entry.EstFreshNext.ToString("0.00")</b></MudText>
+            </MudItem>
+        </MudGrid>
+        <MudText Class="mt-3">Justification</MudText>
+        <MudPaper Class="pa-3 mt-1" Style="background:#f8fafc;">@(_entry.JustificationText ?? "-")</MudPaper>
+        @if (!string.IsNullOrWhiteSpace(_entry.CheckerRemark))
+        {
+            <MudText Class="mt-3">Checker Remark</MudText>
+            <MudPaper Class="pa-3 mt-1">@_entry.CheckerRemark</MudPaper>
+        }
+        <MudButton Class="mt-4" Variant="Variant.Text" Href="/capital/submissions">Back to list</MudButton>
+    </MudPaper>
+}
+
+@code {
+    [Parameter] public long EntryId { get; set; }
+    private CapitalMonthlyEntry? _entry;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _entry = await CapitalService.GetEntryAsync(EntryId);
+        if (_entry == null) Snackbar.Add("Entry not found.", Severity.Warning);
+    }
+}
