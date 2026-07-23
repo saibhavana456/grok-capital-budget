@@ -1,103 +1,130 @@
 @page "/revenue/view/{EntryId:long}"
 @attribute [Authorize]
 @inject IRevenueService RevenueService
-@inject IMasterService MasterService
 @inject ISnackbar Snackbar
 
-<MudText Typo="Typo.h5" Style="color:#003366;font-weight:700;">Revenue Entry Detail</MudText>
+<div class="entry-page">
+    <MudText Typo="Typo.h5" Class="page-title">Revenue Entry Detail</MudText>
 
-@if (_loading)
-{
-    <MudProgressLinear Indeterminate="true" Class="mt-3" />
-}
-else if (_entry == null)
-{
-    <MudAlert Severity="Severity.Warning" Class="mt-3">Entry not found.</MudAlert>
-}
-else
-{
-    <MudText Typo="Typo.body2" Class="mb-3" Style="color:#64748b;">
-        DIT · Section: @(_entry.Section?.SectionName) · Entry month: <b>@_entry.EntryMonth</b> · Amounts in Rs. Crore
-    </MudText>
-
-    <MudPaper Class="pa-3 mb-3" Elevation="1">
-        <MudGrid>
-            <MudItem xs="6" sm="4" md="2">
-                <MudText Typo="Typo.caption">Financial Year</MudText>
-                <MudText Typo="Typo.subtitle2"><b>@_entry.FinancialYear</b></MudText>
-            </MudItem>
-            <MudItem xs="6" sm="4" md="2">
-                <MudText Typo="Typo.caption">Month</MudText>
-                <MudText Typo="Typo.subtitle2"><b>@_entry.EntryMonth</b></MudText>
-            </MudItem>
-            <MudItem xs="6" sm="4" md="2">
-                <MudText Typo="Typo.caption">Status</MudText>
-                <StatusChip Status="@_entry.EntryStatus" />
-            </MudItem>
-            <MudItem xs="6" sm="4" md="2">
-                <MudText Typo="Typo.caption">Section allotment</MudText>
-                <MudText Typo="Typo.subtitle2"><b>@_allotted.ToString("0.00")</b></MudText>
-            </MudItem>
-            <MudItem xs="6" sm="4" md="2">
-                <MudText Typo="Typo.caption">Entered total</MudText>
-                <MudText Typo="Typo.subtitle2"><b>@_enteredTotal.ToString("0.00")</b></MudText>
-            </MudItem>
-            <MudItem xs="6" sm="4" md="2">
-                <MudText Typo="Typo.caption">Submitted by</MudText>
-                <MudText Typo="Typo.subtitle2"><b>@(_entry.SubmittedByPf ?? "-")</b></MudText>
-            </MudItem>
-        </MudGrid>
-    </MudPaper>
-
-    <MudPaper Class="pa-4" Elevation="1">
-        <MudText Typo="Typo.subtitle2" Class="mb-3" Style="color:#003366;">
-            Expenditure heads — @_entry.EntryMonth.ToUpperInvariant()
+    @if (_loading)
+    {
+        <MudProgressLinear Indeterminate="true" Class="mt-3" />
+    }
+    else if (_entry == null)
+    {
+        <MudAlert Severity="Severity.Warning" Class="mt-3">Entry not found.</MudAlert>
+    }
+    else
+    {
+        <MudText Class="page-context mb-3">
+            @(_form?.DeptName ?? "DIT") · @_entry.Section?.SectionName · Amounts in Rs. Crore
         </MudText>
-        <MudTable Items="_lines" Dense="true" Hover="true" Striped="true" Elevation="0"
-                  FixedHeader="true" Height="420px">
-            <HeaderContent>
-                <MudTh Style="width:80px;">#</MudTh>
-                <MudTh>Expenditure Head</MudTh>
-                <MudTh Style="text-align:right;">Amount for @_entry.EntryMonth (Rs. Cr)</MudTh>
-            </HeaderContent>
-            <RowTemplate>
-                <MudTd>@(context.Head?.DisplayOrder)</MudTd>
-                <MudTd>@(context.Head?.HeadName)</MudTd>
-                <MudTd Style="text-align:right;font-weight:600;">@context.Amount.ToString("0.00")</MudTd>
-            </RowTemplate>
-        </MudTable>
-        <MudStack Row="true" Justify="Justify.FlexEnd" Class="mt-3">
-            <MudText Typo="Typo.subtitle1">
-                Total for @_entry.EntryMonth: <b>@_enteredTotal.ToString("0.00")</b>
-                / Allotted <b>@_allotted.ToString("0.00")</b>
+
+        <MudPaper Class="allotted-strip pa-3 mb-3" Elevation="1">
+            <MudText Class="section-heading mb-2">Section Allotment (FY @_entry.FinancialYear)</MudText>
+            <MudGrid>
+                <MudItem xs="12" sm="4">
+                    <div class="metric-cell">
+                        <span class="meta-label">Total Budget Allotted</span>
+                        <span class="meta-value accent">@_allotted.ToString("0.00") Cr</span>
+                    </div>
+                </MudItem>
+                <MudItem xs="12" sm="4">
+                    <div class="metric-cell">
+                        <span class="meta-label">Entered Total (@_entry.EntryMonth)</span>
+                        <span class="meta-value utilized">@_enteredTotal.ToString("0.00") Cr</span>
+                    </div>
+                </MudItem>
+                <MudItem xs="12" sm="4">
+                    <div class="metric-cell">
+                        <span class="meta-label">Previous Month (@PrevMonth) approved</span>
+                        <span class="meta-value">@(_form?.PrevTotal.ToString("0.00") ?? "0.00") Cr</span>
+                    </div>
+                </MudItem>
+            </MudGrid>
+        </MudPaper>
+
+        <MudPaper Class="pa-3 mb-3" Elevation="1">
+            <MudGrid>
+                <MudItem xs="6" sm="4" md="2">
+                    <div class="metric-cell">
+                        <span class="meta-label">Financial Year</span>
+                        <span class="meta-value">@_entry.FinancialYear</span>
+                    </div>
+                </MudItem>
+                <MudItem xs="6" sm="4" md="2">
+                    <div class="metric-cell">
+                        <span class="meta-label">Entry Month</span>
+                        <span class="meta-value">@_entry.EntryMonth</span>
+                    </div>
+                </MudItem>
+                <MudItem xs="6" sm="4" md="2">
+                    <div class="metric-cell">
+                        <span class="meta-label">Status</span>
+                        <StatusChip Status="@_entry.EntryStatus" />
+                    </div>
+                </MudItem>
+                <MudItem xs="6" sm="4" md="3">
+                    <div class="metric-cell">
+                        <span class="meta-label">Submitted by</span>
+                        <span class="meta-value">@(_entry.SubmittedByPf ?? "-")</span>
+                    </div>
+                </MudItem>
+                <MudItem xs="6" sm="4" md="3">
+                    <div class="metric-cell">
+                        <span class="meta-label">Checked by</span>
+                        <span class="meta-value">@(_entry.CheckedByPf ?? "-")</span>
+                    </div>
+                </MudItem>
+            </MudGrid>
+        </MudPaper>
+
+        <MudPaper Class="pa-4" Elevation="1">
+            <MudText Class="section-heading mb-3">
+                Expenditure Heads — @_entry.EntryMonth.ToUpperInvariant()
             </MudText>
-        </MudStack>
-    </MudPaper>
+            <div class="rev-head-grid">
+                @foreach (var line in _lines)
+                {
+                    <div class="rev-head-cell view">
+                        <MudText Class="meta-label mb-1">@(line.Head?.HeadName)</MudText>
+                        <MudText Class="meta-value">@line.Amount.ToString("0.00")</MudText>
+                    </div>
+                }
+            </div>
+            <MudStack Row="true" Justify="Justify.FlexEnd" Class="mt-3">
+                <MudText Class="meta-value">
+                    Total: @_enteredTotal.ToString("0.00") / Allotted @_allotted.ToString("0.00") Cr
+                </MudText>
+            </MudStack>
+        </MudPaper>
 
-    <MudPaper Class="pa-4 mt-3" Elevation="1">
-        <MudText Typo="Typo.subtitle2" Class="mb-2">Justifications (PO details, Invoice details, etc.)</MudText>
-        <MudPaper Class="pa-3" Style="background:#f8fafc;white-space:pre-wrap;">@(_entry.JustificationText ?? "-")</MudPaper>
-        @if (!string.IsNullOrWhiteSpace(_entry.CheckerRemark))
-        {
-            <MudText Typo="Typo.subtitle2" Class="mt-3 mb-2">Checker Remark</MudText>
-            <MudPaper Class="pa-3" Style="background:#fff7ed;">@_entry.CheckerRemark</MudPaper>
-        }
-        <MudText Typo="Typo.caption" Class="mt-2" Style="color:#64748b;">
-            Checked by: @(_entry.CheckedByPf ?? "-")
-        </MudText>
-    </MudPaper>
+        <MudPaper Class="pa-4 mt-3" Elevation="1">
+            <MudText Class="justification-title mb-2">Justifications (PO details, Invoice details, etc.)</MudText>
+            <MudPaper Class="pa-3 justification-body">@(_entry.JustificationText ?? "-")</MudPaper>
+            @if (!string.IsNullOrWhiteSpace(_entry.CheckerRemark))
+            {
+                <MudText Class="justification-title mt-3 mb-2">Checker Remark</MudText>
+                <MudPaper Class="pa-3" Style="background:#fff7ed;white-space:pre-wrap;">@_entry.CheckerRemark</MudPaper>
+            }
+        </MudPaper>
 
-    <MudButton Class="mt-4" Variant="Variant.Outlined" Color="Color.Primary" Href="/revenue/submissions">Back to list</MudButton>
-}
+        <MudButton Class="mt-4" Variant="Variant.Outlined" Color="Color.Primary" Href="/revenue/submissions">Back to list</MudButton>
+    }
+</div>
 
 @code {
     [Parameter] public long EntryId { get; set; }
 
     private bool _loading = true;
     private RevenueMonthlyEntry? _entry;
+    private RevenueEntryFormDto? _form;
     private List<RevenueMonthlyEntryLine> _lines = new();
     private decimal _allotted;
     private decimal _enteredTotal;
+
+    private string PrevMonth =>
+        string.IsNullOrEmpty(_entry?.EntryMonth) ? "" : AppConstants.PreviousMonth(_entry.EntryMonth);
 
     protected override async Task OnInitializedAsync()
     {
@@ -113,9 +140,9 @@ else
             _lines = _entry.Lines.OrderBy(l => l.Head?.DisplayOrder ?? 0).ToList();
             _enteredTotal = _lines.Sum(l => l.Amount);
 
-            var form = await RevenueService.BuildFormAsync(
+            _form = await RevenueService.BuildFormAsync(
                 _entry.SectionId, _entry.FinancialYear, _entry.EntryMonth);
-            _allotted = form?.TotalAllotted ?? 0;
+            _allotted = _form?.TotalAllotted ?? 0;
         }
         finally
         {

@@ -28,13 +28,33 @@ public class RevenueService : IRevenueService
             .OrderBy(h => h.DisplayOrder)
             .ToListAsync();
 
+        var prevMonth = AppConstants.PreviousMonth(entryMonth);
+        var prevEntry = await _db.RevenueMonthlyEntries.AsNoTracking()
+            .Include(e => e.Lines)
+            .FirstOrDefaultAsync(e => e.SectionId == sectionId
+                                      && e.FinancialYear == financialYear
+                                      && e.EntryMonth == prevMonth
+                                      && e.IsActive == "Y"
+                                      && e.EntryStatus == AppConstants.EntryStatus.Approved);
+
+        var prevAmounts = prevEntry?.Lines.ToDictionary(l => l.HeadId, l => l.Amount)
+                          ?? new Dictionary<long, decimal>();
+
         return new RevenueEntryFormDto
         {
             SectionId = sectionId,
             FinancialYear = financialYear,
             EntryMonth = entryMonth,
             SectionName = section.SectionName,
+            DeptName = section.Department.DeptName,
             TotalAllotted = allotment?.TotalAllotted ?? 0,
+            PrevTotal = prevAmounts.Values.Sum(),
+            PrevLines = heads.Select(h => new RevenueLineDto
+            {
+                HeadId = h.HeadId,
+                HeadName = h.HeadName,
+                Amount = prevAmounts.TryGetValue(h.HeadId, out var amt) ? amt : 0
+            }).ToList(),
             Lines = heads.Select(h => new RevenueLineDto
             {
                 HeadId = h.HeadId,
@@ -44,10 +64,28 @@ public class RevenueService : IRevenueService
         };
     }
 
+    public async Task<ExistingEntryInfo?> FindActiveEntryAsync(long sectionId, string financialYear, string entryMonth)
+    {
+        return await _db.RevenueMonthlyEntries.AsNoTracking()
+            .Where(e => e.SectionId == sectionId
+                        && e.FinancialYear == financialYear
+                        && e.EntryMonth == entryMonth
+                        && e.IsActive == "Y")
+            .Select(e => new ExistingEntryInfo
+            {
+                EntryId = e.EntryId,
+                Status = e.EntryStatus,
+                SubmittedByPf = e.SubmittedByPf
+            })
+            .FirstOrDefaultAsync();
+    }
+
     public async Task<ServiceResult> SubmitAsync(RevenueEntryFormDto form, string makerPf)
     {
         if (form.SectionId <= 0) return ServiceResult.Fail("Section is required.");
         if (string.IsNullOrWhiteSpace(form.EntryMonth)) return ServiceResult.Fail("Month is required.");
+        if (!AppConstants.IsAllowedEntryMonth(form.EntryMonth))
+            return ServiceResult.Fail("Entry is allowed only for the current month or the previous month.");
         if ((form.JustificationText?.Length ?? 0) > AppConstants.JustificationMaxLength)
             return ServiceResult.Fail($"Justification cannot exceed {AppConstants.JustificationMaxLength} characters.");
 

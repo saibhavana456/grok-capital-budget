@@ -23,6 +23,7 @@ public interface IMasterService
 public interface ICapitalService
 {
     Task<CapitalEntryFormDto?> BuildFormAsync(long projectId, string financialYear, string entryMonth);
+    Task<ExistingEntryInfo?> FindActiveEntryAsync(long projectId, string financialYear, string entryMonth);
     Task<ServiceResult> SubmitAsync(CapitalEntryFormDto form, string makerPf);
     Task<List<CapitalSubmissionListItem>> GetSubmissionsAsync(string? makerPfFilter, long? deptIdFilter);
     Task<CapitalMonthlyEntry?> GetEntryAsync(long entryId);
@@ -33,6 +34,7 @@ public interface ICapitalService
 public interface IRevenueService
 {
     Task<RevenueEntryFormDto?> BuildFormAsync(long sectionId, string financialYear, string entryMonth);
+    Task<ExistingEntryInfo?> FindActiveEntryAsync(long sectionId, string financialYear, string entryMonth);
     Task<ServiceResult> SubmitAsync(RevenueEntryFormDto form, string makerPf);
     Task<List<RevenueSubmissionListItem>> GetSubmissionsAsync(string? makerPfFilter, long? deptIdFilter);
     Task<RevenueMonthlyEntry?> GetEntryAsync(long entryId);

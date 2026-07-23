@@ -24,7 +24,7 @@ public class CapitalService : ICapitalService
         var allotment = await _db.ProjectFyAllotments.AsNoTracking()
             .FirstOrDefaultAsync(a => a.ProjectId == projectId && a.FinancialYear == financialYear && a.IsActive == "Y");
 
-        var prevMonth = PreviousMonth(entryMonth);
+        var prevMonth = AppConstants.PreviousMonth(entryMonth);
         var prev = await _db.CapitalMonthlyEntries.AsNoTracking()
             .FirstOrDefaultAsync(e => e.ProjectId == projectId
                                       && e.FinancialYear == financialYear
@@ -49,10 +49,29 @@ public class CapitalService : ICapitalService
         };
     }
 
+    public async Task<ExistingEntryInfo?> FindActiveEntryAsync(long projectId, string financialYear, string entryMonth)
+    {
+        var row = await _db.CapitalMonthlyEntries.AsNoTracking()
+            .Where(e => e.ProjectId == projectId
+                        && e.FinancialYear == financialYear
+                        && e.EntryMonth == entryMonth
+                        && e.IsActive == "Y")
+            .Select(e => new ExistingEntryInfo
+            {
+                EntryId = e.EntryId,
+                Status = e.EntryStatus,
+                SubmittedByPf = e.SubmittedByPf
+            })
+            .FirstOrDefaultAsync();
+        return row;
+    }
+
     public async Task<ServiceResult> SubmitAsync(CapitalEntryFormDto form, string makerPf)
     {
         if (form.ProjectId <= 0) return ServiceResult.Fail("Project is required.");
         if (string.IsNullOrWhiteSpace(form.EntryMonth)) return ServiceResult.Fail("Month is required.");
+        if (!AppConstants.IsAllowedEntryMonth(form.EntryMonth))
+            return ServiceResult.Fail("Entry is allowed only for the current month or the previous month.");
         if ((form.JustificationText?.Length ?? 0) > AppConstants.JustificationMaxLength)
             return ServiceResult.Fail($"Justification cannot exceed {AppConstants.JustificationMaxLength} characters.");
 
@@ -193,11 +212,4 @@ public class CapitalService : ICapitalService
     private async Task<bool> IsAdminAsync(string pf) =>
         await _db.AppUsers.AsNoTracking()
             .AnyAsync(u => u.PfNo == pf && u.RoleCode == AppConstants.Roles.Admin && u.IsActive == "Y");
-
-    private static string PreviousMonth(string month)
-    {
-        var idx = Array.IndexOf(AppConstants.FyMonths, month);
-        if (idx <= 0) return AppConstants.FyMonths[^1];
-        return AppConstants.FyMonths[idx - 1];
-    }
 }

@@ -5,68 +5,149 @@
 @inject NavigationManager Nav
 @inject ISnackbar Snackbar
 
-<MudText Typo="Typo.h5" Style="color:#003366;font-weight:700;">Revenue Monthly Entry</MudText>
-@if (_form != null)
-{
-    <MudText Typo="Typo.body2" Class="mb-3" Style="color:#64748b;">
-        DIT · Section: @_form.SectionName · Entry month: <b>@_form.EntryMonth</b> ·
-        Allotted: @_form.TotalAllotted.ToString("0.00") Cr · No project
-    </MudText>
+<div class="entry-page">
+    <MudText Typo="Typo.h5" Class="page-title">Revenue Monthly Entry</MudText>
 
-    <MudGrid Class="mb-3">
-        <MudItem xs="12" md="4">
-            <MudSelect T="string" @bind-Value="_form.FinancialYear" Label="Financial Year" Variant="Variant.Outlined">
-                <MudSelectItem Value="@("2026-27")">2026-27</MudSelectItem>
-                <MudSelectItem Value="@("2025-26")">2025-26</MudSelectItem>
-            </MudSelect>
-        </MudItem>
-        <MudItem xs="12" md="4">
-            <MudSelect T="string" Value="_form.EntryMonth" Label="Month" Variant="Variant.Outlined" ValueChanged="OnMonthChanged">
-                @foreach (var m in AppConstants.FyMonths)
-                {
-                    <MudSelectItem Value="@m">@m</MudSelectItem>
-                }
-            </MudSelect>
-        </MudItem>
-        <MudItem xs="12" md="4" Class="d-flex align-center">
-            <MudText>Entered total: <b>@_form.Lines.Sum(l => l.Amount).ToString("0.00")</b> / @_form.TotalAllotted.ToString("0.00")</MudText>
-        </MudItem>
-    </MudGrid>
+    @if (_form != null)
+    {
+        <MudText Class="page-context mb-3">
+            @_form.DeptName · @_form.SectionName · Amounts in Rs. Crore
+        </MudText>
 
-    <MudTable Items="_form.Lines" Dense="true" Hover="true" Elevation="1">
-        <HeaderContent>
-            <MudTh>Expenditure Head</MudTh>
-            <MudTh>Amount for @_form.EntryMonth (Rs. Crore)</MudTh>
-        </HeaderContent>
-        <RowTemplate>
-            <MudTd DataLabel="Head">@context.HeadName</MudTd>
-            <MudTd DataLabel="Amount">
-                <MudNumericField @bind-Value="context.Amount" Variant="Variant.Outlined" Min="0" Margin="Margin.Dense" />
-            </MudTd>
-        </RowTemplate>
-    </MudTable>
+        <MudPaper Class="pa-3 mb-3" Elevation="1">
+            <MudGrid>
+                <MudItem xs="12" md="4">
+                    <MudSelect T="string" Value="_form.FinancialYear" Label="Financial Year" Variant="Variant.Outlined"
+                               ValueChanged="OnFyChanged">
+                        <MudSelectItem Value="@("2026-27")">2026-27</MudSelectItem>
+                        <MudSelectItem Value="@("2025-26")">2025-26</MudSelectItem>
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" md="4">
+                    <MudSelect T="string" Value="_form.EntryMonth" Label="Entry Month" Variant="Variant.Outlined"
+                               ValueChanged="OnMonthChanged">
+                        @foreach (var m in _allowedMonths)
+                        {
+                            <MudSelectItem Value="@m">@m</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+            </MudGrid>
+        </MudPaper>
 
-    <MudTextField @bind-Value="_form.JustificationText"
-                  Label="Justification / Remarks"
-                  Variant="Variant.Outlined"
-                  Lines="4"
-                  Class="mt-3"
-                  MaxLength="AppConstants.JustificationMaxLength"
-                  HelperText="@($"{(_form.JustificationText?.Length ?? 0)} / {AppConstants.JustificationMaxLength}")" />
+        @if (_existing != null)
+        {
+            <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Class="mb-3" Dense="true">
+                An entry already exists for <b>@_form.EntryMonth</b> (@_existing.Status)
+                — submitted by @(_existing.SubmittedByPf ?? "-").
+                New entry for this section / FY / month is not allowed (write-lock).
+                <MudLink Href="@($"/revenue/view/{_existing.EntryId}")" Class="ml-2">View existing</MudLink>
+            </MudAlert>
+        }
+        else
+        {
+            <MudPaper Class="allotted-strip pa-3 mb-3" Elevation="1">
+                <MudText Class="section-heading mb-2">Section Allotment (FY @_form.FinancialYear)</MudText>
+                <MudGrid>
+                    <MudItem xs="12" sm="6">
+                        <div class="metric-cell">
+                            <span class="meta-label">Total Budget Allotted</span>
+                            <span class="meta-value accent">@_form.TotalAllotted.ToString("0.00") Cr</span>
+                        </div>
+                    </MudItem>
+                    <MudItem xs="12" sm="6">
+                        <div class="metric-cell">
+                            <span class="meta-label">Utilized in @PrevMonth (approved)</span>
+                            <span class="meta-value utilized">@_form.PrevTotal.ToString("0.00") Cr</span>
+                        </div>
+                    </MudItem>
+                </MudGrid>
+            </MudPaper>
 
-    <MudStack Row="true" Class="mt-4" Spacing="2">
-        <MudButton Variant="Variant.Filled" Color="Color.Secondary" Disabled="_busy" OnClick="Submit"
-                   Style="background:#c8102e;">
-            @(_busy ? "Submitting..." : "Submit for Approval")
-        </MudButton>
-        <MudButton Variant="Variant.Text" Href="/portal">Back</MudButton>
-    </MudStack>
-}
+            <MudGrid>
+                <MudItem xs="12" md="4">
+                    <MudPaper Class="pa-4 panel-readonly h-100" Elevation="0">
+                        <MudText Class="section-heading mb-3">
+                            Previous Month (@PrevMonth.ToUpperInvariant())
+                        </MudText>
+                        @if (_form.PrevTotal <= 0 && _form.PrevLines.All(l => l.Amount == 0))
+                        {
+                            <MudText Typo="Typo.body2" Style="color:#64748b;">No approved submission for @PrevMonth.</MudText>
+                        }
+                        else
+                        {
+                            @foreach (var line in _form.PrevLines.Where(l => l.Amount > 0))
+                            {
+                                <MudStack Row="true" Justify="Justify.SpaceBetween" Class="mb-1">
+                                    <MudText Typo="Typo.caption">@line.HeadName</MudText>
+                                    <MudText Typo="Typo.body2"><b>@line.Amount.ToString("0.00")</b></MudText>
+                                </MudStack>
+                            }
+                            <MudDivider Class="my-2" />
+                            <MudStack Row="true" Justify="Justify.SpaceBetween">
+                                <MudText Class="meta-label">Total</MudText>
+                                <MudText Class="meta-value">@_form.PrevTotal.ToString("0.00") Cr</MudText>
+                            </MudStack>
+                        }
+                    </MudPaper>
+                </MudItem>
+                <MudItem xs="12" md="8">
+                    <MudPaper Class="pa-4 panel-entry" Elevation="0">
+                        <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center" Class="mb-3">
+                            <MudText Class="section-heading">
+                                Current Month (@CurrMonth.ToUpperInvariant()) — enter amounts
+                            </MudText>
+                            <MudText Class="meta-value" Style="font-size:0.95rem;">
+                                Total: @_form.Lines.Sum(l => l.Amount).ToString("0.00") / @_form.TotalAllotted.ToString("0.00") Cr
+                            </MudText>
+                        </MudStack>
+
+                        <div class="rev-head-grid">
+                            @foreach (var line in _form.Lines)
+                            {
+                                <div class="rev-head-cell">
+                                    <MudText Class="meta-label mb-1">@line.HeadName</MudText>
+                                    <MudNumericField @bind-Value="line.Amount"
+                                                     Variant="Variant.Outlined"
+                                                     Min="0"
+                                                     Margin="Margin.Dense"
+                                                     HideSpinButtons="false" />
+                                </div>
+                            }
+                        </div>
+                    </MudPaper>
+                </MudItem>
+            </MudGrid>
+
+            <MudPaper Class="pa-4 mt-3" Elevation="1">
+                <MudText Class="justification-title mb-2">Justifications (Financial approvals, PO details, Vendor details)</MudText>
+                <MudTextField @bind-Value="_form.JustificationText"
+                              Variant="Variant.Outlined"
+                              Lines="4"
+                              MaxLength="AppConstants.JustificationMaxLength"
+                              HelperText="@($"{(_form.JustificationText?.Length ?? 0)} / {AppConstants.JustificationMaxLength}")" />
+            </MudPaper>
+
+            <MudStack Row="true" Class="mt-4" Spacing="2">
+                <MudButton Variant="Variant.Filled" Color="Color.Secondary" Disabled="_busy" OnClick="Submit"
+                           Style="background:#c8102e;">
+                    @(_busy ? "Submitting..." : "Submit for Approval")
+                </MudButton>
+                <MudButton Variant="Variant.Outlined" Color="Color.Primary" Href="/portal">Back to Portal</MudButton>
+            </MudStack>
+        }
+    }
+</div>
 
 @code {
     [SupplyParameterFromQuery] public long? SectionId { get; set; }
     private RevenueEntryFormDto? _form;
+    private ExistingEntryInfo? _existing;
     private bool _busy;
+    private IReadOnlyList<string> _allowedMonths = AppConstants.AllowedEntryMonths();
+
+    private string CurrMonth => _form?.EntryMonth ?? "";
+    private string PrevMonth => string.IsNullOrEmpty(CurrMonth) ? "" : AppConstants.PreviousMonth(CurrMonth);
 
     protected override async Task OnInitializedAsync()
     {
@@ -76,21 +157,39 @@
             Nav.NavigateTo("/portal");
             return;
         }
-        _form = await RevenueService.BuildFormAsync(SectionId.Value, AppConstants.DefaultFinancialYear, "July");
+        await Load(AppConstants.DefaultFinancialYear, AppConstants.DefaultEntryMonth());
+    }
+
+    private async Task Load(string fy, string month)
+    {
+        if (!AppConstants.IsAllowedEntryMonth(month))
+            month = AppConstants.DefaultEntryMonth();
+
+        _form = await RevenueService.BuildFormAsync(SectionId!.Value, fy, month);
         if (_form == null)
+        {
             Snackbar.Add("Revenue is only for DIT sections (HAS_REVENUE=Y).", Severity.Error);
+            _existing = null;
+            return;
+        }
+        _existing = await RevenueService.FindActiveEntryAsync(SectionId.Value, fy, month);
     }
 
     private async Task OnMonthChanged(string month)
     {
         if (_form == null || !SectionId.HasValue) return;
-        var fy = _form.FinancialYear;
-        _form = await RevenueService.BuildFormAsync(SectionId.Value, fy, month);
+        await Load(_form.FinancialYear, month);
+    }
+
+    private async Task OnFyChanged(string fy)
+    {
+        if (_form == null || !SectionId.HasValue) return;
+        await Load(fy, _form.EntryMonth);
     }
 
     private async Task Submit()
     {
-        if (_form == null) return;
+        if (_form == null || _existing != null) return;
         var user = AuthService.CurrentUser;
         if (user == null) { Nav.NavigateTo("/login"); return; }
         _busy = true;

@@ -92,7 +92,17 @@ public class RevenueEntryFormDto
     public decimal TotalAllotted { get; set; }
     public string JustificationText { get; set; } = string.Empty;
     public string SectionName { get; set; } = string.Empty;
+    public string DeptName { get; set; } = string.Empty;
+    public decimal PrevTotal { get; set; }
+    public List<RevenueLineDto> PrevLines { get; set; } = new();
     public List<RevenueLineDto> Lines { get; set; } = new();
+}
+
+public class ExistingEntryInfo
+{
+    public long EntryId { get; set; }
+    public string Status { get; set; } = string.Empty;
+    public string? SubmittedByPf { get; set; }
 }
 
 public class ServiceResult
