@@ -31,7 +31,9 @@
             <MudText Class="section-heading mb-3">Select details to continue</MudText>
 
             <MudSelect T="long?" Label="Department" Variant="Variant.Outlined" Class="mb-3"
-                       Value="_deptId" ValueChanged="OnDeptChanged" AnchorOrigin="Origin.BottomCenter">
+                       Value="_deptId" ValueChanged="OnDeptChanged"
+                       AnchorOrigin="Origin.BottomLeft" TransformOrigin="Origin.TopLeft"
+                       RelativeWidth="DropdownWidth.Relative">
                 @foreach (var d in _departments)
                 {
                     <MudSelectItem T="long?" Value="@((long?)d.DeptId)">@d.DeptName</MudSelectItem>
@@ -42,7 +44,9 @@
             {
                 <MudSelect T="string" Label="Budget Type" Variant="Variant.Outlined" Class="mb-3"
                            Value="_budgetType" ValueChanged="OnBudgetTypeChanged"
-                           Disabled="!_deptId.HasValue">
+                           Disabled="!_deptId.HasValue"
+                           AnchorOrigin="Origin.BottomLeft" TransformOrigin="Origin.TopLeft"
+                           RelativeWidth="DropdownWidth.Relative">
                     <MudSelectItem Value="@("CAPITAL")">Capital</MudSelectItem>
                     <MudSelectItem Value="@("REVENUE")">Revenue</MudSelectItem>
                 </MudSelect>
@@ -50,7 +54,9 @@
 
             <MudSelect T="long?" Label="Section" Variant="Variant.Outlined" Class="mb-3"
                        Value="_sectionId" ValueChanged="OnSectionChanged"
-                       Disabled="!CanSelectSection">
+                       Disabled="!CanSelectSection"
+                       AnchorOrigin="Origin.BottomLeft" TransformOrigin="Origin.TopLeft"
+                       RelativeWidth="DropdownWidth.Relative">
                 @foreach (var s in _sections)
                 {
                     <MudSelectItem T="long?" Value="@((long?)s.SectionId)">@s.SectionName</MudSelectItem>
@@ -61,7 +67,9 @@
             {
                 <MudSelect T="long?" Label="Project" Variant="Variant.Outlined" Class="mb-3"
                            Value="_projectId" ValueChanged="OnProjectChanged"
-                           Disabled="_projects.Count==0 || !_sectionId.HasValue">
+                           Disabled="_projects.Count==0 || !_sectionId.HasValue"
+                           AnchorOrigin="Origin.BottomLeft" TransformOrigin="Origin.TopLeft"
+                           RelativeWidth="DropdownWidth.Relative">
                     @foreach (var p in _projects)
                     {
                         <MudSelectItem T="long?" Value="@((long?)p.ProjectId)">@p.ProjectName</MudSelectItem>
@@ -71,6 +79,8 @@
 
             <MudSelect T="string" Label="Entry Month" Variant="Variant.Outlined" Class="mb-3"
                        Value="_month" ValueChanged="OnMonthChanged"
+                       AnchorOrigin="Origin.BottomLeft" TransformOrigin="Origin.TopLeft"
+                       RelativeWidth="DropdownWidth.Relative"
                        HelperText="All months shown. Future months are disabled. Open a past/current month to enter or view an existing submission.">
                 @foreach (var m in AppConstants.FyMonths)
                 {
