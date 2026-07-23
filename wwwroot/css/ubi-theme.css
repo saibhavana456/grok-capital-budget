@@ -67,7 +67,7 @@ html, body {
 }
 
 .login-shell {
-  min-height: calc(100vh - 96px);
+  min-height: calc(100vh - 60px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -76,6 +76,20 @@ html, body {
     radial-gradient(circle at 15% 20%, rgba(200, 16, 46, 0.08), transparent 40%),
     radial-gradient(circle at 85% 10%, rgba(0, 51, 102, 0.12), transparent 35%),
     linear-gradient(180deg, #e8edf3 0%, #f5f7fa 100%);
+}
+
+.auth-loading {
+  min-height: calc(100vh - 120px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+}
+
+.auth-loading-text {
+  color: var(--ubi-navy);
+  font-weight: 700;
 }
 
 .login-card {

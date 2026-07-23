@@ -22,9 +22,18 @@
 
         <MudPaper Class="allotted-strip pa-4 mb-3" Elevation="0">
             <MudText Class="section-heading mb-3">Section Allotment (FY @_entry.FinancialYear)</MudText>
-            <div class="metric-row"><span class="metric-row-label">Total Budget Allotted</span><span class="metric-row-value accent">@_allotted.ToString("0.00") <small>Cr</small></span></div>
-            <div class="metric-row"><span class="metric-row-label">Entered Total (@_entry.EntryMonth)</span><span class="metric-row-value utilized">@_enteredTotal.ToString("0.00") <small>Cr</small></span></div>
-            <div class="metric-row"><span class="metric-row-label">Previous Month (@PrevMonth) approved</span><span class="metric-row-value">@(_form?.PrevTotal.ToString("0.00") ?? "0.00") <small>Cr</small></span></div>
+            <div class="metric-row">
+                <span class="metric-row-label">Total Budget Allotted</span>
+                <span class="metric-row-value accent">@_allotted.ToString("0.00") <small>Cr</small></span>
+            </div>
+            <div class="metric-row">
+                <span class="metric-row-label">Utilized till @PrevMonth</span>
+                <span class="metric-row-value utilized">@(_form?.PrevTotal.ToString("0.00") ?? "0.00") <small>Cr</small></span>
+            </div>
+            <div class="metric-row accent">
+                <span class="metric-row-label">Entered Total (@_entry.EntryMonth)</span>
+                <span class="metric-row-value">@_enteredTotal.ToString("0.00") <small>Cr</small></span>
+            </div>
         </MudPaper>
 
         <MudPaper Class="pa-4 mb-3 portal-card" Elevation="0">
@@ -62,36 +71,67 @@
             </MudGrid>
         </MudPaper>
 
-        <MudPaper Class="pa-4 portal-card" Elevation="0">
-            <MudText Class="section-heading mb-3">
-                Expenditure Heads — @_entry.EntryMonth.ToUpperInvariant()
-            </MudText>
-            <MudSimpleTable Dense="true" Hover="true" Bordered="true" Class="revenue-heads-table">
-                <thead>
-                    <tr>
-                        <th style="width:64px;">#</th>
-                        <th>Expenditure Head</th>
-                        <th style="text-align:right;width:160px;">Amount (Rs. Cr)</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach (var line in _lines)
+        <MudGrid>
+            <MudItem xs="12" md="4">
+                <MudPaper Class="pa-4 panel-readonly h-100" Elevation="0">
+                    <MudText Class="section-heading mb-3">
+                        Previous Month (@PrevMonth.ToUpperInvariant())
+                    </MudText>
+                    @if (_prevLines.Count == 0)
                     {
-                        <tr class="@(line.Amount > 0 ? "has-amount" : "")">
-                            <td>@(line.Head?.DisplayOrder)</td>
-                            <td class="head-name">@(line.Head?.HeadName)</td>
-                            <td class="amount-cell">@line.Amount.ToString("0.00")</td>
-                        </tr>
+                        <MudText Typo="Typo.body2" Style="color:#64748b;">
+                            No approved submission for @PrevMonth.
+                        </MudText>
                     }
-                </tbody>
-                <tfoot>
-                    <tr>
-                        <td colspan="2" class="total-label">Total for @_entry.EntryMonth</td>
-                        <td class="amount-cell total">@_enteredTotal.ToString("0.00") / @_allotted.ToString("0.00")</td>
-                    </tr>
-                </tfoot>
-            </MudSimpleTable>
-        </MudPaper>
+                    else
+                    {
+                        @foreach (var line in _prevLines)
+                        {
+                            <div class="metric-row compact">
+                                <span class="metric-row-label">@line.HeadName</span>
+                                <span class="metric-row-value sm">@line.Amount.ToString("0.00") <small>Cr</small></span>
+                            </div>
+                        }
+                        <div class="metric-row accent mt-2">
+                            <span class="metric-row-label">Total</span>
+                            <span class="metric-row-value">@(_form?.PrevTotal.ToString("0.00") ?? "0.00") <small>Cr</small></span>
+                        </div>
+                    }
+                </MudPaper>
+            </MudItem>
+            <MudItem xs="12" md="8">
+                <MudPaper Class="pa-4 panel-entry" Elevation="0">
+                    <MudText Class="section-heading mb-3">
+                        Current Month (@_entry.EntryMonth.ToUpperInvariant()) — Expenditure Heads
+                    </MudText>
+                    <MudSimpleTable Dense="true" Hover="true" Bordered="true" Class="revenue-heads-table">
+                        <thead>
+                            <tr>
+                                <th style="width:64px;">#</th>
+                                <th>Expenditure Head</th>
+                                <th style="text-align:right;width:160px;">Amount (Rs. Cr)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var line in _lines)
+                            {
+                                <tr class="@(line.Amount > 0 ? "has-amount" : "")">
+                                    <td>@(line.Head?.DisplayOrder)</td>
+                                    <td class="head-name">@(line.Head?.HeadName)</td>
+                                    <td class="amount-cell">@line.Amount.ToString("0.00")</td>
+                                </tr>
+                            }
+                        </tbody>
+                        <tfoot>
+                            <tr>
+                                <td colspan="2" class="total-label">Total for @_entry.EntryMonth</td>
+                                <td class="amount-cell total">@_enteredTotal.ToString("0.00") / @_allotted.ToString("0.00")</td>
+                            </tr>
+                        </tfoot>
+                    </MudSimpleTable>
+                </MudPaper>
+            </MudItem>
+        </MudGrid>
 
         <MudPaper Class="pa-4 mt-3 portal-card" Elevation="0">
             <MudText Class="justification-title mb-2">Justifications (PO details, Invoice details, etc.)</MudText>
@@ -114,6 +154,7 @@
     private RevenueMonthlyEntry? _entry;
     private RevenueEntryFormDto? _form;
     private List<RevenueMonthlyEntryLine> _lines = new();
+    private List<RevenueLineDto> _prevLines = new();
     private decimal _allotted;
     private decimal _enteredTotal;
 
@@ -136,6 +177,10 @@
             _form = await RevenueService.BuildFormAsync(
                 _entry.SectionId, _entry.FinancialYear, _entry.EntryMonth);
             _allotted = _form?.TotalAllotted ?? 0;
+            // Same previous-month approved head details as entry form / reference Revenue Budget UI
+            _prevLines = (_form?.PrevLines ?? new())
+                .Where(l => l.Amount > 0)
+                .ToList();
         }
         finally { _loading = false; }
     }

@@ -5,19 +5,19 @@
 <MudDialogProvider />
 <MudSnackbarProvider />
 
-<div class="ubi-header">
-    <MudContainer MaxWidth="MaxWidth.False" Class="py-2 px-4">
-        <MudText Typo="Typo.subtitle1" Style="color:#fff;font-weight:600;">
-            Union Bank of India | IT Capital &amp; Revenue Budget Monitoring
-        </MudText>
-    </MudContainer>
-</div>
+<header class="ubi-header">
+    <div class="ubi-header-grid">
+        <div class="ubi-header-side"></div>
+        <div class="ubi-header-center">
+            <span class="ubi-brand">Union Bank of India | IT Budget</span>
+        </div>
+        <div class="ubi-header-side"></div>
+    </div>
+</header>
 
-@Body
-
-<footer class="ubi-footer py-2 text-center">
-    AD login · Oracle app data
-</footer>
+<main class="login-shell">
+    @Body
+</main>
 
 @code {
     private readonly MudTheme _theme = new()
@@ -26,7 +26,9 @@
         {
             Primary = "#003366",
             Secondary = "#c8102e",
-            AppbarBackground = "#002147"
+            AppbarBackground = "#002147",
+            Background = "#eef1f5",
+            Surface = "#ffffff"
         }
     };
 }
