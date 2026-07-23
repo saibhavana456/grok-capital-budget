@@ -20,7 +20,7 @@
             @(_context?.DeptName) · @(_context?.SectionName) · @(_context?.ProjectName) · Amounts in Rs. Crore
         </MudText>
 
-        <MudPaper Class="pa-3 mb-3" Elevation="1">
+        <MudPaper Class="pa-4 mb-3 portal-card" Elevation="0">
             <MudGrid>
                 <MudItem xs="6" sm="4" md="2">
                     <div class="metric-cell">
@@ -55,120 +55,46 @@
             </MudGrid>
         </MudPaper>
 
-        <MudPaper Class="allotted-strip pa-3 mb-3" Elevation="1">
-            <MudText Class="section-heading mb-2">Allotted Budget (FY @_entry.FinancialYear)</MudText>
-            <MudGrid>
-                <MudItem xs="12" sm="4">
-                    <div class="metric-cell">
-                        <span class="meta-label">Spillover Allotted</span>
-                        <span class="meta-value">@(_context?.SpilloverAllotted.ToString("0.00") ?? "0.00") Cr</span>
-                    </div>
-                </MudItem>
-                <MudItem xs="12" sm="4">
-                    <div class="metric-cell">
-                        <span class="meta-label">Fresh Allotted</span>
-                        <span class="meta-value">@(_context?.FreshAllotted.ToString("0.00") ?? "0.00") Cr</span>
-                    </div>
-                </MudItem>
-                <MudItem xs="12" sm="4">
-                    <div class="metric-cell">
-                        <span class="meta-label">Total Allotted</span>
-                        <span class="meta-value accent">@(_context?.TotalAllotted.ToString("0.00") ?? "0.00") Cr</span>
-                    </div>
-                </MudItem>
-            </MudGrid>
+        <MudPaper Class="allotted-strip pa-4 mb-3" Elevation="0">
+            <MudText Class="section-heading mb-3">Allotted Budget (FY @_entry.FinancialYear)</MudText>
+            <div class="metric-row"><span class="metric-row-label">Spillover Allotted</span><span class="metric-row-value">@(_context?.SpilloverAllotted.ToString("0.00") ?? "0.00") <small>Cr</small></span></div>
+            <div class="metric-row"><span class="metric-row-label">Fresh Allotted</span><span class="metric-row-value">@(_context?.FreshAllotted.ToString("0.00") ?? "0.00") <small>Cr</small></span></div>
+            <div class="metric-row accent"><span class="metric-row-label">Total Allotted</span><span class="metric-row-value accent">@(_context?.TotalAllotted.ToString("0.00") ?? "0.00") <small>Cr</small></span></div>
         </MudPaper>
 
         <MudGrid>
-            <MudItem xs="12" md="6">
+            <MudItem xs="12" md="5">
                 <MudPaper Class="pa-4 panel-readonly h-100" Elevation="0">
-                    <MudText Class="section-heading mb-3">
-                        Previous Month (@PrevMonth.ToUpperInvariant())
-                    </MudText>
-                    <MudGrid>
-                        <MudItem xs="4">
-                            <div class="metric-cell">
-                                <span class="meta-label">Spillover</span>
-                                <span class="meta-value">@(_context?.PrevSpillover.ToString("0.00") ?? "0.00")</span>
-                            </div>
-                        </MudItem>
-                        <MudItem xs="4">
-                            <div class="metric-cell">
-                                <span class="meta-label">Fresh</span>
-                                <span class="meta-value">@(_context?.PrevFresh.ToString("0.00") ?? "0.00")</span>
-                            </div>
-                        </MudItem>
-                        <MudItem xs="4">
-                            <div class="metric-cell">
-                                <span class="meta-label">Total</span>
-                                <span class="meta-value">@(_context?.PrevTotal.ToString("0.00") ?? "0.00")</span>
-                            </div>
-                        </MudItem>
-                    </MudGrid>
+                    <MudText Class="section-heading mb-3">Previous Month (@PrevMonth.ToUpperInvariant())</MudText>
+                    <div class="metric-row"><span class="metric-row-label">Spillover Utilized</span><span class="metric-row-value">@(_context?.PrevSpillover.ToString("0.00") ?? "0.00")</span></div>
+                    <div class="metric-row"><span class="metric-row-label">Fresh Utilized</span><span class="metric-row-value">@(_context?.PrevFresh.ToString("0.00") ?? "0.00")</span></div>
+                    <div class="metric-row accent"><span class="metric-row-label">Total Utilized</span><span class="metric-row-value">@(_context?.PrevTotal.ToString("0.00") ?? "0.00")</span></div>
                 </MudPaper>
             </MudItem>
-            <MudItem xs="12" md="6">
+            <MudItem xs="12" md="7">
                 <MudPaper Class="pa-4 panel-entry h-100" Elevation="0">
-                    <MudText Class="section-heading mb-3">
-                        Current Month (@CurrMonth.ToUpperInvariant())
-                    </MudText>
-                    <MudGrid Class="mb-3">
-                        <MudItem xs="4">
-                            <div class="metric-cell">
-                                <span class="meta-label">Actual Spillover</span>
-                                <span class="meta-value">@_entry.ActualSpillover.ToString("0.00")</span>
-                            </div>
-                        </MudItem>
-                        <MudItem xs="4">
-                            <div class="metric-cell">
-                                <span class="meta-label">Actual Fresh</span>
-                                <span class="meta-value">@_entry.ActualFresh.ToString("0.00")</span>
-                            </div>
-                        </MudItem>
-                        <MudItem xs="4">
-                            <div class="metric-cell">
-                                <span class="meta-label">Actual Total</span>
-                                <span class="meta-value">@_entry.ActualTotal.ToString("0.00")</span>
-                            </div>
-                        </MudItem>
-                    </MudGrid>
+                    <MudText Class="section-heading mb-3">Current Month (@CurrMonth.ToUpperInvariant())</MudText>
+                    <div class="metric-row"><span class="metric-row-label">Actual Spillover</span><span class="metric-row-value">@_entry.ActualSpillover.ToString("0.00")</span></div>
+                    <div class="metric-row"><span class="metric-row-label">Actual Fresh</span><span class="metric-row-value">@_entry.ActualFresh.ToString("0.00")</span></div>
+                    <div class="metric-row accent"><span class="metric-row-label">Actual Total</span><span class="metric-row-value">@_entry.ActualTotal.ToString("0.00")</span></div>
 
                     <MudDivider Class="my-3" />
 
-                    <MudText Class="section-heading mb-3">
-                        Estimates for @NextMon.ToUpperInvariant()
-                    </MudText>
-                    <MudGrid>
-                        <MudItem xs="4">
-                            <div class="metric-cell">
-                                <span class="meta-label">Est. Spillover</span>
-                                <span class="meta-value">@_entry.EstSpilloverNext.ToString("0.00")</span>
-                            </div>
-                        </MudItem>
-                        <MudItem xs="4">
-                            <div class="metric-cell">
-                                <span class="meta-label">Est. Fresh</span>
-                                <span class="meta-value">@_entry.EstFreshNext.ToString("0.00")</span>
-                            </div>
-                        </MudItem>
-                        <MudItem xs="4">
-                            <div class="metric-cell">
-                                <span class="meta-label">Est. Total</span>
-                                <span class="meta-value">@_entry.EstTotalNext.ToString("0.00")</span>
-                            </div>
-                        </MudItem>
-                    </MudGrid>
+                    <MudText Class="section-heading mb-3">Estimates for @NextMon.ToUpperInvariant()</MudText>
+                    <div class="metric-row"><span class="metric-row-label">Est. Spillover</span><span class="metric-row-value">@_entry.EstSpilloverNext.ToString("0.00")</span></div>
+                    <div class="metric-row"><span class="metric-row-label">Est. Fresh</span><span class="metric-row-value">@_entry.EstFreshNext.ToString("0.00")</span></div>
+                    <div class="metric-row accent"><span class="metric-row-label">Est. Total</span><span class="metric-row-value">@_entry.EstTotalNext.ToString("0.00")</span></div>
                 </MudPaper>
             </MudItem>
         </MudGrid>
 
-        <MudPaper Class="pa-4 mt-3" Elevation="1">
+        <MudPaper Class="pa-4 mt-3 portal-card" Elevation="0">
             <MudText Class="justification-title mb-2">Justifications (PO details, Invoice details, etc.)</MudText>
             <MudPaper Class="pa-3 justification-body">@(_entry.JustificationText ?? "-")</MudPaper>
             @if (!string.IsNullOrWhiteSpace(_entry.CheckerRemark))
             {
                 <MudText Class="justification-title mt-3 mb-2">Checker Remark</MudText>
-                <MudPaper Class="pa-3" Style="background:#fff7ed;white-space:pre-wrap;">@_entry.CheckerRemark</MudPaper>
+                <MudPaper Class="pa-3" Style="background:#fff7ed;white-space:pre-wrap;border-radius:10px;">@_entry.CheckerRemark</MudPaper>
             }
         </MudPaper>
 
@@ -197,14 +123,8 @@
                 _context = await CapitalService.BuildFormAsync(
                     _entry.ProjectId, _entry.FinancialYear, _entry.EntryMonth);
             }
-            else
-            {
-                Snackbar.Add("Entry not found.", Severity.Warning);
-            }
+            else Snackbar.Add("Entry not found.", Severity.Warning);
         }
-        finally
-        {
-            _loading = false;
-        }
+        finally { _loading = false; }
     }
 }

@@ -59,6 +59,37 @@ public static class AppConstants
 
     public static string DefaultEntryMonth(DateTime? asOf = null) => CalendarMonthName(asOf);
 
+    /// <summary>
+    /// True when the FY month is after the calendar month (future — not selectable for entry/view navigate).
+    /// Uses Indian FY year mapping (April–March).
+    /// </summary>
+    public static bool IsFutureMonth(string? month, DateTime? asOf = null)
+    {
+        if (string.IsNullOrWhiteSpace(month)) return true;
+        var now = asOf ?? DateTime.Now;
+        if (!TryFyMonthDate(month, now, out var monthDate)) return true;
+        var current = new DateTime(now.Year, now.Month, 1);
+        return monthDate > current;
+    }
+
+    /// <summary>Past and current FY months may be opened; future months stay disabled.</summary>
+    public static bool CanOpenMonth(string? month, DateTime? asOf = null) =>
+        !string.IsNullOrWhiteSpace(month) && !IsFutureMonth(month, asOf);
+
+    private static bool TryFyMonthDate(string month, DateTime asOf, out DateTime result)
+    {
+        result = default;
+        if (!DateTime.TryParseExact(month.Trim(), "MMMM", CultureInfo.InvariantCulture,
+                DateTimeStyles.None, out var parsed))
+            return false;
+
+        var monthNum = parsed.Month;
+        var fyStartYear = asOf.Month >= 4 ? asOf.Year : asOf.Year - 1;
+        var year = monthNum >= 4 ? fyStartYear : fyStartYear + 1;
+        result = new DateTime(year, monthNum, 1);
+        return true;
+    }
+
     /// <summary>Previous month in Indian FY order (April…March).</summary>
     public static string PreviousMonth(string month)
     {

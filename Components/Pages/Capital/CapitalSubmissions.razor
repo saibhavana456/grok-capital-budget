@@ -4,9 +4,10 @@
 @inject IAuthService AuthService
 @inject ISnackbar Snackbar
 
-<MudText Typo="Typo.h5" Style="color:#003366;font-weight:700;">Capital Submissions</MudText>
+<div class="entry-page">
+<MudText Typo="Typo.h5" Class="page-title">Capital Submissions</MudText>
 
-<MudPaper Class="pa-3 mb-3 mt-3" Elevation="1">
+<MudPaper Class="pa-3 mb-3 mt-3 portal-card" Elevation="0">
     <MudGrid>
         <MudItem xs="12" sm="6" md="2">
             <MudSelect T="string" Label="Financial Year" Variant="Variant.Outlined" Dense="true"
@@ -107,6 +108,7 @@
         <MudTablePager PageSizeOptions="new int[] { 5, 10, 25 }" />
     </PagerContent>
 </MudTable>
+</div>
 
 @code {
     private List<CapitalSubmissionListItem> _all = new();

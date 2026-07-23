@@ -8,24 +8,21 @@
 <MudDialogProvider />
 <MudSnackbarProvider />
 
-<div class="ubi-header">
-    <MudContainer MaxWidth="MaxWidth.False" Class="py-2 px-4">
-        <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center">
-            <MudText Typo="Typo.subtitle1" Style="color:#fff;font-weight:600;">
-                Union Bank of India | IT Budget
-            </MudText>
-            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
-                @if (_user != null)
-                {
-                    <MudText Typo="Typo.body2" Style="color:#fff;">
-                        PF @_user.PfNo · @_user.RoleCode
-                    </MudText>
-                    <MudButton Variant="Variant.Text" Style="color:#fff;" OnClick="Logout">Logout</MudButton>
-                }
-            </MudStack>
-        </MudStack>
-    </MudContainer>
-</div>
+<header class="ubi-header">
+    <div class="ubi-header-grid">
+        <div class="ubi-header-side"></div>
+        <div class="ubi-header-center">
+            <span class="ubi-brand">Union Bank of India | IT Budget</span>
+        </div>
+        <div class="ubi-header-side ubi-header-right">
+            @if (_user != null)
+            {
+                <span class="ubi-user">PF @_user.PfNo · @_user.RoleCode</span>
+                <button type="button" class="ubi-logout" @onclick="Logout">Logout</button>
+            }
+        </div>
+    </div>
+</header>
 
 @if (_user != null)
 {
@@ -44,13 +41,9 @@
     </div>
 }
 
-<main class="pa-4" style="min-height:calc(100vh - 140px);">
+<main class="pa-4" style="min-height:calc(100vh - 110px);">
     @Body
 </main>
-
-<footer class="ubi-footer py-2 text-center">
-    AD login · Oracle app data · Phase 1 entry + Maker-Checker
-</footer>
 
 @code {
     private LoggedInUserDto? _user;
@@ -73,10 +66,7 @@
         var state = await AuthStateProvider.GetAuthenticationStateAsync();
         _user = AuthService.CurrentUser;
         if (_user == null && state.User.Identity?.IsAuthenticated == true)
-        {
-            // restored from session into AuthService by provider
             _user = AuthService.CurrentUser;
-        }
         StateHasChanged();
     }
 

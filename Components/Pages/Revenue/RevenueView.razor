@@ -3,7 +3,7 @@
 @inject IRevenueService RevenueService
 @inject ISnackbar Snackbar
 
-<div class="entry-page">
+<div class="entry-page revenue-page">
     <MudText Typo="Typo.h5" Class="page-title">Revenue Entry Detail</MudText>
 
     @if (_loading)
@@ -20,31 +20,14 @@
             @(_form?.DeptName ?? "DIT") · @_entry.Section?.SectionName · Amounts in Rs. Crore
         </MudText>
 
-        <MudPaper Class="allotted-strip pa-3 mb-3" Elevation="1">
-            <MudText Class="section-heading mb-2">Section Allotment (FY @_entry.FinancialYear)</MudText>
-            <MudGrid>
-                <MudItem xs="12" sm="4">
-                    <div class="metric-cell">
-                        <span class="meta-label">Total Budget Allotted</span>
-                        <span class="meta-value accent">@_allotted.ToString("0.00") Cr</span>
-                    </div>
-                </MudItem>
-                <MudItem xs="12" sm="4">
-                    <div class="metric-cell">
-                        <span class="meta-label">Entered Total (@_entry.EntryMonth)</span>
-                        <span class="meta-value utilized">@_enteredTotal.ToString("0.00") Cr</span>
-                    </div>
-                </MudItem>
-                <MudItem xs="12" sm="4">
-                    <div class="metric-cell">
-                        <span class="meta-label">Previous Month (@PrevMonth) approved</span>
-                        <span class="meta-value">@(_form?.PrevTotal.ToString("0.00") ?? "0.00") Cr</span>
-                    </div>
-                </MudItem>
-            </MudGrid>
+        <MudPaper Class="allotted-strip pa-4 mb-3" Elevation="0">
+            <MudText Class="section-heading mb-3">Section Allotment (FY @_entry.FinancialYear)</MudText>
+            <div class="metric-row"><span class="metric-row-label">Total Budget Allotted</span><span class="metric-row-value accent">@_allotted.ToString("0.00") <small>Cr</small></span></div>
+            <div class="metric-row"><span class="metric-row-label">Entered Total (@_entry.EntryMonth)</span><span class="metric-row-value utilized">@_enteredTotal.ToString("0.00") <small>Cr</small></span></div>
+            <div class="metric-row"><span class="metric-row-label">Previous Month (@PrevMonth) approved</span><span class="metric-row-value">@(_form?.PrevTotal.ToString("0.00") ?? "0.00") <small>Cr</small></span></div>
         </MudPaper>
 
-        <MudPaper Class="pa-3 mb-3" Elevation="1">
+        <MudPaper Class="pa-4 mb-3 portal-card" Elevation="0">
             <MudGrid>
                 <MudItem xs="6" sm="4" md="2">
                     <div class="metric-cell">
@@ -79,33 +62,44 @@
             </MudGrid>
         </MudPaper>
 
-        <MudPaper Class="pa-4" Elevation="1">
+        <MudPaper Class="pa-4 portal-card" Elevation="0">
             <MudText Class="section-heading mb-3">
                 Expenditure Heads — @_entry.EntryMonth.ToUpperInvariant()
             </MudText>
-            <div class="rev-head-grid">
-                @foreach (var line in _lines)
-                {
-                    <div class="rev-head-cell view">
-                        <MudText Class="meta-label mb-1">@(line.Head?.HeadName)</MudText>
-                        <MudText Class="meta-value">@line.Amount.ToString("0.00")</MudText>
-                    </div>
-                }
-            </div>
-            <MudStack Row="true" Justify="Justify.FlexEnd" Class="mt-3">
-                <MudText Class="meta-value">
-                    Total: @_enteredTotal.ToString("0.00") / Allotted @_allotted.ToString("0.00") Cr
-                </MudText>
-            </MudStack>
+            <MudSimpleTable Dense="true" Hover="true" Bordered="true" Class="revenue-heads-table">
+                <thead>
+                    <tr>
+                        <th style="width:64px;">#</th>
+                        <th>Expenditure Head</th>
+                        <th style="text-align:right;width:160px;">Amount (Rs. Cr)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var line in _lines)
+                    {
+                        <tr class="@(line.Amount > 0 ? "has-amount" : "")">
+                            <td>@(line.Head?.DisplayOrder)</td>
+                            <td class="head-name">@(line.Head?.HeadName)</td>
+                            <td class="amount-cell">@line.Amount.ToString("0.00")</td>
+                        </tr>
+                    }
+                </tbody>
+                <tfoot>
+                    <tr>
+                        <td colspan="2" class="total-label">Total for @_entry.EntryMonth</td>
+                        <td class="amount-cell total">@_enteredTotal.ToString("0.00") / @_allotted.ToString("0.00")</td>
+                    </tr>
+                </tfoot>
+            </MudSimpleTable>
         </MudPaper>
 
-        <MudPaper Class="pa-4 mt-3" Elevation="1">
+        <MudPaper Class="pa-4 mt-3 portal-card" Elevation="0">
             <MudText Class="justification-title mb-2">Justifications (PO details, Invoice details, etc.)</MudText>
             <MudPaper Class="pa-3 justification-body">@(_entry.JustificationText ?? "-")</MudPaper>
             @if (!string.IsNullOrWhiteSpace(_entry.CheckerRemark))
             {
                 <MudText Class="justification-title mt-3 mb-2">Checker Remark</MudText>
-                <MudPaper Class="pa-3" Style="background:#fff7ed;white-space:pre-wrap;">@_entry.CheckerRemark</MudPaper>
+                <MudPaper Class="pa-3" Style="background:#fff7ed;white-space:pre-wrap;border-radius:10px;">@_entry.CheckerRemark</MudPaper>
             }
         </MudPaper>
 
@@ -139,14 +133,10 @@
 
             _lines = _entry.Lines.OrderBy(l => l.Head?.DisplayOrder ?? 0).ToList();
             _enteredTotal = _lines.Sum(l => l.Amount);
-
             _form = await RevenueService.BuildFormAsync(
                 _entry.SectionId, _entry.FinancialYear, _entry.EntryMonth);
             _allotted = _form?.TotalAllotted ?? 0;
         }
-        finally
-        {
-            _loading = false;
-        }
+        finally { _loading = false; }
     }
 }
