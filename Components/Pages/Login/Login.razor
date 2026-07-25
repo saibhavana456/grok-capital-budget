@@ -146,6 +146,9 @@
         {
             Snackbar.Add(ex.Message, Severity.Error);
             await LoadCaptcha();
+        }
+        finally
+        {
             _busy = false;
         }
     }
