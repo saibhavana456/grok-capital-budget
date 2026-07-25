@@ -45,6 +45,12 @@ public static class AppConstants
         "Capital entry cannot be submitted with zero actual utilization. Enter spillover and/or fresh amount greater than zero.";
     public const string MakerPfRequiredMessage = "Maker PF is required for a department.";
     public const string CheckerPfRequiredMessage = "Checker PF is required for a department.";
+    public const string MakerNotInAppUserMessage =
+        "Maker PF '{0}' is not registered as an active Maker in APP_USER.";
+    public const string CheckerNotInAppUserMessage =
+        "Checker PF '{0}' is not registered as an active Checker in APP_USER.";
+    public const string AdminCannotBeMakerOrCheckerMessage =
+        "PF '{0}' is ADMIN and cannot be assigned as Maker or Checker.";
     public const string MakerAlreadyAssignedMessage =
         "This PF is already Maker or Checker on another active department. One person can belong to only one department.";
     public const string CheckerAlreadyAssignedMessage =

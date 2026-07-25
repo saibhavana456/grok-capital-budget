@@ -78,12 +78,31 @@ public class MasterService : IMasterService
         if (string.Equals(makerPf, checkerPf, StringComparison.OrdinalIgnoreCase))
             return ServiceResult.Fail(AppConstants.MakerCheckerSamePfMessage);
 
-        // Collect ALL conflicts so Admin sees Maker and Checker issues together
-        var conflicts = new List<string>();
+        // Collect all validation issues — keep Admin form open with values on failure
+        var errors = new List<string>();
+
+        var makerUser = await FindActiveAppUserAsync(makerPf);
+        var checkerUser = await FindActiveAppUserAsync(checkerPf);
+
+        if (makerUser == null)
+            errors.Add(string.Format(AppConstants.MakerNotInAppUserMessage, makerPf));
+        else if (string.Equals(makerUser.RoleCode, AppConstants.Roles.Admin, StringComparison.OrdinalIgnoreCase))
+            errors.Add(string.Format(AppConstants.AdminCannotBeMakerOrCheckerMessage, makerPf));
+        else if (!string.Equals(makerUser.RoleCode, AppConstants.Roles.Maker, StringComparison.OrdinalIgnoreCase))
+            errors.Add(string.Format(AppConstants.MakerNotInAppUserMessage, makerPf));
+
+        if (checkerUser == null)
+            errors.Add(string.Format(AppConstants.CheckerNotInAppUserMessage, checkerPf));
+        else if (string.Equals(checkerUser.RoleCode, AppConstants.Roles.Admin, StringComparison.OrdinalIgnoreCase))
+            errors.Add(string.Format(AppConstants.AdminCannotBeMakerOrCheckerMessage, checkerPf));
+        else if (!string.Equals(checkerUser.RoleCode, AppConstants.Roles.Checker, StringComparison.OrdinalIgnoreCase))
+            errors.Add(string.Format(AppConstants.CheckerNotInAppUserMessage, checkerPf));
+
+        // One person → one active department (Maker or Checker role)
         var makerConflict = await FindActiveDeptPfConflictAsync(makerPf, dept.DeptId);
         if (makerConflict != null)
         {
-            conflicts.Add(string.Format(
+            errors.Add(string.Format(
                 AppConstants.PfAlreadyOnOtherDeptMessage,
                 makerPf, makerConflict.Value.Role, makerConflict.Value.DeptName));
         }
@@ -91,13 +110,13 @@ public class MasterService : IMasterService
         var checkerConflict = await FindActiveDeptPfConflictAsync(checkerPf, dept.DeptId);
         if (checkerConflict != null)
         {
-            conflicts.Add(string.Format(
+            errors.Add(string.Format(
                 AppConstants.PfAlreadyOnOtherDeptMessage,
                 checkerPf, checkerConflict.Value.Role, checkerConflict.Value.DeptName));
         }
 
-        if (conflicts.Count > 0)
-            return ServiceResult.Fail(string.Join(" ", conflicts));
+        if (errors.Count > 0)
+            return ServiceResult.Fail(string.Join(" ", errors));
 
         if (dept.DeptId == 0)
         {
@@ -121,6 +140,17 @@ public class MasterService : IMasterService
         }
         await _db.SaveChangesAsync();
         return ServiceResult.Ok("Department saved.");
+    }
+
+    private async Task<AppUser?> FindActiveAppUserAsync(string pf)
+    {
+        var pfNorm = pf.Trim();
+        var users = await _db.AppUsers.AsNoTracking()
+            .Where(u => u.IsActive == "Y")
+            .Select(u => new AppUser { PfNo = u.PfNo, RoleCode = u.RoleCode, UserId = u.UserId })
+            .ToListAsync();
+        return users.FirstOrDefault(u =>
+            string.Equals(u.PfNo.Trim(), pfNorm, StringComparison.OrdinalIgnoreCase));
     }
 
     /// <summary>

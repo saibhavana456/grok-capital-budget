@@ -42,7 +42,8 @@
                 <MudTextField @bind-Value="_editDept.MakerPf" Label="Maker PF *" Variant="Variant.Outlined" Class="mb-2" Required="true" />
                 <MudTextField @bind-Value="_editDept.CheckerPf" Label="Checker PF *" Variant="Variant.Outlined" Class="mb-2" Required="true" />
                 <MudText Typo="Typo.caption" Class="mb-2" Style="color:#64748b;">
-                    Maker and Checker are required. One PF can belong to only one active department.
+                    Maker and Checker are required. Both must exist in APP_USER (role MAKER / CHECKER).
+                    Admin PF cannot be assigned. One PF can belong to only one active department.
                 </MudText>
                 <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveDept">Save</MudButton>
                 <MudButton OnClick="() => _editDept = null">Cancel</MudButton>
