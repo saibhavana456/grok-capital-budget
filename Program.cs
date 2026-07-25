@@ -5,8 +5,10 @@ using IT_BUDGET_MONITORING_PORTAL.Data;
 using IT_BUDGET_MONITORING_PORTAL.Helpers;
 using IT_BUDGET_MONITORING_PORTAL.Interfaces;
 using IT_BUDGET_MONITORING_PORTAL.Services;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Components.Authorization;
+using Microsoft.AspNetCore.Components.Server.Circuits;
 using Microsoft.EntityFrameworkCore;
 using MudBlazor;
 using MudBlazor.Services;
@@ -48,28 +50,34 @@ builder.Services.AddScoped(sp =>
 
 builder.Services.AddHttpClient("AdApi");
 builder.Services.AddHttpContextAccessor();
+builder.Services.AddMemoryCache();
+builder.Services.AddSingleton<LoginTicketStore>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IStaffLookupService, StaffLookupService>();
 builder.Services.AddScoped<IMasterService, MasterService>();
 builder.Services.AddScoped<ICapitalService, CapitalService>();
 builder.Services.AddScoped<IRevenueService, RevenueService>();
 
-// Cookie scheme required so [Authorize] / AuthorizeRouteView have a DefaultChallengeScheme
+// Cookie auth — set via /account/establish (browser GET), survives F5 refresh
 builder.Services
     .AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
     .AddCookie(options =>
     {
         options.LoginPath = "/login";
-        options.LogoutPath = "/login";
+        options.LogoutPath = "/account/logout";
         options.AccessDeniedPath = "/login";
         options.ExpireTimeSpan = TimeSpan.FromHours(2);
         options.SlidingExpiration = true;
         options.Cookie.Name = "ITBudget.Auth";
+        options.Cookie.HttpOnly = true;
+        options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
+        options.Cookie.SameSite = SameSiteMode.Lax;
     });
 
 builder.Services.AddAuthorization();
 builder.Services.AddCascadingAuthenticationState();
 builder.Services.AddScoped<AuthenticationStateProvider, CustomAuthStateProvider>();
+builder.Services.AddScoped<CircuitHandler, AuthCircuitHandler>();
 
 builder.Services.AddMudServices(config =>
 {
@@ -100,6 +108,39 @@ app.UseStaticFiles();
 app.UseAuthentication();
 app.UseAuthorization();
 app.UseAntiforgery();
+
+// Browser GET sets/clears the auth cookie (Blazor circuit cannot write Set-Cookie).
+app.MapGet("/account/establish/{ticket}", async (
+    string ticket,
+    HttpContext http,
+    LoginTicketStore tickets) =>
+{
+    if (!tickets.TryTake(ticket, out var user) || user == null)
+        return Results.Redirect("/login");
+
+    var principal = CustomAuthStateProvider.CreateCookiePrincipal(user);
+    await http.SignInAsync(
+        CookieAuthenticationDefaults.AuthenticationScheme,
+        principal,
+        new Microsoft.AspNetCore.Authentication.AuthenticationProperties
+        {
+            IsPersistent = true,
+            AllowRefresh = true,
+            ExpiresUtc = DateTimeOffset.UtcNow.AddHours(2)
+        });
+
+    return Results.Redirect("/portal");
+}).AllowAnonymous();
+
+app.MapGet("/account/logout", async (HttpContext http, IAuthService auth) =>
+{
+    var pf = http.User.FindFirstValue(ClaimTypes.NameIdentifier);
+    if (!string.IsNullOrWhiteSpace(pf))
+        await auth.LogoutAsync(pf);
+
+    await http.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+    return Results.Redirect("/login");
+}).AllowAnonymous();
 
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();

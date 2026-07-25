@@ -2,7 +2,7 @@
 @layout Layout.EmptyLayout
 @attribute [AllowAnonymous]
 @inject IAuthService AuthService
-@inject AuthenticationStateProvider AuthStateProvider
+@inject LoginTicketStore TicketStore
 @inject NavigationManager Nav
 @inject ISnackbar Snackbar
 
@@ -125,20 +125,14 @@
                 return;
             }
 
-            if (AuthStateProvider is CustomAuthStateProvider custom)
-                await custom.MarkUserAsAuthenticated(result.User);
-
-            // Same circuit — do not forceLoad (that wiped auth and bounced back to /login)
-            Nav.NavigateTo("/portal");
-            return;
+            // Full browser redirect so Set-Cookie is applied (survives refresh).
+            var ticket = TicketStore.Create(result.User);
+            Nav.NavigateTo($"/account/establish/{ticket}", forceLoad: true);
         }
         catch (Exception ex)
         {
             Snackbar.Add(ex.Message, Severity.Error);
             await LoadCaptcha();
-        }
-        finally
-        {
             _busy = false;
         }
     }

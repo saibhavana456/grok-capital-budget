@@ -16,7 +16,7 @@
 </head>
 
 <body>
-    @* prerender:false so ProtectedSessionStorage auth restore works before [Authorize] *@
+    @* prerender:false — interactive circuit; auth cookie is read when the circuit starts *@
     <Routes @rendermode="InteractiveServerNoPrerender" />
     <script src="_framework/blazor.web.js"></script>
     <script src="_content/MudBlazor/MudBlazor.min.js"></script>

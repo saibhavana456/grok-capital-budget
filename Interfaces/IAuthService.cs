@@ -7,6 +7,7 @@ public interface IAuthService
     Task<CaptchaQuestionDto> GetCaptchaAsync();
     Task<LoginResultDto> LoginAsync(LoginRequestDto request, string expectedCaptchaAnswer);
     Task LogoutAsync(string pfNo);
+    Task<LoggedInUserDto?> GetLoggedInUserByPfAsync(string pfNo);
     LoggedInUserDto? CurrentUser { get; }
     void SetCurrentUser(LoggedInUserDto? user);
     bool IsAuthenticated { get; }

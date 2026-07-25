@@ -157,6 +157,41 @@ public class AuthService : IAuthService
         _currentUser = null;
     }
 
+    public async Task<LoggedInUserDto?> GetLoggedInUserByPfAsync(string pfNo)
+    {
+        if (string.IsNullOrWhiteSpace(pfNo)) return null;
+
+        var pf = pfNo.Trim();
+        var appUser = await _db.AppUsers
+            .Include(u => u.Department)
+            .AsNoTracking()
+            .FirstOrDefaultAsync(u => u.PfNo == pf && u.IsActive == "Y");
+        if (appUser == null) return null;
+
+        var staff = await _staffLookup.LookupByPfAsync(pf);
+        var displayName = staff?.EmpName ?? appUser.UserName ?? pf;
+        var designation = staff?.Designation ?? appUser.Designation;
+
+        var encryptedUserId = EncryptoData.EncryptString(pf);
+        var token = await _db.UserTokens.AsNoTracking()
+            .Where(t => t.UserId == encryptedUserId)
+            .Select(t => t.LastToken)
+            .FirstOrDefaultAsync();
+
+        return new LoggedInUserDto
+        {
+            UserId = appUser.UserId,
+            PfNo = appUser.PfNo,
+            UserName = displayName,
+            RoleCode = appUser.RoleCode,
+            DeptId = appUser.DeptId,
+            DeptName = appUser.Department?.DeptName,
+            Designation = designation,
+            HasRevenueDept = appUser.Department?.HasRevenue == "Y",
+            Token = token ?? string.Empty
+        };
+    }
+
     private async Task<bool> ValidateAgainstAdAsync(string pf, string password)
     {
         try

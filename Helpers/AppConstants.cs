@@ -48,7 +48,6 @@ public static class AppConstants
 
     public const int JustificationMaxLength = 5000;
     public const string DefaultFinancialYear = "2026-27";
-    public const string SessionUserKey = "IT_BUDGET_USER";
 
     public static bool IsEditableStatus(string? status) =>
         string.Equals(status, EntryStatus.Returned, StringComparison.OrdinalIgnoreCase)

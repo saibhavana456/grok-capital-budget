@@ -1,20 +1,9 @@
 @namespace IT_BUDGET_MONITORING_PORTAL.Components.Shared
 @inject NavigationManager Nav
-@inject AuthenticationStateProvider AuthStateProvider
 
 @code {
-    private bool _navigated;
-
-    protected override async Task OnAfterRenderAsync(bool firstRender)
+    protected override void OnInitialized()
     {
-        if (!firstRender || _navigated) return;
-
-        // Re-check after circuit is interactive so a late session restore is not missed.
-        var state = await AuthStateProvider.GetAuthenticationStateAsync();
-        if (state.User.Identity?.IsAuthenticated == true)
-            return;
-
-        _navigated = true;
         var returnUrl = Uri.EscapeDataString(Nav.ToBaseRelativePath(Nav.Uri));
         Nav.NavigateTo($"/login?ReturnUrl=/{returnUrl}", forceLoad: false);
     }

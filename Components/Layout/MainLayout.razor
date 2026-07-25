@@ -63,17 +63,13 @@
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (!firstRender) return;
-        var state = await AuthStateProvider.GetAuthenticationStateAsync();
+        await AuthStateProvider.GetAuthenticationStateAsync();
         _user = AuthService.CurrentUser;
-        if (_user == null && state.User.Identity?.IsAuthenticated == true)
-            _user = AuthService.CurrentUser;
         StateHasChanged();
     }
 
-    private async Task Logout()
+    private void Logout()
     {
-        if (AuthStateProvider is CustomAuthStateProvider custom)
-            await custom.MarkUserAsLoggedOut();
-        Nav.NavigateTo("/login", forceLoad: true);
+        Nav.NavigateTo("/account/logout", forceLoad: true);
     }
 }
