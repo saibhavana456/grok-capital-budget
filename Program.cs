@@ -185,6 +185,16 @@ app.MapGet("/account/logout", async (HttpContext http, IAuthService auth) =>
     return Results.Redirect("/login");
 }).AllowAnonymous();
 
+// Local cookie only — used when this browser's session was cleared or taken by another browser.
+// Must NOT delete USER_TOKEN (the other browser may own the active session).
+app.MapGet("/account/expire-cookie", async (HttpContext http) =>
+{
+    var pf = http.User.FindFirstValue(ClaimTypes.NameIdentifier);
+    await http.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+    Log.Information("Expired local auth cookie for PF={Pf} (USER_TOKEN left intact)", pf);
+    return Results.Redirect("/login");
+}).AllowAnonymous();
+
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
 

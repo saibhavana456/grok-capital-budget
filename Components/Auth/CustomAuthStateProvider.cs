@@ -11,6 +11,7 @@ namespace IT_BUDGET_MONITORING_PORTAL.Components.Auth;
 /// <summary>
 /// Auth from HTTP cookie (set by GET /account/establish/{ticket}).
 /// Cookie must carry TokenHash matching USER_TOKEN.HASH_TOKEN — cookie alone is not enough.
+/// Session is re-checked against Oracle on every auth read and on every in-app navigation.
 /// </summary>
 public class CustomAuthStateProvider : AuthenticationStateProvider
 {
@@ -26,7 +27,6 @@ public class CustomAuthStateProvider : AuthenticationStateProvider
     private AuthenticationState _state = Anonymous;
     private int _completed;
     private readonly SemaphoreSlim _revalidateLock = new(1, 1);
-    private DateTime _lastRevalidateUtc = DateTime.MinValue;
 
     public CustomAuthStateProvider(
         IHttpContextAccessor httpContextAccessor,
@@ -41,7 +41,7 @@ public class CustomAuthStateProvider : AuthenticationStateProvider
     public override async Task<AuthenticationState> GetAuthenticationStateAsync()
     {
         await Task.WhenAny(_ready.Task, Task.Delay(5000));
-        await RevalidateIfNeededAsync();
+        await RevalidateAgainstDatabaseAsync();
         return _state;
     }
 
@@ -67,7 +67,6 @@ public class CustomAuthStateProvider : AuthenticationStateProvider
                     {
                         _authService.SetCurrentUser(user);
                         _state = new AuthenticationState(CreatePrincipal(user));
-                        _lastRevalidateUtc = DateTime.UtcNow;
                         return;
                     }
 
@@ -94,31 +93,36 @@ public class CustomAuthStateProvider : AuthenticationStateProvider
     }
 
     /// <summary>
-    /// Re-check USER_TOKEN periodically so Browser A loses access when session is cleared
-    /// or another browser completes login after clear — without requiring F5.
+    /// Called on every in-app navigation (NavLink). Returns false only when this browser
+    /// had an authenticated session that is no longer valid in USER_TOKEN
+    /// (cleared or taken by another browser) — caller must expire the local cookie only.
     /// </summary>
-    private async Task RevalidateIfNeededAsync()
+    public async Task<bool> EnsureSessionStillValidAsync()
+    {
+        await Task.WhenAny(_ready.Task, Task.Delay(5000));
+
+        if (_state.User.Identity?.IsAuthenticated != true)
+            return true;
+
+        await RevalidateAgainstDatabaseAsync();
+        return _state.User.Identity?.IsAuthenticated == true;
+    }
+
+    private async Task RevalidateAgainstDatabaseAsync()
     {
         if (_state.User.Identity?.IsAuthenticated != true)
             return;
 
-        // Avoid hammering Oracle on every cascading auth read
-        if ((DateTime.UtcNow - _lastRevalidateUtc).TotalSeconds < 5)
-            return;
-
-        if (!await _revalidateLock.WaitAsync(0))
-            return;
-
+        await _revalidateLock.WaitAsync();
         try
         {
-            if ((DateTime.UtcNow - _lastRevalidateUtc).TotalSeconds < 5)
+            if (_state.User.Identity?.IsAuthenticated != true)
                 return;
 
             var pf = _state.User.FindFirstValue(ClaimTypes.NameIdentifier);
             var hash = _state.User.FindFirstValue(TokenHashClaimType)
                        ?? _authService.CurrentUser?.TokenHash;
             var user = await _authService.ValidateSessionAsync(pf ?? "", hash);
-            _lastRevalidateUtc = DateTime.UtcNow;
 
             if (user != null)
             {

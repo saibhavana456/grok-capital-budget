@@ -1,4 +1,5 @@
 ﻿@inherits LayoutComponentBase
+@implements IDisposable
 @inject AuthenticationStateProvider AuthStateProvider
 @inject NavigationManager Nav
 @inject IAuthService AuthService
@@ -50,6 +51,7 @@
 
 @code {
     private LoggedInUserDto? _user;
+    private bool _checkingSession;
 
     private readonly MudTheme _theme = new()
     {
@@ -63,16 +65,63 @@
         }
     };
 
+    protected override void OnInitialized()
+    {
+        Nav.LocationChanged += OnLocationChanged;
+    }
+
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (!firstRender) return;
-        await AuthStateProvider.GetAuthenticationStateAsync();
-        _user = AuthService.CurrentUser;
-        StateHasChanged();
+        await RefreshUserFromAuthAsync();
+    }
+
+    private async void OnLocationChanged(object? sender, LocationChangedEventArgs e)
+    {
+        await RefreshUserFromAuthAsync();
+    }
+
+    private async Task RefreshUserFromAuthAsync()
+    {
+        if (_checkingSession) return;
+        _checkingSession = true;
+        try
+        {
+            if (AuthStateProvider is CustomAuthStateProvider custom)
+            {
+                // In-app NavLink does not open a new circuit — must re-check USER_TOKEN here.
+                // F5 already re-checks in InitializeFromCircuitAsync.
+                var stillValid = await custom.EnsureSessionStillValidAsync();
+                if (!stillValid)
+                {
+                    // Clear THIS browser's cookie only — do not delete USER_TOKEN
+                    // (the other browser may own the active session).
+                    Nav.NavigateTo("/account/expire-cookie", forceLoad: true);
+                    return;
+                }
+            }
+            else
+            {
+                await AuthStateProvider.GetAuthenticationStateAsync();
+            }
+
+            _user = AuthService.CurrentUser;
+            await InvokeAsync(StateHasChanged);
+        }
+        finally
+        {
+            _checkingSession = false;
+        }
     }
 
     private void Logout()
     {
+        // Explicit logout: clear USER_TOKEN + cookie
         Nav.NavigateTo("/account/logout", forceLoad: true);
+    }
+
+    public void Dispose()
+    {
+        Nav.LocationChanged -= OnLocationChanged;
     }
 }

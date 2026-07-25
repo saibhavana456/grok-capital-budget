@@ -4,7 +4,8 @@
 @code {
     protected override void OnInitialized()
     {
-        var returnUrl = Uri.EscapeDataString(Nav.ToBaseRelativePath(Nav.Uri));
-        Nav.NavigateTo($"/login?ReturnUrl=/{returnUrl}", forceLoad: false);
+        // forceLoad clears any stale circuit; expire-cookie signs out local cookie only
+        // without deleting USER_TOKEN owned by another browser.
+        Nav.NavigateTo("/account/expire-cookie", forceLoad: true);
     }
 }
