@@ -140,13 +140,6 @@
                               HelperText="@($"{(_form.JustificationText?.Length ?? 0)} / {AppConstants.JustificationMaxLength}")" />
             </MudPaper>
 
-            <MudPaper Class="pa-3 mt-3 portal-card" Elevation="0">
-                <div class="metric-row accent mb-0">
-                    <span class="metric-row-label">Total to submit for @CurrMonth</span>
-                    <span class="metric-row-value accent">@EnteredTotal.ToString("0.00") <small>Cr</small></span>
-                </div>
-            </MudPaper>
-
             <MudStack Row="true" Class="mt-4" Spacing="2">
                 <MudButton Variant="Variant.Filled" Color="Color.Secondary" Disabled="_busy" OnClick="Submit"
                            Style="background:#c8102e;">

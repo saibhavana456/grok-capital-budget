@@ -50,7 +50,7 @@ public static class AppConstants
         "Please Clear previous Session then try to login again";
     public const string ClearPreviousSessionTitle = "Previous session active";
     public const string ClearPreviousSessionMessage =
-        "User already logged in. Click OK to clear the previous session, then login again.";
+        "User already logged in. Clear the previous session, then login again.";
 
     public const int JustificationMaxLength = 5000;
     public const string DefaultFinancialYear = "2026-27";
