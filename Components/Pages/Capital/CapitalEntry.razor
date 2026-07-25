@@ -214,11 +214,47 @@
                          || _form.ActualFresh > _form.FreshAllotted
                          || actualTotal > _form.TotalAllotted;
 
-        if (allZero && !await ConfirmAsync(AppConstants.ConfirmZeroTitle, AppConstants.ConfirmZeroMessage, "Submit", Color.Warning))
+        var contextSubtitle = $"{_form.DeptName} · {_form.SectionName}";
+        var baseDetails = BuildBaseDetails(actualTotal);
+
+        if (allZero && !await ConfirmAsync(
+                AppConstants.ConfirmZeroTitle,
+                AppConstants.ConfirmZeroMessage,
+                "Submit",
+                Color.Warning,
+                contextSubtitle,
+                baseDetails,
+                Icons.Material.Filled.MoneyOff))
             return;
-        if (overBudget && !await ConfirmAsync(AppConstants.ConfirmOverBudgetTitle, AppConstants.ConfirmOverBudgetMessage, "Submit anyway", Color.Warning))
-            return;
-        if (!await ConfirmAsync(AppConstants.ConfirmSubmitTitle, AppConstants.ConfirmSubmitMessage, "Submit", Color.Primary))
+
+        if (overBudget)
+        {
+            var overDetails = new List<ConfirmDialog.DialogDetailRow>(baseDetails)
+            {
+                new("Spillover allotted", $"{_form.SpilloverAllotted:0.00} Cr"),
+                new("Fresh allotted", $"{_form.FreshAllotted:0.00} Cr"),
+                new("Total allotted", $"{_form.TotalAllotted:0.00} Cr", "warn"),
+                new("Utilized till " + PrevMonth, $"{_form.UtilizedTillPreviousMonth:0.00} Cr")
+            };
+            if (!await ConfirmAsync(
+                    AppConstants.ConfirmOverBudgetTitle,
+                    AppConstants.ConfirmOverBudgetMessage,
+                    "Submit anyway",
+                    Color.Warning,
+                    contextSubtitle,
+                    overDetails,
+                    Icons.Material.Filled.TrendingUp))
+                return;
+        }
+
+        if (!await ConfirmAsync(
+                AppConstants.ConfirmSubmitTitle,
+                AppConstants.ConfirmSubmitMessage,
+                "Submit",
+                Color.Primary,
+                contextSubtitle,
+                baseDetails,
+                Icons.Material.Filled.Send))
             return;
 
         _busy = true;
@@ -236,16 +272,46 @@
         finally { _busy = false; }
     }
 
-    private async Task<bool> ConfirmAsync(string title, string message, string confirmText, Color color)
+    private List<ConfirmDialog.DialogDetailRow> BuildBaseDetails(decimal actualTotal) =>
+    [
+        new("Project", _form!.ProjectName),
+        new("Financial year", _form.FinancialYear),
+        new("Entry month", _form.EntryMonth),
+        new($"Actual spillover ({CurrMonth})", $"{_form.ActualSpillover:0.00} Cr"),
+        new($"Actual fresh ({CurrMonth})", $"{_form.ActualFresh:0.00} Cr"),
+        new("Actual total", $"{actualTotal:0.00} Cr", "accent"),
+        new($"Est. spillover ({NextMon})", $"{_form.EstSpilloverNext:0.00} Cr"),
+        new($"Est. fresh ({NextMon})", $"{_form.EstFreshNext:0.00} Cr"),
+        new("Submitted by PF", AuthService.CurrentUser?.PfNo ?? "-")
+    ];
+
+    private async Task<bool> ConfirmAsync(
+        string title,
+        string message,
+        string confirmText,
+        Color color,
+        string? subtitle,
+        List<ConfirmDialog.DialogDetailRow>? details,
+        string? icon = null)
     {
         var parameters = new DialogParameters<ConfirmDialog>
         {
             { x => x.Title, title },
+            { x => x.Subtitle, subtitle },
             { x => x.Message, message },
+            { x => x.Details, details },
             { x => x.ConfirmText, confirmText },
-            { x => x.ConfirmColor, color }
+            { x => x.CancelText, "Cancel" },
+            { x => x.ConfirmColor, color },
+            { x => x.Icon, icon }
         };
-        var options = new DialogOptions { CloseOnEscapeKey = true, MaxWidth = MaxWidth.Small, FullWidth = true };
+        var options = new DialogOptions
+        {
+            CloseOnEscapeKey = true,
+            MaxWidth = MaxWidth.Small,
+            FullWidth = true,
+            BackdropClick = false
+        };
         var dialog = await DialogService.ShowAsync<ConfirmDialog>(title, parameters, options);
         var result = await dialog.Result;
         return result is { Canceled: false };

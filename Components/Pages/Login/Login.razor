@@ -155,15 +155,30 @@
 
     private async Task<bool> OfferClearPreviousSessionAsync()
     {
+        var details = new List<ConfirmDialog.DialogDetailRow>
+        {
+            new("PF number", _pf.Trim(), "accent"),
+            new("Action", "Clear previous USER_TOKEN session"),
+            new("Next step", "Login again with captcha")
+        };
         var parameters = new DialogParameters<ConfirmDialog>
         {
             { x => x.Title, AppConstants.ClearPreviousSessionTitle },
+            { x => x.Subtitle, "Single active session per PF" },
             { x => x.Message, AppConstants.ClearPreviousSessionMessage },
-            { x => x.ConfirmText, "OK" },
+            { x => x.Details, details },
+            { x => x.ConfirmText, "Clear session" },
             { x => x.CancelText, "Cancel" },
-            { x => x.ConfirmColor, Color.Warning }
+            { x => x.ConfirmColor, Color.Warning },
+            { x => x.Icon, Icons.Material.Filled.DevicesOther }
         };
-        var options = new DialogOptions { CloseOnEscapeKey = true, MaxWidth = MaxWidth.Small, FullWidth = true };
+        var options = new DialogOptions
+        {
+            CloseOnEscapeKey = true,
+            MaxWidth = MaxWidth.Small,
+            FullWidth = true,
+            BackdropClick = false
+        };
         var dialog = await DialogService.ShowAsync<ConfirmDialog>(AppConstants.ClearPreviousSessionTitle, parameters, options);
         var result = await dialog.Result;
         if (result is null || result.Canceled) return false;

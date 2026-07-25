@@ -172,7 +172,8 @@
 
     private async Task ActCapital(long id, string action)
     {
-        var (confirmed, remark) = await PromptRemark(action);
+        var item = _capital.FirstOrDefault(x => x.EntryId == id);
+        var (confirmed, remark) = await PromptRemark(action, BuildCapitalDetails(item));
         if (!confirmed) return;
         var result = await CapitalService.CheckerActionAsync(id, action, AuthService.CurrentUser!.PfNo, remark);
         Snackbar.Add(result.Message, result.Success ? Severity.Success : Severity.Error);
@@ -181,37 +182,72 @@
 
     private async Task ActRevenue(long id, string action)
     {
-        var (confirmed, remark) = await PromptRemark(action);
+        var item = _revenue.FirstOrDefault(x => x.EntryId == id);
+        var (confirmed, remark) = await PromptRemark(action, BuildRevenueDetails(item));
         if (!confirmed) return;
         var result = await RevenueService.CheckerActionAsync(id, action, AuthService.CurrentUser!.PfNo, remark);
         Snackbar.Add(result.Message, result.Success ? Severity.Success : Severity.Error);
         await Reload();
     }
 
-    private async Task<(bool Confirmed, string? Remark)> PromptRemark(string action)
+    private static List<ConfirmDialog.DialogDetailRow> BuildCapitalDetails(CapitalSubmissionListItem? item)
+    {
+        if (item == null) return [];
+        return
+        [
+            new("Budget type", "Capital"),
+            new("Financial year", item.FinancialYear),
+            new("Month", item.Month),
+            new("Section", item.SectionName),
+            new("Project", item.ProjectName),
+            new("Maker PF", item.SubmittedByPf ?? "-", "accent")
+        ];
+    }
+
+    private static List<ConfirmDialog.DialogDetailRow> BuildRevenueDetails(RevenueSubmissionListItem? item)
+    {
+        if (item == null) return [];
+        return
+        [
+            new("Budget type", "Revenue"),
+            new("Financial year", item.FinancialYear),
+            new("Month", item.Month),
+            new("Section", item.SectionName),
+            new("Total amount", $"{item.TotalAmount:0.00} Cr", "accent"),
+            new("Maker PF", item.SubmittedByPf ?? "-")
+        ];
+    }
+
+    private async Task<(bool Confirmed, string? Remark)> PromptRemark(string action, List<ConfirmDialog.DialogDetailRow> details)
     {
         var required = action is "RETURNED" or "REJECTED";
+        var (title, confirmText, color) = action switch
+        {
+            "APPROVED" => ("Approve submission", "Approve", Color.Success),
+            "RETURNED" => ("Return to maker", "Return", Color.Warning),
+            "REJECTED" => ("Reject submission", "Reject", Color.Error),
+            _ => ("Remark", "Confirm", Color.Primary)
+        };
         var parameters = new DialogParameters<RemarkDialog>
         {
-            { x => x.Title, action switch
-            {
-                "APPROVED" => "Approve — Remark (optional)",
-                "RETURNED" => "Return — Remark required",
-                "REJECTED" => "Reject — Remark required",
-                _ => "Remark"
-            }},
+            { x => x.Title, title },
+            { x => x.Subtitle, "Checker review action" },
             { x => x.Prompt, required
-                ? "Enter remark for the maker."
-                : "Optional remark." },
-            { x => x.RemarkRequired, required }
+                ? "Enter a remark for the maker. This is required for Return and Reject."
+                : "Optional remark for the maker." },
+            { x => x.RemarkRequired, required },
+            { x => x.Details, details },
+            { x => x.ConfirmText, confirmText },
+            { x => x.ConfirmColor, color }
         };
         var options = new DialogOptions
         {
             CloseOnEscapeKey = true,
             MaxWidth = MaxWidth.Small,
-            FullWidth = true
+            FullWidth = true,
+            BackdropClick = false
         };
-        var dialog = await DialogService.ShowAsync<RemarkDialog>("Checker Remark", parameters, options);
+        var dialog = await DialogService.ShowAsync<RemarkDialog>(title, parameters, options);
         var result = await dialog.Result;
         if (result == null || result.Canceled) return (false, null);
         return (true, result.Data as string);

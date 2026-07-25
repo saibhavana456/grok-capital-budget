@@ -163,7 +163,13 @@ app.MapGet("/account/establish/{ticket}", async (
         });
 
     Log.Information("Auth session cookie established for PF={Pf} Role={Role}", user.PfNo, user.RoleCode);
-    return Results.Redirect("/portal");
+    var home = user.RoleCode switch
+    {
+        AppConstants.Roles.Admin => "/admin/masters",
+        AppConstants.Roles.Checker => "/checker",
+        _ => "/portal"
+    };
+    return Results.Redirect(home);
 }).AllowAnonymous();
 
 app.MapGet("/account/logout", async (HttpContext http, IAuthService auth) =>

@@ -1,13 +1,47 @@
-<MudDialog>
+<MudDialog Class="ubi-dialog">
     <TitleContent>
-        <MudText Typo="Typo.h6" Style="font-weight:800;color:#003366;">@Title</MudText>
+        <div class="ubi-dialog-header">
+            <div class="ubi-dialog-icon @_iconClass">
+                <MudIcon Icon="@_icon" Style="font-size:28px;" />
+            </div>
+            <div>
+                <MudText Class="ubi-dialog-title">@Title</MudText>
+                @if (!string.IsNullOrWhiteSpace(Subtitle))
+                {
+                    <MudText Class="ubi-dialog-subtitle">@Subtitle</MudText>
+                }
+            </div>
+        </div>
     </TitleContent>
     <DialogContent>
-        <MudText Style="white-space:pre-wrap;">@Message</MudText>
+        @if (!string.IsNullOrWhiteSpace(Message))
+        {
+            <MudText Class="ubi-dialog-message">@Message</MudText>
+        }
+        @if (Details is { Count: > 0 })
+        {
+            <div class="ubi-dialog-details">
+                @foreach (var row in Details)
+                {
+                    <div class="ubi-dialog-detail-row @row.RowClass">
+                        <span class="ubi-dialog-detail-label">@row.Label</span>
+                        <span class="ubi-dialog-detail-value">@row.Value</span>
+                    </div>
+                }
+            </div>
+        }
     </DialogContent>
     <DialogActions>
-        <MudButton OnClick="Cancel">@CancelText</MudButton>
-        <MudButton Color="@ConfirmColor" Variant="Variant.Filled" OnClick="Confirm">@ConfirmText</MudButton>
+        @if (ShowCancel)
+        {
+            <MudButton Variant="Variant.Outlined" Color="Color.Default" OnClick="Cancel" Class="ubi-dialog-btn-cancel">
+                @CancelText
+            </MudButton>
+        }
+        <MudButton Variant="Variant.Filled" Color="@ConfirmColor" OnClick="Confirm" Class="ubi-dialog-btn-confirm"
+                   Style="@ConfirmButtonStyle">
+            @ConfirmText
+        </MudButton>
     </DialogActions>
 </MudDialog>
 
@@ -15,11 +49,60 @@
     [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = null!;
 
     [Parameter] public string Title { get; set; } = "Confirm";
+    [Parameter] public string? Subtitle { get; set; }
     [Parameter] public string Message { get; set; } = "";
+    [Parameter] public List<DialogDetailRow>? Details { get; set; }
     [Parameter] public string ConfirmText { get; set; } = "Confirm";
     [Parameter] public string CancelText { get; set; } = "Cancel";
+    [Parameter] public bool ShowCancel { get; set; } = true;
     [Parameter] public Color ConfirmColor { get; set; } = Color.Primary;
+    [Parameter] public string? Icon { get; set; }
+
+    private string _icon => Icon ?? ConfirmColor switch
+    {
+        Color.Warning => Icons.Material.Filled.WarningAmber,
+        Color.Error => Icons.Material.Filled.ErrorOutline,
+        Color.Success => Icons.Material.Filled.CheckCircleOutline,
+        Color.Secondary => Icons.Material.Filled.Logout,
+        _ => Icons.Material.Filled.HelpOutline
+    };
+
+    private string _iconClass => ConfirmColor switch
+    {
+        Color.Warning => "warn",
+        Color.Error => "error",
+        Color.Success => "success",
+        Color.Secondary => "error",
+        _ => "info"
+    };
+
+    private string ConfirmButtonStyle => ConfirmColor switch
+    {
+        Color.Secondary => "background:#c8102e;",
+        Color.Warning => "background:#c2410c;",
+        Color.Error => "background:#c8102e;",
+        Color.Success => "background:#15803d;",
+        _ => "background:#003366;"
+    };
 
     private void Cancel() => MudDialog.Cancel();
     private void Confirm() => MudDialog.Close(DialogResult.Ok(true));
+}
+
+@functions {
+    public sealed class DialogDetailRow
+    {
+        public string Label { get; set; } = "";
+        public string Value { get; set; } = "";
+        public string RowClass { get; set; } = "";
+
+        public DialogDetailRow() { }
+
+        public DialogDetailRow(string label, string value, string rowClass = "")
+        {
+            Label = label;
+            Value = value;
+            RowClass = rowClass;
+        }
+    }
 }

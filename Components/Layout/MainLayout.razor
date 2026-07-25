@@ -27,17 +27,20 @@
 @if (_user != null)
 {
     <div class="nav-tabs-ubi px-4">
-        <NavLink href="/portal" Match="NavLinkMatch.Prefix">IT Budget</NavLink>
-        <NavLink href="/capital/submissions">Capital Submissions</NavLink>
-        <NavLink href="/revenue/submissions">Revenue Submissions</NavLink>
+        @if (_user.RoleCode == AppConstants.Roles.Maker)
+        {
+            <NavLink href="/portal" Match="NavLinkMatch.Prefix">IT Budget</NavLink>
+        }
         @if (_user.RoleCode == AppConstants.Roles.Checker)
         {
-            <NavLink href="/checker">Checker Review</NavLink>
+            <NavLink href="/checker" Match="NavLinkMatch.Prefix">Checker Review</NavLink>
         }
         @if (_user.RoleCode == AppConstants.Roles.Admin)
         {
-            <NavLink href="/admin/masters">Admin Masters</NavLink>
+            <NavLink href="/admin/masters" Match="NavLinkMatch.Prefix">Admin Masters</NavLink>
         }
+        <NavLink href="/capital/submissions">Capital Submissions</NavLink>
+        <NavLink href="/revenue/submissions">Revenue Submissions</NavLink>
     </div>
 }
 

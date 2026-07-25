@@ -7,34 +7,18 @@
 @inject ISnackbar Snackbar
 
 <div class="entry-page">
-    <MudText Typo="Typo.h5" Class="page-title">IT Budget Portal</MudText>
-
     @if (_loading)
     {
         <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
     }
-    else if (_isChecker)
+    else if (_isChecker || _isAdmin)
     {
-        <MudPaper Class="pa-4 mb-4 portal-card" Elevation="0">
-            <MudText Class="mb-3">Review pending Capital and Revenue submissions for your department.</MudText>
-            <MudButton Variant="Variant.Filled" Color="Color.Primary" Href="/checker">
-                Go to Checker Review
-            </MudButton>
-        </MudPaper>
-    }
-    else if (_isAdmin)
-    {
-        <MudPaper Class="pa-4 mb-4 portal-card" Elevation="0">
-            <MudText Class="mb-3">Manage masters and view submissions across departments.</MudText>
-            <MudStack Row="true" Spacing="2">
-                <MudButton Variant="Variant.Filled" Color="Color.Primary" Href="/admin/masters">Admin Masters</MudButton>
-                <MudButton Variant="Variant.Outlined" Color="Color.Primary" Href="/capital/submissions">Capital Submissions</MudButton>
-                <MudButton Variant="Variant.Outlined" Color="Color.Primary" Href="/revenue/submissions">Revenue Submissions</MudButton>
-            </MudStack>
-        </MudPaper>
+        <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+        <MudText Class="mt-3" Style="color:#64748b;">Redirecting…</MudText>
     }
     else
     {
+        <MudText Typo="Typo.h5" Class="page-title">IT Budget Portal</MudText>
         <MudPaper Class="pa-4 mb-4 portal-card" Elevation="0">
             <MudText Class="section-heading mb-3">Select details to continue</MudText>
 
@@ -138,7 +122,18 @@
             var user = AuthService.CurrentUser;
             _isChecker = user?.RoleCode == AppConstants.Roles.Checker;
             _isAdmin = user?.RoleCode == AppConstants.Roles.Admin;
-            if (_isChecker || _isAdmin) return;
+
+            // Admin / Checker never use Maker entry portal — go straight to their home
+            if (_isAdmin)
+            {
+                Nav.NavigateTo("/admin/masters", replace: true);
+                return;
+            }
+            if (_isChecker)
+            {
+                Nav.NavigateTo("/checker", replace: true);
+                return;
+            }
 
             _departments = await MasterService.GetDepartmentsAsync();
             if (user?.DeptId != null)
