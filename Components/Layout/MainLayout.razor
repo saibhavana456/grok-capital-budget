@@ -3,6 +3,7 @@
 @inject AuthenticationStateProvider AuthStateProvider
 @inject NavigationManager Nav
 @inject IAuthService AuthService
+@inject ILogger<MainLayout> Logger
 
 <MudThemeProvider Theme="_theme" />
 <MudPopoverProvider />
@@ -63,6 +64,7 @@
     private int _checkVersion;
     private System.Threading.Timer? _heartbeat;
     private bool _redirecting;
+    private readonly SemaphoreSlim _checkLock = new(1, 1);
 
     private readonly MudTheme _theme = new()
     {
@@ -79,59 +81,61 @@
     protected override void OnInitialized()
     {
         Nav.LocationChanged += OnLocationChanged;
-        // Heartbeat: catch session taken while user stays on the same page (no NavLink click)
+        // Heartbeat uses AuthService factory-backed DB calls — does not share page DbContext
         _heartbeat = new System.Threading.Timer(async _ =>
         {
-            try { await InvokeAsync(() => CheckSessionAsync(hideBodyWhileChecking: false)); }
+            try { await InvokeAsync(() => CheckSessionAsync(isNavigation: false)); }
             catch { /* circuit disposed */ }
-        }, null, TimeSpan.FromSeconds(3), TimeSpan.FromSeconds(3));
+        }, null, TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(5));
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (!firstRender) return;
-        await CheckSessionAsync(hideBodyWhileChecking: true);
+        await CheckSessionAsync(isNavigation: true);
     }
 
     private async void OnLocationChanged(object? sender, LocationChangedEventArgs e)
     {
-        // Always re-check — do not skip if a previous check is in flight (that caused
-        // Capital/Revenue clicks to stay open until a later click).
-        await CheckSessionAsync(hideBodyWhileChecking: true);
+        // Do NOT hide @Body on every nav — that remounted pages mid-load and raced the heartbeat.
+        await CheckSessionAsync(isNavigation: false);
     }
 
-    private async Task CheckSessionAsync(bool hideBodyWhileChecking)
+    private async Task CheckSessionAsync(bool isNavigation)
     {
         if (_redirecting) return;
 
         var version = Interlocked.Increment(ref _checkVersion);
-        if (hideBodyWhileChecking)
-        {
-            _bodyReady = false;
-            await InvokeAsync(StateHasChanged);
-        }
-
+        await _checkLock.WaitAsync();
         try
         {
+            // Superseded while waiting for the lock
+            if (version != _checkVersion && _bodyReady)
+                return;
+
             bool stillValid;
             if (AuthStateProvider is CustomAuthStateProvider custom)
                 stillValid = await custom.EnsureSessionStillValidAsync();
             else
             {
                 await AuthStateProvider.GetAuthenticationStateAsync();
-                stillValid = await AuthService.IsCurrentSessionValidAsync();
+                stillValid = AuthService.CurrentUser != null
+                             && await AuthService.IsCurrentSessionValidAsync();
             }
 
-            // A newer navigation/check superseded this one
-            if (version != _checkVersion) return;
+            if (version != _checkVersion && _bodyReady)
+                return;
 
             if (!stillValid)
             {
-                _redirecting = true;
-                _user = null;
-                _bodyReady = false;
-                // Local cookie only — must not delete USER_TOKEN owned by the other browser
-                Nav.NavigateTo("/account/expire-cookie", forceLoad: true);
+                // Only kick out when we previously had a session (or first paint with bad cookie)
+                if (_bodyReady || AuthService.CurrentUser != null || isNavigation)
+                {
+                    _redirecting = true;
+                    _user = null;
+                    _bodyReady = false;
+                    Nav.NavigateTo("/account/expire-cookie", forceLoad: true);
+                }
                 return;
             }
 
@@ -139,12 +143,21 @@
             _bodyReady = true;
             await InvokeAsync(StateHasChanged);
         }
-        catch (Exception)
+        catch (Exception ex)
         {
-            if (version != _checkVersion) return;
-            // Fail closed for protected layout
-            _redirecting = true;
-            Nav.NavigateTo("/account/expire-cookie", forceLoad: true);
+            // Never treat DbContext/transient errors as logout — that left Checker stuck
+            // on "Checking session…" or bounced users to login incorrectly.
+            Logger.LogWarning(ex, "Session check failed (non-fatal)");
+            if (!_bodyReady && AuthService.CurrentUser != null)
+            {
+                _user = AuthService.CurrentUser;
+                _bodyReady = true;
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+        finally
+        {
+            _checkLock.Release();
         }
     }
 
@@ -159,5 +172,6 @@
         Nav.LocationChanged -= OnLocationChanged;
         _heartbeat?.Dispose();
         _heartbeat = null;
+        _checkLock.Dispose();
     }
 }

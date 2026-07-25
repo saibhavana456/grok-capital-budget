@@ -15,13 +15,12 @@ namespace IT_BUDGET_MONITORING_PORTAL.Services;
 
 /// <summary>
 /// Login: PF + AD password + captcha → JWT → USER_TOKEN (Personal/SCV pattern).
-/// Single active session: existing USER_TOKEN row blocks login until cleared.
-/// Cookie carries TokenHash bound to USER_TOKEN.HASH_TOKEN so a cleared/stolen
-/// cookie cannot keep another browser "logged in".
+/// Uses <see cref="IDbContextFactory{AppDbContext}"/> so session checks never share the
+/// circuit-scoped DbContext used by Capital/Revenue/Checker page loads (avoids EF concurrency errors).
 /// </summary>
 public class AuthService : IAuthService
 {
-    private readonly AppDbContext _db;
+    private readonly IDbContextFactory<AppDbContext> _dbFactory;
     private readonly IStaffLookupService _staffLookup;
     private readonly IConfiguration _config;
     private readonly IHttpClientFactory _httpClientFactory;
@@ -30,13 +29,13 @@ public class AuthService : IAuthService
     private LoggedInUserDto? _currentUser;
 
     public AuthService(
-        AppDbContext db,
+        IDbContextFactory<AppDbContext> dbFactory,
         IStaffLookupService staffLookup,
         IConfiguration config,
         IHttpClientFactory httpClientFactory,
         ILogger<AuthService> logger)
     {
-        _db = db;
+        _dbFactory = dbFactory;
         _staffLookup = staffLookup;
         _config = config;
         _httpClientFactory = httpClientFactory;
@@ -49,7 +48,8 @@ public class AuthService : IAuthService
 
     public async Task<CaptchaQuestionDto> GetCaptchaAsync()
     {
-        var questions = await _db.LoginCaptchaQuestions
+        await using var db = await _dbFactory.CreateDbContextAsync();
+        var questions = await db.LoginCaptchaQuestions
             .AsNoTracking()
             .Where(q => q.IsActive == "Y")
             .ToListAsync();
@@ -84,7 +84,9 @@ public class AuthService : IAuthService
             return Fail("Invalid captcha answer.");
 
         var pf = request.PfNumber.Trim();
-        var appUser = await _db.AppUsers
+        await using var db = await _dbFactory.CreateDbContextAsync();
+
+        var appUser = await db.AppUsers
             .Include(u => u.Department)
             .AsNoTracking()
             .FirstOrDefaultAsync(u => u.PfNo == pf && u.IsActive == "Y");
@@ -103,9 +105,8 @@ public class AuthService : IAuthService
             return Fail("AD authentication failed. Invalid PF or password.");
         }
 
-        // SCV InsertToken: ANY existing USER_TOKEN row for this PF blocks login
         var encryptedUserId = EncryptoData.EncryptString(pf);
-        var existing = await _db.UserTokens.AsNoTracking()
+        var existing = await db.UserTokens.AsNoTracking()
             .FirstOrDefaultAsync(t => t.UserId == encryptedUserId);
         if (existing != null)
         {
@@ -124,7 +125,7 @@ public class AuthService : IAuthService
 
         try
         {
-            _db.UserTokens.Add(new UserToken
+            db.UserTokens.Add(new UserToken
             {
                 UserId = encryptedUserId,
                 UserName = displayName,
@@ -132,13 +133,11 @@ public class AuthService : IAuthService
                 HashToken = hash,
                 CreatedAt = DateTime.Now
             });
-            await _db.SaveChangesAsync();
+            await db.SaveChangesAsync();
         }
         catch (DbUpdateException ex)
         {
-            // Concurrent second login — unique USERID (or race) → same as previous session
             _logger.LogWarning(ex, "Login blocked — concurrent USER_TOKEN insert for PF {Pf}", pf);
-            _db.ChangeTracker.Clear();
             return Fail(AppConstants.PreviousSessionExistsMessage);
         }
 
@@ -174,20 +173,17 @@ public class AuthService : IAuthService
         if (string.IsNullOrWhiteSpace(pfNo)) return;
 
         var encryptedUserId = EncryptoData.EncryptString(pfNo.Trim());
-        var tokens = await _db.UserTokens.Where(t => t.UserId == encryptedUserId).ToListAsync();
+        await using var db = await _dbFactory.CreateDbContextAsync();
+        var tokens = await db.UserTokens.Where(t => t.UserId == encryptedUserId).ToListAsync();
         if (tokens.Count > 0)
         {
-            _db.UserTokens.RemoveRange(tokens);
-            await _db.SaveChangesAsync();
+            db.UserTokens.RemoveRange(tokens);
+            await db.SaveChangesAsync();
             _logger.LogInformation("USER_TOKEN cleared for PF={Pf} Rows={Count}", pfNo, tokens.Count);
         }
         _currentUser = null;
     }
 
-    /// <summary>
-    /// Session is valid only when USER_TOKEN exists AND HASH_TOKEN matches the cookie claim.
-    /// Cookie alone is not enough (fixes multi-browser false "both logged in").
-    /// </summary>
     public async Task<LoggedInUserDto?> ValidateSessionAsync(string pfNo, string? tokenHash)
     {
         if (string.IsNullOrWhiteSpace(pfNo) || string.IsNullOrWhiteSpace(tokenHash))
@@ -196,9 +192,9 @@ public class AuthService : IAuthService
         var pf = pfNo.Trim();
         var encryptedUserId = EncryptoData.EncryptString(pf);
 
-        // Always hit the database — do not reuse tracked entities from this circuit.
-        _db.ChangeTracker.Clear();
-        var tokenRow = await _db.UserTokens.AsNoTracking()
+        // Own short-lived context — safe alongside Capital/Revenue page queries
+        await using var db = await _dbFactory.CreateDbContextAsync();
+        var tokenRow = await db.UserTokens.AsNoTracking()
             .FirstOrDefaultAsync(t => t.UserId == encryptedUserId);
 
         if (tokenRow == null || string.IsNullOrEmpty(tokenRow.LastToken) || string.IsNullOrEmpty(tokenRow.HashToken))
@@ -213,7 +209,7 @@ public class AuthService : IAuthService
             return null;
         }
 
-        var appUser = await _db.AppUsers
+        var appUser = await db.AppUsers
             .Include(u => u.Department)
             .AsNoTracking()
             .FirstOrDefaultAsync(u => u.PfNo == pf && u.IsActive == "Y");
@@ -237,9 +233,6 @@ public class AuthService : IAuthService
         };
     }
 
-    /// <summary>
-    /// Live check for the current circuit user (nav / submit). False → caller must expire local cookie.
-    /// </summary>
     public async Task<bool> IsCurrentSessionValidAsync()
     {
         var current = _currentUser;
