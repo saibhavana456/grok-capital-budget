@@ -44,11 +44,13 @@ public static class AppConstants
     public const string CapitalZeroNotAllowedMessage =
         "Capital entry cannot be submitted with zero actual utilization. Enter spillover and/or fresh amount greater than zero.";
     public const string MakerAlreadyAssignedMessage =
-        "This Maker PF is already assigned to another active department. One Maker per department only.";
+        "This PF is already Maker or Checker on another active department. One person can belong to only one department.";
     public const string CheckerAlreadyAssignedMessage =
-        "This Checker PF is already assigned to another active department. One Checker per department only.";
+        "This PF is already Maker or Checker on another active department. One person can belong to only one department.";
     public const string MakerCheckerSamePfMessage =
         "Maker PF and Checker PF must be different.";
+    public const string PfAlreadyOnOtherDeptMessage =
+        "PF {0} is already assigned as {1} on department '{2}'. One person can belong to only one active department.";
     public const string ConfirmOverBudgetTitle = "Amount exceeds allotment";
     public const string ConfirmOverBudgetMessage =
         "Entered amount exceeds remaining allotment. Do you still want to submit for checker review?";
