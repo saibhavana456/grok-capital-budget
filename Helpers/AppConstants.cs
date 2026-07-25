@@ -40,6 +40,9 @@ public static class AppConstants
     public const string ConfirmZeroTitle = "Confirm zero amounts";
     public const string ConfirmZeroMessage =
         "All amount fields are zero. Do you still want to submit?";
+    /// <summary>Capital: zero actual utilization is not allowed. Revenue may submit zeros with confirm.</summary>
+    public const string CapitalZeroNotAllowedMessage =
+        "Capital entry cannot be submitted with zero actual utilization. Enter spillover and/or fresh amount greater than zero.";
     public const string ConfirmOverBudgetTitle = "Amount exceeds allotment";
     public const string ConfirmOverBudgetMessage =
         "Entered amount exceeds remaining allotment. Do you still want to submit for checker review?";

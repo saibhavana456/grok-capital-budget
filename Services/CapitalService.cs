@@ -110,13 +110,15 @@ public class CapitalService : ICapitalService
         if (allotment == null)
             return ServiceResult.Fail("FY allotment not found for this project.");
 
-        // Normalize negatives; blank numeric fields bind as 0 (0 is allowed).
+        // Normalize negatives; blank numeric fields bind as 0.
         form.ActualSpillover = Math.Max(0, form.ActualSpillover);
         form.ActualFresh = Math.Max(0, form.ActualFresh);
         form.EstSpilloverNext = Math.Max(0, form.EstSpilloverNext);
         form.EstFreshNext = Math.Max(0, form.EstFreshNext);
 
         var actualTotal = form.ActualSpillover + form.ActualFresh;
+        if (actualTotal <= 0)
+            return ServiceResult.Fail(AppConstants.CapitalZeroNotAllowedMessage);
 
         var existing = await _db.CapitalMonthlyEntries
             .FirstOrDefaultAsync(e => e.ProjectId == form.ProjectId

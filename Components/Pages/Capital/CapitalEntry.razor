@@ -223,24 +223,19 @@
         }
 
         var actualTotal = _form.ActualSpillover + _form.ActualFresh;
-        var allZero = _form.ActualSpillover == 0 && _form.ActualFresh == 0
-                      && _form.EstSpilloverNext == 0 && _form.EstFreshNext == 0;
+        // Capital: zero actual utilization is not allowed (Revenue may confirm zeros).
+        if (actualTotal <= 0)
+        {
+            Snackbar.Add(AppConstants.CapitalZeroNotAllowedMessage, Severity.Warning);
+            return;
+        }
+
         var overBudget = _form.ActualSpillover > _form.SpilloverAllotted
                          || _form.ActualFresh > _form.FreshAllotted
                          || actualTotal > _form.TotalAllotted;
 
         var contextSubtitle = $"{_form.DeptName} · {_form.SectionName}";
         var baseDetails = BuildBaseDetails(actualTotal);
-
-        if (allZero && !await ConfirmAsync(
-                AppConstants.ConfirmZeroTitle,
-                AppConstants.ConfirmZeroMessage,
-                "Submit",
-                Color.Warning,
-                contextSubtitle,
-                baseDetails,
-                Icons.Material.Filled.MoneyOff))
-            return;
 
         if (overBudget)
         {
