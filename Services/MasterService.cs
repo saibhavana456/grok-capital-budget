@@ -1,4 +1,5 @@
 using IT_BUDGET_MONITORING_PORTAL.Data;
+using IT_BUDGET_MONITORING_PORTAL.Helpers;
 using IT_BUDGET_MONITORING_PORTAL.Interfaces;
 using IT_BUDGET_MONITORING_PORTAL.Models.DTOs;
 using IT_BUDGET_MONITORING_PORTAL.Models.Entities;
@@ -17,6 +18,15 @@ public class MasterService : IMasterService
             .Where(d => !activeOnly || d.IsActive == "Y")
             .OrderBy(d => d.DeptName)
             .ToListAsync();
+
+    public Task<List<Department>> GetDepartmentsForMakerAsync(string makerPf)
+    {
+        var pf = (makerPf ?? "").Trim();
+        return _db.Departments.AsNoTracking()
+            .Where(d => d.IsActive == "Y" && d.MakerPf == pf)
+            .OrderBy(d => d.DeptName)
+            .ToListAsync();
+    }
 
     public Task<List<Section>> GetSectionsByDeptAsync(long deptId, bool activeOnly = true) =>
         _db.Sections.AsNoTracking()
@@ -52,6 +62,36 @@ public class MasterService : IMasterService
         if (string.IsNullOrWhiteSpace(dept.DeptName))
             return ServiceResult.Fail("Department name is required.");
 
+        var makerPf = dept.MakerPf?.Trim() ?? "";
+        var checkerPf = dept.CheckerPf?.Trim() ?? "";
+        dept.MakerPf = string.IsNullOrWhiteSpace(makerPf) ? null : makerPf;
+        dept.CheckerPf = string.IsNullOrWhiteSpace(checkerPf) ? null : checkerPf;
+
+        if (!string.IsNullOrEmpty(makerPf) && !string.IsNullOrEmpty(checkerPf)
+            && string.Equals(makerPf, checkerPf, StringComparison.OrdinalIgnoreCase))
+            return ServiceResult.Fail(AppConstants.MakerCheckerSamePfMessage);
+
+        // One Maker / one Checker per active department (docs + Admin masters design)
+        if (!string.IsNullOrEmpty(makerPf))
+        {
+            var makerTaken = await _db.Departments.AsNoTracking()
+                .AnyAsync(d => d.IsActive == "Y"
+                               && d.MakerPf == makerPf
+                               && d.DeptId != dept.DeptId);
+            if (makerTaken)
+                return ServiceResult.Fail(AppConstants.MakerAlreadyAssignedMessage);
+        }
+
+        if (!string.IsNullOrEmpty(checkerPf))
+        {
+            var checkerTaken = await _db.Departments.AsNoTracking()
+                .AnyAsync(d => d.IsActive == "Y"
+                               && d.CheckerPf == checkerPf
+                               && d.DeptId != dept.DeptId);
+            if (checkerTaken)
+                return ServiceResult.Fail(AppConstants.CheckerAlreadyAssignedMessage);
+        }
+
         if (dept.DeptId == 0)
         {
             dept.CreatedAt = DateTime.Now;
@@ -68,6 +108,7 @@ public class MasterService : IMasterService
             existing.HasRevenue = dept.HasRevenue;
             existing.MakerPf = dept.MakerPf;
             existing.CheckerPf = dept.CheckerPf;
+            existing.IsActive = dept.IsActive;
             existing.UpdatedAt = DateTime.Now;
             existing.UpdatedBy = actorPf;
         }

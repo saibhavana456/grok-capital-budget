@@ -4,7 +4,6 @@
 @inject IRevenueService RevenueService
 @inject IAuthService AuthService
 @inject ISnackbar Snackbar
-@inject IDialogService DialogService
 
 <div class="checker-page">
     <MudPaper Class="pa-4 mb-3" Elevation="1" Style="border-radius:10px;">
@@ -12,7 +11,7 @@
             <div>
                 <MudText Typo="Typo.h5" Style="color:#003366;font-weight:700;">Checker Review</MudText>
                 <MudText Typo="Typo.body2" Class="mt-1" Style="color:#64748b;max-width:640px;">
-                    Approve, Return, or Reject pending Capital and Revenue submissions for your department
+                    Open View to Approve, Return, or Reject pending submissions for your department
                 </MudText>
             </div>
             <MudStack Row="true" Spacing="2" Class="mt-1">
@@ -44,21 +43,14 @@
                 {
                     <MudTable Items="_capital" Hover="true" Dense="true" Striped="true"
                               Breakpoint="Breakpoint.Sm" Elevation="0" Class="checker-table">
-                        <ColGroup>
-                            <col style="width:9%;" />
-                            <col style="width:10%;" />
-                            <col style="width:16%;" />
-                            <col style="width:18%;" />
-                            <col style="width:10%;" />
-                            <col style="width:37%;" />
-                        </ColGroup>
                         <HeaderContent>
                             <MudTh>FY</MudTh>
                             <MudTh>Month</MudTh>
                             <MudTh>Section</MudTh>
                             <MudTh>Project</MudTh>
                             <MudTh>Maker</MudTh>
-                            <MudTh Style="text-align:right;">Actions</MudTh>
+                            <MudTh>Status</MudTh>
+                            <MudTh Style="text-align:right;">Action</MudTh>
                         </HeaderContent>
                         <RowTemplate>
                             <MudTd DataLabel="FY">@context.FinancialYear</MudTd>
@@ -66,17 +58,10 @@
                             <MudTd DataLabel="Section">@context.SectionName</MudTd>
                             <MudTd DataLabel="Project">@context.ProjectName</MudTd>
                             <MudTd DataLabel="Maker">@context.SubmittedByPf</MudTd>
-                            <MudTd DataLabel="Actions" Class="checker-actions-cell">
-                                <div class="checker-actions">
-                                    <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Success"
-                                               OnClick="@(() => ActCapital(context.EntryId, "APPROVED"))">Approve</MudButton>
-                                    <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Warning"
-                                               OnClick="@(() => ActCapital(context.EntryId, "RETURNED"))">Return</MudButton>
-                                    <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Error"
-                                               OnClick="@(() => ActCapital(context.EntryId, "REJECTED"))">Reject</MudButton>
-                                    <MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Primary"
-                                               Href="@($"/capital/view/{context.EntryId}")">View</MudButton>
-                                </div>
+                            <MudTd DataLabel="Status"><StatusChip Status="@context.Status" /></MudTd>
+                            <MudTd DataLabel="Action" Class="checker-actions-cell">
+                                <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Primary"
+                                           Href="@($"/capital/view/{context.EntryId}")">View</MudButton>
                             </MudTd>
                         </RowTemplate>
                         <PagerContent>
@@ -101,21 +86,14 @@
                 {
                     <MudTable Items="_revenue" Hover="true" Dense="true" Striped="true"
                               Breakpoint="Breakpoint.Sm" Elevation="0" Class="checker-table">
-                        <ColGroup>
-                            <col style="width:9%;" />
-                            <col style="width:10%;" />
-                            <col style="width:22%;" />
-                            <col style="width:12%;" />
-                            <col style="width:10%;" />
-                            <col style="width:37%;" />
-                        </ColGroup>
                         <HeaderContent>
                             <MudTh>FY</MudTh>
                             <MudTh>Month</MudTh>
                             <MudTh>Section</MudTh>
                             <MudTh>Total (Cr)</MudTh>
                             <MudTh>Maker</MudTh>
-                            <MudTh Style="text-align:right;">Actions</MudTh>
+                            <MudTh>Status</MudTh>
+                            <MudTh Style="text-align:right;">Action</MudTh>
                         </HeaderContent>
                         <RowTemplate>
                             <MudTd DataLabel="FY">@context.FinancialYear</MudTd>
@@ -123,17 +101,10 @@
                             <MudTd DataLabel="Section">@context.SectionName</MudTd>
                             <MudTd DataLabel="Total">@context.TotalAmount.ToString("0.00")</MudTd>
                             <MudTd DataLabel="Maker">@context.SubmittedByPf</MudTd>
-                            <MudTd DataLabel="Actions" Class="checker-actions-cell">
-                                <div class="checker-actions">
-                                    <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Success"
-                                               OnClick="@(() => ActRevenue(context.EntryId, "APPROVED"))">Approve</MudButton>
-                                    <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Warning"
-                                               OnClick="@(() => ActRevenue(context.EntryId, "RETURNED"))">Return</MudButton>
-                                    <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Error"
-                                               OnClick="@(() => ActRevenue(context.EntryId, "REJECTED"))">Reject</MudButton>
-                                    <MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Primary"
-                                               Href="@($"/revenue/view/{context.EntryId}")">View</MudButton>
-                                </div>
+                            <MudTd DataLabel="Status"><StatusChip Status="@context.Status" /></MudTd>
+                            <MudTd DataLabel="Action" Class="checker-actions-cell">
+                                <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Primary"
+                                           Href="@($"/revenue/view/{context.EntryId}")">View</MudButton>
                             </MudTd>
                         </RowTemplate>
                         <PagerContent>
@@ -168,88 +139,5 @@
         {
             _loading = false;
         }
-    }
-
-    private async Task ActCapital(long id, string action)
-    {
-        var item = _capital.FirstOrDefault(x => x.EntryId == id);
-        var (confirmed, remark) = await PromptRemark(action, BuildCapitalDetails(item));
-        if (!confirmed) return;
-        var result = await CapitalService.CheckerActionAsync(id, action, AuthService.CurrentUser!.PfNo, remark);
-        Snackbar.Add(result.Message, result.Success ? Severity.Success : Severity.Error);
-        await Reload();
-    }
-
-    private async Task ActRevenue(long id, string action)
-    {
-        var item = _revenue.FirstOrDefault(x => x.EntryId == id);
-        var (confirmed, remark) = await PromptRemark(action, BuildRevenueDetails(item));
-        if (!confirmed) return;
-        var result = await RevenueService.CheckerActionAsync(id, action, AuthService.CurrentUser!.PfNo, remark);
-        Snackbar.Add(result.Message, result.Success ? Severity.Success : Severity.Error);
-        await Reload();
-    }
-
-    private static List<ConfirmDialog.DialogDetailRow> BuildCapitalDetails(CapitalSubmissionListItem? item)
-    {
-        if (item == null) return [];
-        return
-        [
-            new("Budget type", "Capital"),
-            new("Financial year", item.FinancialYear),
-            new("Month", item.Month),
-            new("Section", item.SectionName),
-            new("Project", item.ProjectName),
-            new("Maker PF", item.SubmittedByPf ?? "-", "accent")
-        ];
-    }
-
-    private static List<ConfirmDialog.DialogDetailRow> BuildRevenueDetails(RevenueSubmissionListItem? item)
-    {
-        if (item == null) return [];
-        return
-        [
-            new("Budget type", "Revenue"),
-            new("Financial year", item.FinancialYear),
-            new("Month", item.Month),
-            new("Section", item.SectionName),
-            new("Total amount", $"{item.TotalAmount:0.00} Cr", "accent"),
-            new("Maker PF", item.SubmittedByPf ?? "-")
-        ];
-    }
-
-    private async Task<(bool Confirmed, string? Remark)> PromptRemark(string action, List<ConfirmDialog.DialogDetailRow> details)
-    {
-        var required = action is "RETURNED" or "REJECTED";
-        var (title, confirmText, color) = action switch
-        {
-            "APPROVED" => ("Approve submission", "Approve", Color.Success),
-            "RETURNED" => ("Return to maker", "Return", Color.Warning),
-            "REJECTED" => ("Reject submission", "Reject", Color.Error),
-            _ => ("Remark", "Confirm", Color.Primary)
-        };
-        var parameters = new DialogParameters<RemarkDialog>
-        {
-            { x => x.Title, title },
-            { x => x.Subtitle, "Checker review action" },
-            { x => x.Prompt, required
-                ? "Enter a remark for the maker. This is required for Return and Reject."
-                : "Optional remark for the maker." },
-            { x => x.RemarkRequired, required },
-            { x => x.Details, details },
-            { x => x.ConfirmText, confirmText },
-            { x => x.ConfirmColor, color }
-        };
-        var options = new DialogOptions
-        {
-            CloseOnEscapeKey = true,
-            MaxWidth = MaxWidth.Small,
-            FullWidth = true,
-            BackdropClick = false
-        };
-        var dialog = await DialogService.ShowAsync<RemarkDialog>(title, parameters, options);
-        var result = await dialog.Result;
-        if (result == null || result.Canceled) return (false, null);
-        return (true, result.Data as string);
     }
 }

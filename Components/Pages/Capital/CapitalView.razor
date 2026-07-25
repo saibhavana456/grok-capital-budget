@@ -1,7 +1,10 @@
 @page "/capital/view/{EntryId:long}"
 @attribute [Authorize]
 @inject ICapitalService CapitalService
+@inject IAuthService AuthService
 @inject ISnackbar Snackbar
+@inject IDialogService DialogService
+@inject NavigationManager Nav
 
 <div class="entry-page">
     <MudText Typo="Typo.h5" Class="page-title">Capital Entry Detail</MudText>
@@ -98,7 +101,27 @@
             }
         </MudPaper>
 
-        <MudButton Class="mt-4" Variant="Variant.Outlined" Color="Color.Primary" Href="/capital/submissions">Back to list</MudButton>
+        @if (_canCheckerAct)
+        {
+            <MudPaper Class="pa-4 mt-3 portal-card" Elevation="0">
+                <MudText Class="section-heading mb-3">Checker action</MudText>
+                <MudStack Row="true" Spacing="2">
+                    <MudButton Variant="Variant.Filled" Color="Color.Success" Disabled="_busy"
+                               OnClick="@(() => Act("APPROVED"))">Approve</MudButton>
+                    <MudButton Variant="Variant.Outlined" Color="Color.Warning" Disabled="_busy"
+                               OnClick="@(() => Act("RETURNED"))">Return</MudButton>
+                    <MudButton Variant="Variant.Outlined" Color="Color.Error" Disabled="_busy"
+                               OnClick="@(() => Act("REJECTED"))">Reject</MudButton>
+                </MudStack>
+            </MudPaper>
+        }
+
+        <MudStack Row="true" Class="mt-4" Spacing="2">
+            <MudButton Variant="Variant.Outlined" Color="Color.Primary"
+                       Href="@(_isChecker ? "/checker" : "/capital/submissions")">
+                Back to list
+            </MudButton>
+        </MudStack>
     }
 </div>
 
@@ -106,6 +129,9 @@
     [Parameter] public long EntryId { get; set; }
 
     private bool _loading = true;
+    private bool _busy;
+    private bool _isChecker;
+    private bool _canCheckerAct;
     private CapitalMonthlyEntry? _entry;
     private CapitalEntryFormDto? _context;
 
@@ -117,14 +143,80 @@
     {
         try
         {
+            var user = AuthService.CurrentUser;
+            _isChecker = user?.RoleCode == AppConstants.Roles.Checker;
             _entry = await CapitalService.GetEntryAsync(EntryId);
             if (_entry != null)
             {
                 _context = await CapitalService.BuildFormAsync(
                     _entry.ProjectId, _entry.FinancialYear, _entry.EntryMonth);
+                _canCheckerAct = _isChecker
+                    && string.Equals(_entry.EntryStatus, AppConstants.EntryStatus.Pending, StringComparison.OrdinalIgnoreCase);
             }
             else Snackbar.Add("Entry not found.", Severity.Warning);
         }
         finally { _loading = false; }
+    }
+
+    private async Task Act(string action)
+    {
+        if (_entry == null || !_canCheckerAct) return;
+        var details = new List<ConfirmDialog.DialogDetailRow>
+        {
+            new("Budget type", "Capital"),
+            new("Financial year", _entry.FinancialYear),
+            new("Month", _entry.EntryMonth),
+            new("Project", _context?.ProjectName ?? "-"),
+            new("Actual total", $"{_entry.ActualTotal:0.00} Cr", "accent"),
+            new("Maker PF", _entry.SubmittedByPf ?? "-")
+        };
+        var (confirmed, remark) = await PromptRemark(action, details);
+        if (!confirmed) return;
+
+        _busy = true;
+        try
+        {
+            var result = await CapitalService.CheckerActionAsync(
+                EntryId, action, AuthService.CurrentUser!.PfNo, remark);
+            Snackbar.Add(result.Message, result.Success ? Severity.Success : Severity.Error);
+            if (result.Success)
+                Nav.NavigateTo("/checker");
+        }
+        finally { _busy = false; }
+    }
+
+    private async Task<(bool Confirmed, string? Remark)> PromptRemark(string action, List<ConfirmDialog.DialogDetailRow> details)
+    {
+        var required = action is "RETURNED" or "REJECTED";
+        var (title, confirmText, color) = action switch
+        {
+            "APPROVED" => ("Approve submission", "Approve", Color.Success),
+            "RETURNED" => ("Return to maker", "Return", Color.Warning),
+            "REJECTED" => ("Reject submission", "Reject", Color.Error),
+            _ => ("Remark", "Confirm", Color.Primary)
+        };
+        var parameters = new DialogParameters<RemarkDialog>
+        {
+            { x => x.Title, title },
+            { x => x.Subtitle, "Checker review action" },
+            { x => x.Prompt, required
+                ? "Enter a remark for the maker. This is required for Return and Reject."
+                : "Optional remark for the maker." },
+            { x => x.RemarkRequired, required },
+            { x => x.Details, details },
+            { x => x.ConfirmText, confirmText },
+            { x => x.ConfirmColor, color }
+        };
+        var options = new DialogOptions
+        {
+            CloseOnEscapeKey = true,
+            MaxWidth = MaxWidth.Small,
+            FullWidth = true,
+            BackdropClick = false
+        };
+        var dialog = await DialogService.ShowAsync<RemarkDialog>(title, parameters, options);
+        var result = await dialog.Result;
+        if (result == null || result.Canceled) return (false, null);
+        return (true, result.Data as string);
     }
 }

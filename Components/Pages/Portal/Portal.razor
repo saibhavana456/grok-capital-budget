@@ -24,6 +24,7 @@
 
             <MudSelect T="long?" Label="Department" Variant="Variant.Outlined" Class="mb-3"
                        Value="_deptId" ValueChanged="OnDeptChanged"
+                       Disabled="_departments.Count <= 1"
                        AnchorOrigin="Origin.BottomLeft" TransformOrigin="Origin.TopLeft"
                        RelativeWidth="DropdownWidth.Relative">
                 @foreach (var d in _departments)
@@ -135,8 +136,20 @@
                 return;
             }
 
-            _departments = await MasterService.GetDepartmentsAsync();
-            if (user?.DeptId != null)
+            // Maker sees only department(s) where they are Maker PF — not all departments
+            _departments = await MasterService.GetDepartmentsForMakerAsync(user?.PfNo ?? "");
+            if (_departments.Count == 0)
+            {
+                Snackbar.Add("No department is assigned to your Maker PF. Contact Admin.", Severity.Warning);
+                return;
+            }
+
+            if (_departments.Count == 1)
+            {
+                _deptId = _departments[0].DeptId;
+                await OnDeptChanged(_deptId);
+            }
+            else if (user?.DeptId != null && _departments.Any(d => d.DeptId == user.DeptId))
             {
                 _deptId = user.DeptId;
                 await OnDeptChanged(_deptId);

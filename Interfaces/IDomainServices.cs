@@ -6,6 +6,8 @@ namespace IT_BUDGET_MONITORING_PORTAL.Interfaces;
 public interface IMasterService
 {
     Task<List<Department>> GetDepartmentsAsync(bool activeOnly = true);
+    /// <summary>Active departments where this PF is the department Maker (one Maker → their dept only).</summary>
+    Task<List<Department>> GetDepartmentsForMakerAsync(string makerPf);
     Task<List<Section>> GetSectionsByDeptAsync(long deptId, bool activeOnly = true);
     Task<List<Project>> GetProjectsBySectionAsync(long sectionId, bool activeOnly = true);
     Task<List<RevenueHead>> GetRevenueHeadsAsync();
