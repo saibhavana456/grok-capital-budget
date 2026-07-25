@@ -53,7 +53,14 @@ public static class AppConstants
         "User already logged in. Clear the previous session, then login again.";
 
     public const int JustificationMaxLength = 5000;
+
+    /// <summary>Seed/demo default; runtime entry uses <see cref="CurrentFinancialYear"/>.</summary>
     public const string DefaultFinancialYear = "2026-27";
+
+    public const string PreviousFyViewOnlyMessage =
+        "Previous financial years are view-only. New entry is allowed only for the current financial year.";
+    public const string EntryMonthWindowMessage =
+        "New entry is allowed only for the current month or the previous calendar month.";
 
     public static bool IsEditableStatus(string? status) =>
         string.Equals(status, EntryStatus.Returned, StringComparison.OrdinalIgnoreCase)
@@ -62,6 +69,30 @@ public static class AppConstants
     public static bool IsLockedStatus(string? status) =>
         string.Equals(status, EntryStatus.Pending, StringComparison.OrdinalIgnoreCase)
         || string.Equals(status, EntryStatus.Approved, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Indian FY label for the calendar date (April–March), e.g. 25 Jul 2026 → 2026-27.
+    /// </summary>
+    public static string CurrentFinancialYear(DateTime? asOf = null)
+    {
+        var dt = asOf ?? DateTime.Now;
+        var startYear = dt.Month >= 4 ? dt.Year : dt.Year - 1;
+        var endTwo = (startYear + 1) % 100;
+        return $"{startYear}-{endTwo:D2}";
+    }
+
+    public static bool IsCurrentFinancialYear(string? financialYear, DateTime? asOf = null)
+    {
+        if (string.IsNullOrWhiteSpace(financialYear)) return false;
+        return string.Equals(financialYear.Trim(), CurrentFinancialYear(asOf), StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// Maker may submit only in the current FY for current or previous calendar month
+    /// (or resubmit RETURNED/REJECTED in that same window — enforced by caller with status).
+    /// </summary>
+    public static bool CanSubmitNewEntry(string? financialYear, string? month, DateTime? asOf = null) =>
+        IsCurrentFinancialYear(financialYear, asOf) && IsAllowedEntryMonth(month, asOf);
 
     /// <summary>FY months from April through <paramref name="throughMonth"/> inclusive.</summary>
     public static IEnumerable<string> MonthsFromAprilThrough(string throughMonth)
@@ -97,6 +128,12 @@ public static class AppConstants
             .Any(m => string.Equals(m, month, StringComparison.OrdinalIgnoreCase));
     }
 
+    /// <summary>
+    /// Month selectable on Maker entry/portal: only current + previous (not older completed months, not future).
+    /// </summary>
+    public static bool IsEntryMonthSelectable(string? month, DateTime? asOf = null) =>
+        IsAllowedEntryMonth(month, asOf);
+
     public static string DefaultEntryMonth(DateTime? asOf = null) => CalendarMonthName(asOf);
 
     /// <summary>
@@ -112,7 +149,7 @@ public static class AppConstants
         return monthDate > current;
     }
 
-    /// <summary>Past and current FY months may be opened; future months stay disabled.</summary>
+    /// <summary>Past and current FY months may be opened for view; future months stay disabled.</summary>
     public static bool CanOpenMonth(string? month, DateTime? asOf = null) =>
         !string.IsNullOrWhiteSpace(month) && !IsFutureMonth(month, asOf);
 

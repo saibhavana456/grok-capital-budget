@@ -112,6 +112,8 @@ public class RevenueService : IRevenueService
     {
         if (form.SectionId <= 0) return ServiceResult.Fail("Section is required.");
         if (string.IsNullOrWhiteSpace(form.EntryMonth)) return ServiceResult.Fail("Month is required.");
+        if (!AppConstants.IsCurrentFinancialYear(form.FinancialYear))
+            return ServiceResult.Fail(AppConstants.PreviousFyViewOnlyMessage);
         if (AppConstants.IsFutureMonth(form.EntryMonth))
             return ServiceResult.Fail("Future month entry is not allowed.");
         if (string.IsNullOrWhiteSpace(form.JustificationText))
@@ -150,6 +152,9 @@ public class RevenueService : IRevenueService
             if (!AppConstants.IsEditableStatus(existing.EntryStatus))
                 return ServiceResult.Fail("This entry cannot be resubmitted.");
 
+            if (!AppConstants.IsAllowedEntryMonth(form.EntryMonth))
+                return ServiceResult.Fail(AppConstants.EntryMonthWindowMessage);
+
             existing.JustificationText = form.JustificationText.Trim();
             existing.EntryStatus = AppConstants.EntryStatus.Pending;
             existing.SubmittedAt = DateTime.Now;
@@ -178,8 +183,8 @@ public class RevenueService : IRevenueService
             return ServiceResult.Ok(AppConstants.SuccessResubmit);
         }
 
-        if (!AppConstants.IsAllowedEntryMonth(form.EntryMonth))
-            return ServiceResult.Fail("Entry is allowed only for the current month or the previous month.");
+        if (!AppConstants.CanSubmitNewEntry(form.FinancialYear, form.EntryMonth))
+            return ServiceResult.Fail(AppConstants.EntryMonthWindowMessage);
 
         var entry = new RevenueMonthlyEntry
         {

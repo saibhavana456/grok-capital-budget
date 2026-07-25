@@ -75,7 +75,7 @@
                        RelativeWidth="DropdownWidth.Relative">
                 @foreach (var m in AppConstants.FyMonths)
                 {
-                    <MudSelectItem Value="@m" Disabled="@AppConstants.IsFutureMonth(m)">@m</MudSelectItem>
+                    <MudSelectItem Value="@m" Disabled="@(!AppConstants.IsEntryMonthSelectable(m))">@m</MudSelectItem>
                 }
             </MudSelect>
 
@@ -112,7 +112,7 @@
         _deptId.HasValue &&
         _sectionId.HasValue &&
         !string.IsNullOrWhiteSpace(_month) &&
-        AppConstants.CanOpenMonth(_month) &&
+        AppConstants.IsEntryMonthSelectable(_month) &&
         (IsCapitalPath ? _projectId.HasValue : _showBudgetType && _budgetType == "REVENUE");
 
     protected override async Task OnInitializedAsync()
@@ -196,7 +196,7 @@
 
     private Task OnMonthChanged(string month)
     {
-        if (AppConstants.IsFutureMonth(month)) return Task.CompletedTask;
+        if (!AppConstants.IsEntryMonthSelectable(month)) return Task.CompletedTask;
         _month = month;
         return Task.CompletedTask;
     }
