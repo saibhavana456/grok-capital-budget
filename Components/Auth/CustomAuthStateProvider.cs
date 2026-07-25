@@ -15,6 +15,9 @@ namespace IT_BUDGET_MONITORING_PORTAL.Components.Auth;
 /// </summary>
 public class CustomAuthStateProvider : AuthenticationStateProvider
 {
+    private static readonly AuthenticationState Anonymous =
+        new(new ClaimsPrincipal(new ClaimsIdentity()));
+
     private readonly ProtectedSessionStorage _sessionStorage;
     private readonly IAuthService _authService;
     private readonly ILogger<CustomAuthStateProvider> _logger;
@@ -31,24 +34,39 @@ public class CustomAuthStateProvider : AuthenticationStateProvider
 
     public override async Task<AuthenticationState> GetAuthenticationStateAsync()
     {
-        try
-        {
-            if (_authService.CurrentUser != null)
-                return new AuthenticationState(CreatePrincipal(_authService.CurrentUser));
+        if (_authService.CurrentUser != null)
+            return new AuthenticationState(CreatePrincipal(_authService.CurrentUser));
 
-            var result = await _sessionStorage.GetAsync<LoggedInUserDto>(AppConstants.SessionUserKey);
-            if (result.Success && result.Value != null)
+        // After F5 / new circuit, CurrentUser is empty. Restore from browser sessionStorage.
+        // First JS interop calls can throw until the circuit is fully connected — retry so
+        // AuthorizeRouteView stays on Authorizing instead of bouncing to /login.
+        for (var attempt = 1; attempt <= 8; attempt++)
+        {
+            try
             {
-                _authService.SetCurrentUser(result.Value);
-                return new AuthenticationState(CreatePrincipal(result.Value));
+                var result = await _sessionStorage.GetAsync<LoggedInUserDto>(AppConstants.SessionUserKey);
+                if (result.Success && result.Value != null && !string.IsNullOrWhiteSpace(result.Value.PfNo))
+                {
+                    _authService.SetCurrentUser(result.Value);
+                    return new AuthenticationState(CreatePrincipal(result.Value));
+                }
+
+                // Storage readable but empty — truly logged out
+                return Anonymous;
+            }
+            catch (InvalidOperationException ex)
+            {
+                _logger.LogDebug(ex, "Auth restore waiting for circuit (attempt {Attempt})", attempt);
+                await Task.Delay(40 * attempt);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Auth state restore failed");
+                break;
             }
         }
-        catch (Exception ex)
-        {
-            _logger.LogDebug(ex, "Auth state restore skipped (prerender).");
-        }
 
-        return new AuthenticationState(new ClaimsPrincipal(new ClaimsIdentity()));
+        return Anonymous;
     }
 
     public async Task MarkUserAsAuthenticated(LoggedInUserDto user)
@@ -66,9 +84,16 @@ public class CustomAuthStateProvider : AuthenticationStateProvider
             await _authService.LogoutAsync(pf);
 
         _authService.SetCurrentUser(null);
-        await _sessionStorage.DeleteAsync(AppConstants.SessionUserKey);
-        NotifyAuthenticationStateChanged(
-            Task.FromResult(new AuthenticationState(new ClaimsPrincipal(new ClaimsIdentity()))));
+        try
+        {
+            await _sessionStorage.DeleteAsync(AppConstants.SessionUserKey);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Session clear skipped");
+        }
+
+        NotifyAuthenticationStateChanged(Task.FromResult(Anonymous));
     }
 
     private static ClaimsPrincipal CreatePrincipal(LoggedInUserDto user)
