@@ -26,6 +26,8 @@ public class LoggedInUserDto
     public string? Designation { get; set; }
     public bool HasRevenueDept { get; set; }
     public string Token { get; set; } = string.Empty;
+    /// <summary>SHA-256 of Token — stored in cookie and matched to USER_TOKEN.HASH_TOKEN.</summary>
+    public string TokenHash { get; set; } = string.Empty;
 }
 
 public class CaptchaQuestionDto

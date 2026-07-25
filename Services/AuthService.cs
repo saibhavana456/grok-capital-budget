@@ -15,8 +15,9 @@ namespace IT_BUDGET_MONITORING_PORTAL.Services;
 
 /// <summary>
 /// Login: PF + AD password + captcha → JWT → USER_TOKEN (Personal/SCV pattern).
-/// Staff name from SQL Server STAFF_DETAILS when OrganisationsDb is configured.
-/// Auth:BypassAd=true skips AD HTTP call for local laptop testing against seeded APP_USER.
+/// Single active session: existing USER_TOKEN row blocks login until cleared.
+/// Cookie carries TokenHash bound to USER_TOKEN.HASH_TOKEN so a cleared/stolen
+/// cookie cannot keep another browser "logged in".
 /// </summary>
 public class AuthService : IAuthService
 {
@@ -102,12 +103,15 @@ public class AuthService : IAuthService
             return Fail("AD authentication failed. Invalid PF or password.");
         }
 
-        // Single active session — same as Personal/SCV live (USER_TOKEN)
+        // SCV InsertToken: ANY existing USER_TOKEN row for this PF blocks login
         var encryptedUserId = EncryptoData.EncryptString(pf);
-        var existing = await _db.UserTokens.FirstOrDefaultAsync(t => t.UserId == encryptedUserId);
-        if (existing != null && !string.IsNullOrEmpty(existing.LastToken))
+        var existing = await _db.UserTokens.AsNoTracking()
+            .FirstOrDefaultAsync(t => t.UserId == encryptedUserId);
+        if (existing != null)
         {
-            _logger.LogWarning("Login blocked — previous session exists for PF {Pf}", pf);
+            _logger.LogWarning(
+                "Login blocked — previous session exists for PF {Pf} (USER_TOKEN REF_NO={Ref})",
+                pf, existing.RefNo);
             return Fail(AppConstants.PreviousSessionExistsMessage);
         }
 
@@ -116,16 +120,27 @@ public class AuthService : IAuthService
         var designation = staff?.Designation ?? appUser.Designation;
 
         var token = CreateJwt(pf, appUser.RoleCode, displayName);
+        var hash = EncryptoData.Sha256Base64(token);
 
-        _db.UserTokens.Add(new UserToken
+        try
         {
-            UserId = encryptedUserId,
-            UserName = displayName,
-            LastToken = token,
-            HashToken = EncryptoData.Sha256Base64(token),
-            CreatedAt = DateTime.Now
-        });
-        await _db.SaveChangesAsync();
+            _db.UserTokens.Add(new UserToken
+            {
+                UserId = encryptedUserId,
+                UserName = displayName,
+                LastToken = token,
+                HashToken = hash,
+                CreatedAt = DateTime.Now
+            });
+            await _db.SaveChangesAsync();
+        }
+        catch (DbUpdateException ex)
+        {
+            // Concurrent second login — unique USERID (or race) → same as previous session
+            _logger.LogWarning(ex, "Login blocked — concurrent USER_TOKEN insert for PF {Pf}", pf);
+            _db.ChangeTracker.Clear();
+            return Fail(AppConstants.PreviousSessionExistsMessage);
+        }
 
         var user = new LoggedInUserDto
         {
@@ -137,7 +152,8 @@ public class AuthService : IAuthService
             DeptName = appUser.Department?.DeptName,
             Designation = designation,
             HasRevenueDept = appUser.Department?.HasRevenue == "Y",
-            Token = token
+            Token = token,
+            TokenHash = hash
         };
         _currentUser = user;
 
@@ -155,21 +171,42 @@ public class AuthService : IAuthService
 
     public async Task LogoutAsync(string pfNo)
     {
-        var encryptedUserId = EncryptoData.EncryptString(pfNo);
+        if (string.IsNullOrWhiteSpace(pfNo)) return;
+
+        var encryptedUserId = EncryptoData.EncryptString(pfNo.Trim());
         var tokens = await _db.UserTokens.Where(t => t.UserId == encryptedUserId).ToListAsync();
         if (tokens.Count > 0)
         {
             _db.UserTokens.RemoveRange(tokens);
             await _db.SaveChangesAsync();
+            _logger.LogInformation("USER_TOKEN cleared for PF={Pf} Rows={Count}", pfNo, tokens.Count);
         }
         _currentUser = null;
     }
 
-    public async Task<LoggedInUserDto?> GetLoggedInUserByPfAsync(string pfNo)
+    /// <summary>
+    /// Session is valid only when USER_TOKEN exists AND HASH_TOKEN matches the cookie claim.
+    /// Cookie alone is not enough (fixes multi-browser false "both logged in").
+    /// </summary>
+    public async Task<LoggedInUserDto?> ValidateSessionAsync(string pfNo, string? tokenHash)
     {
-        if (string.IsNullOrWhiteSpace(pfNo)) return null;
+        if (string.IsNullOrWhiteSpace(pfNo) || string.IsNullOrWhiteSpace(tokenHash))
+            return null;
 
         var pf = pfNo.Trim();
+        var encryptedUserId = EncryptoData.EncryptString(pf);
+        var tokenRow = await _db.UserTokens.AsNoTracking()
+            .FirstOrDefaultAsync(t => t.UserId == encryptedUserId);
+
+        if (tokenRow == null || string.IsNullOrEmpty(tokenRow.LastToken) || string.IsNullOrEmpty(tokenRow.HashToken))
+            return null;
+
+        if (!string.Equals(tokenRow.HashToken, tokenHash.Trim(), StringComparison.Ordinal))
+        {
+            _logger.LogWarning("Session hash mismatch for PF {Pf} — treating as logged out", pf);
+            return null;
+        }
+
         var appUser = await _db.AppUsers
             .Include(u => u.Department)
             .AsNoTracking()
@@ -178,13 +215,6 @@ public class AuthService : IAuthService
 
         var staff = await _staffLookup.LookupByPfAsync(pf);
         var displayName = staff?.EmpName ?? appUser.UserName ?? pf;
-        var designation = staff?.Designation ?? appUser.Designation;
-
-        var encryptedUserId = EncryptoData.EncryptString(pf);
-        var token = await _db.UserTokens.AsNoTracking()
-            .Where(t => t.UserId == encryptedUserId)
-            .Select(t => t.LastToken)
-            .FirstOrDefaultAsync();
 
         return new LoggedInUserDto
         {
@@ -194,11 +224,15 @@ public class AuthService : IAuthService
             RoleCode = appUser.RoleCode,
             DeptId = appUser.DeptId,
             DeptName = appUser.Department?.DeptName,
-            Designation = designation,
+            Designation = staff?.Designation ?? appUser.Designation,
             HasRevenueDept = appUser.Department?.HasRevenue == "Y",
-            Token = token ?? string.Empty
+            Token = tokenRow.LastToken,
+            TokenHash = tokenRow.HashToken
         };
     }
+
+    public Task<LoggedInUserDto?> GetLoggedInUserByPfAsync(string pfNo) =>
+        ValidateSessionAsync(pfNo, _currentUser?.TokenHash);
 
     private async Task<bool> ValidateAgainstAdAsync(string pf, string password)
     {
