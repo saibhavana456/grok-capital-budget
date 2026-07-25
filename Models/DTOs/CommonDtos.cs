@@ -64,6 +64,8 @@ public class CapitalEntryFormDto
     public decimal SpilloverAllotted { get; set; }
     public decimal FreshAllotted { get; set; }
     public decimal TotalAllotted { get; set; }
+    /// <summary>Cumulative approved utilization from April through the month before entry month.</summary>
+    public decimal UtilizedTillPreviousMonth { get; set; }
     public decimal PrevSpillover { get; set; }
     public decimal PrevFresh { get; set; }
     public decimal PrevTotal { get; set; }
@@ -90,6 +92,8 @@ public class RevenueEntryFormDto
     public string FinancialYear { get; set; } = string.Empty;
     public string EntryMonth { get; set; } = string.Empty;
     public decimal TotalAllotted { get; set; }
+    /// <summary>Cumulative approved utilization from April through the month before entry month.</summary>
+    public decimal UtilizedTillPreviousMonth { get; set; }
     public string JustificationText { get; set; } = string.Empty;
     public string SectionName { get; set; } = string.Empty;
     public string DeptName { get; set; } = string.Empty;
@@ -103,6 +107,7 @@ public class ExistingEntryInfo
     public long EntryId { get; set; }
     public string Status { get; set; } = string.Empty;
     public string? SubmittedByPf { get; set; }
+    public string? CheckerRemark { get; set; }
 }
 
 public class ServiceResult

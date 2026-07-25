@@ -13,16 +13,24 @@
     {
         <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
     }
-    else if (_isCheckerOnly)
+    else if (_isChecker)
     {
         <MudPaper Class="pa-4 mb-4 portal-card" Elevation="0">
-            <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Dense="true" Class="mb-3">
-                Capital entry and Revenue entry allow <b>MAKER</b> and <b>ADMIN</b> only.
-                As Checker (PF @_userPf), use <b>Checker Review</b> to Approve / Return / Reject.
-            </MudAlert>
+            <MudText Class="mb-3">Review pending Capital and Revenue submissions for your department.</MudText>
             <MudButton Variant="Variant.Filled" Color="Color.Primary" Href="/checker">
                 Go to Checker Review
             </MudButton>
+        </MudPaper>
+    }
+    else if (_isAdmin)
+    {
+        <MudPaper Class="pa-4 mb-4 portal-card" Elevation="0">
+            <MudText Class="mb-3">Manage masters and view submissions across departments.</MudText>
+            <MudStack Row="true" Spacing="2">
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" Href="/admin/masters">Admin Masters</MudButton>
+                <MudButton Variant="Variant.Outlined" Color="Color.Primary" Href="/capital/submissions">Capital Submissions</MudButton>
+                <MudButton Variant="Variant.Outlined" Color="Color.Primary" Href="/revenue/submissions">Revenue Submissions</MudButton>
+            </MudStack>
         </MudPaper>
     }
     else
@@ -80,13 +88,10 @@
             <MudSelect T="string" Label="Entry Month" Variant="Variant.Outlined" Class="mb-3"
                        Value="_month" ValueChanged="OnMonthChanged"
                        AnchorOrigin="Origin.BottomLeft" TransformOrigin="Origin.TopLeft"
-                       RelativeWidth="DropdownWidth.Relative"
-                       HelperText="All months shown. Future months are disabled. Open a past/current month to enter or view an existing submission.">
+                       RelativeWidth="DropdownWidth.Relative">
                 @foreach (var m in AppConstants.FyMonths)
                 {
-                    <MudSelectItem Value="@m" Disabled="@AppConstants.IsFutureMonth(m)">
-                        @m @(AppConstants.IsFutureMonth(m) ? "(future)" : "")
-                    </MudSelectItem>
+                    <MudSelectItem Value="@m" Disabled="@AppConstants.IsFutureMonth(m)">@m</MudSelectItem>
                 }
             </MudSelect>
 
@@ -110,8 +115,8 @@
     private string _budgetType = "CAPITAL";
     private string _month = AppConstants.DefaultEntryMonth();
     private bool _showBudgetType;
-    private bool _isCheckerOnly;
-    private string _userPf = "";
+    private bool _isChecker;
+    private bool _isAdmin;
 
     private bool IsCapitalPath => !_showBudgetType || _budgetType == "CAPITAL";
 
@@ -119,7 +124,7 @@
         _deptId.HasValue && (!_showBudgetType || !string.IsNullOrWhiteSpace(_budgetType));
 
     private bool CanContinue =>
-        !_isCheckerOnly &&
+        !_isChecker && !_isAdmin &&
         _deptId.HasValue &&
         _sectionId.HasValue &&
         !string.IsNullOrWhiteSpace(_month) &&
@@ -131,9 +136,9 @@
         try
         {
             var user = AuthService.CurrentUser;
-            _userPf = user?.PfNo ?? "";
-            _isCheckerOnly = user?.RoleCode == AppConstants.Roles.Checker;
-            if (_isCheckerOnly) return;
+            _isChecker = user?.RoleCode == AppConstants.Roles.Checker;
+            _isAdmin = user?.RoleCode == AppConstants.Roles.Admin;
+            if (_isChecker || _isAdmin) return;
 
             _departments = await MasterService.GetDepartmentsAsync();
             if (user?.DeptId != null)
@@ -203,7 +208,7 @@
 
     private void Continue()
     {
-        if (_isCheckerOnly || !CanContinue) return;
+        if (_isChecker || _isAdmin || !CanContinue) return;
 
         if (!IsCapitalPath)
             Nav.NavigateTo($"/revenue/entry?sectionId={_sectionId}&month={Uri.EscapeDataString(_month)}");

@@ -1,7 +1,15 @@
 <MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6" Style="font-weight:800;color:#003366;">@Title</MudText>
+    </TitleContent>
     <DialogContent>
-        <MudText Class="mb-2">@Title</MudText>
-        <MudTextField @bind-Value="_remark" Label="Remark" Variant="Variant.Outlined" Lines="3" />
+        <MudText Class="mb-3">@Prompt</MudText>
+        <MudTextField @bind-Value="_remark"
+                      Label="Remark"
+                      Variant="Variant.Outlined"
+                      Lines="3"
+                      Required="@RemarkRequired"
+                      RequiredError="Remark is required." />
     </DialogContent>
     <DialogActions>
         <MudButton OnClick="Cancel">Cancel</MudButton>
@@ -12,8 +20,17 @@
 @code {
     [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = null!;
     [Parameter] public string Title { get; set; } = "Remark";
+    [Parameter] public string Prompt { get; set; } = "";
+    [Parameter] public bool RemarkRequired { get; set; }
+
     private string _remark = "";
 
     private void Cancel() => MudDialog.Cancel();
-    private void Ok() => MudDialog.Close(DialogResult.Ok(_remark));
+
+    private void Ok()
+    {
+        if (RemarkRequired && string.IsNullOrWhiteSpace(_remark))
+            return;
+        MudDialog.Close(DialogResult.Ok(_remark.Trim()));
+    }
 }

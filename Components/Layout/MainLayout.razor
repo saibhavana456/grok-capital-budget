@@ -30,7 +30,7 @@
         <NavLink href="/portal" Match="NavLinkMatch.Prefix">IT Budget</NavLink>
         <NavLink href="/capital/submissions">Capital Submissions</NavLink>
         <NavLink href="/revenue/submissions">Revenue Submissions</NavLink>
-        @if (_user.RoleCode == AppConstants.Roles.Checker || _user.RoleCode == AppConstants.Roles.Admin)
+        @if (_user.RoleCode == AppConstants.Roles.Checker)
         {
             <NavLink href="/checker">Checker Review</NavLink>
         }

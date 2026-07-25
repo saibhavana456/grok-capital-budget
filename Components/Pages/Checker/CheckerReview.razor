@@ -1,5 +1,5 @@
 @page "/checker"
-@attribute [Authorize(Roles = "CHECKER,ADMIN")]
+@attribute [Authorize(Roles = "CHECKER")]
 @inject ICapitalService CapitalService
 @inject IRevenueService RevenueService
 @inject IAuthService AuthService
@@ -12,7 +12,7 @@
             <div>
                 <MudText Typo="Typo.h5" Style="color:#003366;font-weight:700;">Checker Review</MudText>
                 <MudText Typo="Typo.body2" Class="mt-1" Style="color:#64748b;max-width:640px;">
-                    Approve / Return / Reject pending Capital and Revenue submissions for your department
+                    Approve, Return, or Reject pending Capital and Revenue submissions for your department
                 </MudText>
             </div>
             <MudStack Row="true" Spacing="2" Class="mt-1">
@@ -190,9 +190,20 @@
 
     private async Task<(bool Confirmed, string? Remark)> PromptRemark(string action)
     {
+        var required = action is "RETURNED" or "REJECTED";
         var parameters = new DialogParameters<RemarkDialog>
         {
-            { x => x.Title, $"{action} — Remark (optional for Approve)" }
+            { x => x.Title, action switch
+            {
+                "APPROVED" => "Approve — Remark (optional)",
+                "RETURNED" => "Return — Remark required",
+                "REJECTED" => "Reject — Remark required",
+                _ => "Remark"
+            }},
+            { x => x.Prompt, required
+                ? "Enter remark for the maker."
+                : "Optional remark." },
+            { x => x.RemarkRequired, required }
         };
         var options = new DialogOptions
         {

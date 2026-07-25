@@ -147,13 +147,13 @@
         try
         {
             var user = AuthService.CurrentUser;
-            _showMakerFilter = user?.RoleCode != AppConstants.Roles.Maker;
+            _showMakerFilter = user?.RoleCode == AppConstants.Roles.Admin
+                               || user?.RoleCode == AppConstants.Roles.Checker;
 
-            string? makerFilter = null;
-            if (user?.RoleCode == AppConstants.Roles.Maker)
-                makerFilter = user.PfNo;
+            string? makerFilter = user?.RoleCode == AppConstants.Roles.Maker ? user.PfNo : null;
+            long? deptFilter = user?.RoleCode == AppConstants.Roles.Admin ? null : user?.DeptId;
 
-            _all = await CapitalService.GetSubmissionsAsync(makerFilter, user?.DeptId);
+            _all = await CapitalService.GetSubmissionsAsync(makerFilter, deptFilter);
             ApplyFilters();
         }
         catch (Exception ex)

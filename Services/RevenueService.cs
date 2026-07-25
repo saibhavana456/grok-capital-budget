@@ -40,7 +40,9 @@ public class RevenueService : IRevenueService
         var prevAmounts = prevEntry?.Lines.ToDictionary(l => l.HeadId, l => l.Amount)
                           ?? new Dictionary<long, decimal>();
 
-        return new RevenueEntryFormDto
+        var utilizedTillPrev = await SumApprovedUtilizedThroughAsync(sectionId, financialYear, prevMonth);
+
+        var form = new RevenueEntryFormDto
         {
             SectionId = sectionId,
             FinancialYear = financialYear,
@@ -48,6 +50,7 @@ public class RevenueService : IRevenueService
             SectionName = section.SectionName,
             DeptName = section.Department.DeptName,
             TotalAllotted = allotment?.TotalAllotted ?? 0,
+            UtilizedTillPreviousMonth = utilizedTillPrev,
             PrevTotal = prevAmounts.Values.Sum(),
             PrevLines = heads.Select(h => new RevenueLineDto
             {
@@ -62,6 +65,25 @@ public class RevenueService : IRevenueService
                 Amount = 0
             }).ToList()
         };
+
+        var editable = await _db.RevenueMonthlyEntries.AsNoTracking()
+            .Include(e => e.Lines)
+            .FirstOrDefaultAsync(e => e.SectionId == sectionId
+                                      && e.FinancialYear == financialYear
+                                      && e.EntryMonth == entryMonth
+                                      && e.IsActive == "Y"
+                                      && (e.EntryStatus == AppConstants.EntryStatus.Returned
+                                          || e.EntryStatus == AppConstants.EntryStatus.Rejected));
+        if (editable != null)
+        {
+            form.JustificationText = editable.JustificationText ?? "";
+            var amounts = editable.Lines.ToDictionary(l => l.HeadId, l => l.Amount);
+            foreach (var line in form.Lines)
+                if (amounts.TryGetValue(line.HeadId, out var amt))
+                    line.Amount = amt;
+        }
+
+        return form;
     }
 
     public async Task<ExistingEntryInfo?> FindActiveEntryAsync(long sectionId, string financialYear, string entryMonth)
@@ -75,7 +97,8 @@ public class RevenueService : IRevenueService
             {
                 EntryId = e.EntryId,
                 Status = e.EntryStatus,
-                SubmittedByPf = e.SubmittedByPf
+                SubmittedByPf = e.SubmittedByPf,
+                CheckerRemark = e.CheckerRemark
             })
             .FirstOrDefaultAsync();
     }
@@ -84,47 +107,78 @@ public class RevenueService : IRevenueService
     {
         if (form.SectionId <= 0) return ServiceResult.Fail("Section is required.");
         if (string.IsNullOrWhiteSpace(form.EntryMonth)) return ServiceResult.Fail("Month is required.");
-        if (!AppConstants.IsAllowedEntryMonth(form.EntryMonth))
-            return ServiceResult.Fail("Entry is allowed only for the current month or the previous month.");
-        if ((form.JustificationText?.Length ?? 0) > AppConstants.JustificationMaxLength)
+        if (AppConstants.IsFutureMonth(form.EntryMonth))
+            return ServiceResult.Fail("Future month entry is not allowed.");
+        if (string.IsNullOrWhiteSpace(form.JustificationText))
+            return ServiceResult.Fail(AppConstants.JustificationRequiredMessage);
+        if (form.JustificationText.Length > AppConstants.JustificationMaxLength)
             return ServiceResult.Fail($"Justification cannot exceed {AppConstants.JustificationMaxLength} characters.");
 
-        // No duplicate heads
         var dup = form.Lines.GroupBy(l => l.HeadId).Any(g => g.Count() > 1);
         if (dup) return ServiceResult.Fail("Duplicate expenditure head is not allowed.");
 
         var section = await _db.Sections.Include(s => s.Department)
             .FirstOrDefaultAsync(s => s.SectionId == form.SectionId);
         if (section?.Department?.HasRevenue != "Y")
-            return ServiceResult.Fail("Revenue entry is allowed only for DIT (HAS_REVENUE=Y).");
+            return ServiceResult.Fail("Revenue entry is allowed only for DIT departments with revenue enabled.");
 
         var allotment = await _db.SectionFyRevenueAllotments.AsNoTracking()
             .FirstOrDefaultAsync(a => a.SectionId == form.SectionId && a.FinancialYear == form.FinancialYear && a.IsActive == "Y");
         if (allotment == null)
             return ServiceResult.Fail("Revenue FY allotment not found for this section.");
 
-        // blank → 0
         foreach (var line in form.Lines)
-            if (line.Amount < 0) line.Amount = 0;
+            line.Amount = Math.Max(0, line.Amount);
 
-        var total = form.Lines.Sum(l => l.Amount);
-        if (total > allotment.TotalAllotted)
-            return ServiceResult.Fail(AppConstants.OverBudgetMessage);
+        var existing = await _db.RevenueMonthlyEntries
+            .Include(e => e.Lines)
+            .FirstOrDefaultAsync(e => e.SectionId == form.SectionId
+                                      && e.FinancialYear == form.FinancialYear
+                                      && e.EntryMonth == form.EntryMonth
+                                      && e.IsActive == "Y");
 
-        var exists = await _db.RevenueMonthlyEntries.AnyAsync(e =>
-            e.SectionId == form.SectionId &&
-            e.FinancialYear == form.FinancialYear &&
-            e.EntryMonth == form.EntryMonth &&
-            e.IsActive == "Y");
-        if (exists)
-            return ServiceResult.Fail("An entry already exists for this section, FY and month (write-lock).");
+        if (existing != null)
+        {
+            if (AppConstants.IsLockedStatus(existing.EntryStatus))
+                return ServiceResult.Fail("An entry already exists for this section, FY and month.");
+
+            if (!AppConstants.IsEditableStatus(existing.EntryStatus))
+                return ServiceResult.Fail("This entry cannot be resubmitted.");
+
+            existing.JustificationText = form.JustificationText.Trim();
+            existing.EntryStatus = AppConstants.EntryStatus.Pending;
+            existing.SubmittedAt = DateTime.Now;
+            existing.SubmittedByPf = makerPf;
+            existing.CheckedAt = null;
+            existing.CheckedByPf = null;
+            existing.CheckerRemark = null;
+            existing.UpdatedAt = DateTime.Now;
+            existing.UpdatedBy = makerPf;
+
+            _db.RevenueMonthlyEntryLines.RemoveRange(existing.Lines);
+            foreach (var line in form.Lines)
+            {
+                _db.RevenueMonthlyEntryLines.Add(new RevenueMonthlyEntryLine
+                {
+                    EntryId = existing.EntryId,
+                    HeadId = line.HeadId,
+                    Amount = line.Amount
+                });
+            }
+
+            await _db.SaveChangesAsync();
+            return ServiceResult.Ok(AppConstants.SuccessResubmit);
+        }
+
+        if (!AppConstants.IsAllowedEntryMonth(form.EntryMonth))
+            return ServiceResult.Fail("Entry is allowed only for the current month or the previous month.");
 
         var entry = new RevenueMonthlyEntry
         {
             SectionId = form.SectionId,
             FinancialYear = form.FinancialYear,
             EntryMonth = form.EntryMonth,
-            JustificationText = form.JustificationText,
+            JustificationText = form.JustificationText.Trim(),
             EntryStatus = AppConstants.EntryStatus.Pending,
             SubmittedAt = DateTime.Now,
             SubmittedByPf = makerPf,
@@ -145,7 +199,7 @@ public class RevenueService : IRevenueService
             });
         }
         await _db.SaveChangesAsync();
-        return ServiceResult.Ok("Revenue entry submitted for checker approval.");
+        return ServiceResult.Ok(AppConstants.SuccessSubmit);
     }
 
     public async Task<List<RevenueSubmissionListItem>> GetSubmissionsAsync(string? makerPfFilter, long? deptIdFilter)
@@ -235,25 +289,51 @@ public class RevenueService : IRevenueService
         var dept = section == null ? null :
             await _db.Departments.FirstOrDefaultAsync(d => d.DeptId == section.DeptId);
         if (dept == null ||
-            (!string.Equals(dept.CheckerPf, checkerPf, StringComparison.OrdinalIgnoreCase)
-             && !await IsAdminAsync(checkerPf)))
+            !string.Equals(dept.CheckerPf, checkerPf, StringComparison.OrdinalIgnoreCase))
             return ServiceResult.Fail("You are not the Checker for this department.");
 
         var normalized = action.Trim().ToUpperInvariant();
         if (normalized is not (AppConstants.EntryStatus.Approved or AppConstants.EntryStatus.Rejected or AppConstants.EntryStatus.Returned))
             return ServiceResult.Fail("Invalid checker action.");
 
+        if ((normalized == AppConstants.EntryStatus.Rejected || normalized == AppConstants.EntryStatus.Returned)
+            && string.IsNullOrWhiteSpace(remark))
+            return ServiceResult.Fail(AppConstants.RemarkRequiredMessage);
+
         entry.EntryStatus = normalized;
         entry.CheckedAt = DateTime.Now;
         entry.CheckedByPf = checkerPf;
-        entry.CheckerRemark = remark;
+        entry.CheckerRemark = string.IsNullOrWhiteSpace(remark) ? null : remark.Trim();
         entry.UpdatedAt = DateTime.Now;
         entry.UpdatedBy = checkerPf;
         await _db.SaveChangesAsync();
-        return ServiceResult.Ok($"Entry marked {normalized}.");
+
+        return ServiceResult.Ok(normalized switch
+        {
+            AppConstants.EntryStatus.Approved => AppConstants.SuccessApprove,
+            AppConstants.EntryStatus.Returned => AppConstants.SuccessReturn,
+            _ => AppConstants.SuccessReject
+        });
     }
 
-    private async Task<bool> IsAdminAsync(string pf) =>
-        await _db.AppUsers.AsNoTracking()
-            .AnyAsync(u => u.PfNo == pf && u.RoleCode == AppConstants.Roles.Admin && u.IsActive == "Y");
+    private async Task<decimal> SumApprovedUtilizedThroughAsync(long sectionId, string financialYear, string throughMonth)
+    {
+        var months = AppConstants.MonthsFromAprilThrough(throughMonth).ToList();
+        if (months.Count == 0) return 0;
+
+        var entryIds = await _db.RevenueMonthlyEntries.AsNoTracking()
+            .Where(e => e.SectionId == sectionId
+                        && e.FinancialYear == financialYear
+                        && e.IsActive == "Y"
+                        && e.EntryStatus == AppConstants.EntryStatus.Approved
+                        && months.Contains(e.EntryMonth))
+            .Select(e => e.EntryId)
+            .ToListAsync();
+
+        if (entryIds.Count == 0) return 0;
+
+        return await _db.RevenueMonthlyEntryLines.AsNoTracking()
+            .Where(l => entryIds.Contains(l.EntryId))
+            .SumAsync(l => (decimal?)l.Amount) ?? 0;
+    }
 }

@@ -133,9 +133,11 @@
         try
         {
             var user = AuthService.CurrentUser;
-            _showMakerFilter = user?.RoleCode != AppConstants.Roles.Maker;
+            _showMakerFilter = user?.RoleCode == AppConstants.Roles.Admin
+                               || user?.RoleCode == AppConstants.Roles.Checker;
             string? makerFilter = user?.RoleCode == AppConstants.Roles.Maker ? user.PfNo : null;
-            _all = await RevenueService.GetSubmissionsAsync(makerFilter, user?.DeptId);
+            long? deptFilter = user?.RoleCode == AppConstants.Roles.Admin ? null : user?.DeptId;
+            _all = await RevenueService.GetSubmissionsAsync(makerFilter, deptFilter);
             ApplyFilters();
         }
         catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }

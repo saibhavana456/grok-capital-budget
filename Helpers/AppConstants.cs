@@ -26,11 +26,46 @@ public static class AppConstants
     }
 
     public const string OverBudgetMessage =
-        "Entered budget utilization exceeds the allocated budget. Please enter a valid amount within the approved budget limit.";
+        "Entered amount exceeds remaining allotment. You can still submit — checker will review.";
+
+    public const string SuccessSubmit = "Budget entry submitted successfully and is pending checker review.";
+    public const string SuccessResubmit = "Budget entry updated and resubmitted for checker review.";
+    public const string SuccessApprove = "Submission approved successfully.";
+    public const string SuccessReturn = "Submission returned to maker for correction.";
+    public const string SuccessReject = "Submission rejected.";
+
+    public const string ConfirmSubmitTitle = "Confirm submission";
+    public const string ConfirmSubmitMessage =
+        "Do you want to submit this budget entry for checker review?";
+    public const string ConfirmZeroTitle = "Confirm zero amounts";
+    public const string ConfirmZeroMessage =
+        "All amount fields are zero. Do you still want to submit?";
+    public const string ConfirmOverBudgetTitle = "Amount exceeds allotment";
+    public const string ConfirmOverBudgetMessage =
+        "Entered amount exceeds remaining allotment. Do you still want to submit for checker review?";
+    public const string RemarkRequiredMessage = "Remark is required for Return and Reject.";
+    public const string JustificationRequiredMessage = "Justification is required.";
 
     public const int JustificationMaxLength = 5000;
     public const string DefaultFinancialYear = "2026-27";
     public const string SessionUserKey = "IT_BUDGET_USER";
+
+    public static bool IsEditableStatus(string? status) =>
+        string.Equals(status, EntryStatus.Returned, StringComparison.OrdinalIgnoreCase)
+        || string.Equals(status, EntryStatus.Rejected, StringComparison.OrdinalIgnoreCase);
+
+    public static bool IsLockedStatus(string? status) =>
+        string.Equals(status, EntryStatus.Pending, StringComparison.OrdinalIgnoreCase)
+        || string.Equals(status, EntryStatus.Approved, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>FY months from April through <paramref name="throughMonth"/> inclusive.</summary>
+    public static IEnumerable<string> MonthsFromAprilThrough(string throughMonth)
+    {
+        var idx = Array.FindIndex(FyMonths, m => string.Equals(m, throughMonth, StringComparison.OrdinalIgnoreCase));
+        if (idx < 0) yield break;
+        for (var i = 0; i <= idx; i++)
+            yield return FyMonths[i];
+    }
 
     /// <summary>Calendar month name matching FyMonths (e.g. July).</summary>
     public static string CalendarMonthName(DateTime? asOf = null)
