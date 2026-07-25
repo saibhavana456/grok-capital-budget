@@ -345,7 +345,7 @@ SET DEFINE OFF;
 --   04 SECTION                    | 5           | 4 DIT + 1 Digitization
 --   05 PROJECT                    | 5           | BRD/Word/Excel names
 --   06 PROJECT_FY_ALLOTMENT       | 3           | Capital allotments FY 2026-27
---   07 SECTION_FY_REVENUE_ALLOTMENT| 1          | Revenue 7.00 Cr (BRD)
+--   07 SECTION_FY_REVENUE_ALLOTMENT| 4          | Revenue 7.00 Cr per DIT section (BRD)
 --   08 DEPARTMENT_AUTHORITY       | 5           | CTO/CGM/GM/DGM/AGM SAMPLE
 --   09 SECTION_AUTHORITY          | 2           | CM + TEAM_LEAD SAMPLE
 --   10 SECTION_TEAM_MEMBER        | 1           | Maker on Networking
@@ -462,11 +462,13 @@ SELECT PROJECT_ID, '2026-27', 2.00, 1.50, 3.50, 'SAMPLE'
 FROM PROJECT WHERE PROJECT_NAME = 'Branch and Office Estimation';
 
 -- -----------------------------------------------------------------------------
--- 07  SECTION_FY_REVENUE_ALLOTMENT  (1 row — BRD sample Rs. 7.00 Cr)
+-- 07  SECTION_FY_REVENUE_ALLOTMENT  (DIT sections — BRD sample Rs. 7.00 Cr each)
 -- -----------------------------------------------------------------------------
 INSERT INTO SECTION_FY_REVENUE_ALLOTMENT (SECTION_ID, FINANCIAL_YEAR, TOTAL_ALLOTTED, CREATED_BY)
-SELECT SECTION_ID, '2026-27', 7.00, 'SAMPLE'
-FROM SECTION WHERE SECTION_NAME = 'Private Cloud Infrastructure';
+SELECT s.SECTION_ID, '2026-27', 7.00, 'SAMPLE'
+FROM SECTION s
+JOIN DEPARTMENT d ON d.DEPT_ID = s.DEPT_ID
+WHERE d.DEPT_CODE = 'DIT' AND s.IS_ACTIVE = 'Y';
 
 -- -----------------------------------------------------------------------------
 -- 08  DEPARTMENT_AUTHORITY  (5 rows — hierarchy SAMPLE for DIT only)
@@ -634,7 +636,7 @@ COMMIT;
 -- SELECT COUNT(*) FROM SECTION;                       -- 5
 -- SELECT COUNT(*) FROM PROJECT;                       -- 5
 -- SELECT COUNT(*) FROM PROJECT_FY_ALLOTMENT;          -- 3
--- SELECT COUNT(*) FROM SECTION_FY_REVENUE_ALLOTMENT;  -- 1
+-- SELECT COUNT(*) FROM SECTION_FY_REVENUE_ALLOTMENT;  -- 4 (all DIT sections)
 -- SELECT COUNT(*) FROM DEPARTMENT_AUTHORITY;          -- 5
 -- SELECT COUNT(*) FROM SECTION_AUTHORITY;             -- 2
 -- SELECT COUNT(*) FROM SECTION_TEAM_MEMBER;           -- 1

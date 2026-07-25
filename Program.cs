@@ -12,8 +12,30 @@ using Microsoft.AspNetCore.Components.Server.Circuits;
 using Microsoft.EntityFrameworkCore;
 using MudBlazor;
 using MudBlazor.Services;
+using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Serilog — same pattern as Personal/SCV (file under Log/)
+Directory.CreateDirectory(Path.Combine(builder.Environment.ContentRootPath, "Log"));
+Log.Logger = new LoggerConfiguration()
+    .ReadFrom.Configuration(builder.Configuration)
+    .Enrich.FromLogContext()
+    .Enrich.WithProperty("Application", "IT_BUDGET_MONITORING_PORTAL")
+    .WriteTo.Console()
+    .WriteTo.File(
+        path: Path.Combine(builder.Environment.ContentRootPath, "Log", "ITBudget-.txt"),
+        rollingInterval: RollingInterval.Day,
+        retainedFileCountLimit: 30,
+        shared: true)
+    .CreateLogger();
+
+builder.Logging.ClearProviders();
+builder.Logging.AddSerilog(Log.Logger, dispose: true);
+
+try
+{
+Log.Information("Starting IT Budget Monitoring Portal");
 
 // Oracle app DB — same user as SQL Developer connection (e.g. IT_BUDGET_MONITORING_PORTAL)
 var oracleConn = builder.Configuration.GetConnectionString("OracleDb") ?? string.Empty;
@@ -32,12 +54,12 @@ if (oracleConn.StartsWith("ENC:", StringComparison.OrdinalIgnoreCase))
         if (end < 0) end = safe.Length;
         safe = safe[..start] + "***" + safe[end..];
     }
-    Console.WriteLine($"[OracleDb loaded] Env={builder.Environment.EnvironmentName} | {safe}");
+    Log.Information("OracleDb loaded Env={Env} | {Conn}", builder.Environment.EnvironmentName, safe);
     if (safe.Contains("YOUR_SCHEMA_USER", StringComparison.OrdinalIgnoreCase) ||
-        safe.Contains("YOUR_PASSWORD", StringComparison.OrdinalIgnoreCase))
+        safe.Contains("YOUR_PASSWORD", StringComparison.OrdinalIgnoreCase) ||
+        safe.Contains("REPLACE_WITH_YOUR_PASSWORD", StringComparison.OrdinalIgnoreCase))
     {
-        Console.WriteLine("[OracleDb WARNING] Placeholder User/Password still present. " +
-                          "Edit appsettings.Development.json (Development overrides appsettings.json).");
+        Log.Warning("Placeholder Oracle password still present. Edit appsettings.Development.json.");
     }
 }
 
@@ -116,7 +138,10 @@ app.MapGet("/account/establish/{ticket}", async (
     LoginTicketStore tickets) =>
 {
     if (!tickets.TryTake(ticket, out var user) || user == null)
+    {
+        Log.Warning("Login ticket invalid or expired. Ticket={Ticket}", ticket);
         return Results.Redirect("/login");
+    }
 
     var principal = CustomAuthStateProvider.CreateCookiePrincipal(user);
     await http.SignInAsync(
@@ -129,6 +154,7 @@ app.MapGet("/account/establish/{ticket}", async (
             ExpiresUtc = DateTimeOffset.UtcNow.AddHours(2)
         });
 
+    Log.Information("Auth cookie established for PF={Pf} Role={Role}", user.PfNo, user.RoleCode);
     return Results.Redirect("/portal");
 }).AllowAnonymous();
 
@@ -136,7 +162,10 @@ app.MapGet("/account/logout", async (HttpContext http, IAuthService auth) =>
 {
     var pf = http.User.FindFirstValue(ClaimTypes.NameIdentifier);
     if (!string.IsNullOrWhiteSpace(pf))
+    {
         await auth.LogoutAsync(pf);
+        Log.Information("Logout for PF={Pf}", pf);
+    }
 
     await http.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
     return Results.Redirect("/login");
@@ -146,3 +175,13 @@ app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
 
 app.Run();
+}
+catch (Exception ex)
+{
+    Log.Fatal(ex, "Application terminated unexpectedly");
+    throw;
+}
+finally
+{
+    Log.CloseAndFlush();
+}

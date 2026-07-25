@@ -68,7 +68,7 @@
                 <MudText Class="section-heading mb-3">Section Allotment (FY @_form.FinancialYear)</MudText>
                 <div class="metric-row"><span class="metric-row-label">Total Budget Allotted</span><span class="metric-row-value">@_form.TotalAllotted.ToString("0.00") <small>Cr</small></span></div>
                 <div class="metric-row"><span class="metric-row-label">Utilized till @PrevMonth</span><span class="metric-row-value utilized">@_form.UtilizedTillPreviousMonth.ToString("0.00") <small>Cr</small></span></div>
-                <div class="metric-row accent"><span class="metric-row-label">Entered total for @CurrMonth (auto)</span><span class="metric-row-value accent">@_form.Lines.Sum(l => l.Amount).ToString("0.00") <small>Cr</small></span></div>
+                <div class="metric-row accent"><span class="metric-row-label">Entered total for @CurrMonth (auto)</span><span class="metric-row-value accent">@EnteredTotal.ToString("0.00") <small>Cr</small></span></div>
             </MudPaper>
 
             <MudGrid>
@@ -106,7 +106,9 @@
                                 <MudItem xs="12" sm="6" md="4">
                                     <div class="rev-head-card">
                                         <MudText Class="rev-head-name">@line.HeadName</MudText>
-                                        <MudNumericField @bind-Value="line.Amount"
+                                        <MudNumericField T="decimal"
+                                                         Value="line.Amount"
+                                                         ValueChanged="@(v => OnHeadAmountChanged(line, v))"
                                                          Variant="Variant.Outlined"
                                                          Min="0"
                                                          Margin="Margin.Dense"
@@ -117,6 +119,11 @@
                                 </MudItem>
                             }
                         </MudGrid>
+                        <MudDivider Class="my-3" />
+                        <div class="metric-row accent">
+                            <span class="metric-row-label">Total for @CurrMonth (auto)</span>
+                            <span class="metric-row-value accent">@EnteredTotal.ToString("0.00") <small>Cr</small></span>
+                        </div>
                     </MudPaper>
                 </MudItem>
             </MudGrid>
@@ -130,6 +137,13 @@
                               RequiredError="@AppConstants.JustificationRequiredMessage"
                               MaxLength="AppConstants.JustificationMaxLength"
                               HelperText="@($"{(_form.JustificationText?.Length ?? 0)} / {AppConstants.JustificationMaxLength}")" />
+            </MudPaper>
+
+            <MudPaper Class="pa-3 mt-3 allotted-strip" Elevation="0">
+                <div class="metric-row accent mb-0">
+                    <span class="metric-row-label">Total to submit for @CurrMonth</span>
+                    <span class="metric-row-value accent">@EnteredTotal.ToString("0.00") <small>Cr</small></span>
+                </div>
             </MudPaper>
 
             <MudStack Row="true" Class="mt-4" Spacing="2">
@@ -156,6 +170,12 @@
 
     private string CurrMonth => _form?.EntryMonth ?? "";
     private string PrevMonth => string.IsNullOrEmpty(CurrMonth) ? "" : AppConstants.PreviousMonth(CurrMonth);
+    private decimal EnteredTotal => _form?.Lines.Sum(l => l.Amount) ?? 0;
+
+    private void OnHeadAmountChanged(RevenueLineDto line, decimal value)
+    {
+        line.Amount = value < 0 ? 0 : value;
+    }
 
     protected override async Task OnInitializedAsync()
     {
@@ -220,7 +240,7 @@
             return;
         }
 
-        var total = _form.Lines.Sum(l => l.Amount);
+        var total = EnteredTotal;
         var allZero = _form.Lines.All(l => l.Amount == 0);
         var overBudget = total > _form.TotalAllotted;
 

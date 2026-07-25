@@ -10,8 +10,13 @@ namespace IT_BUDGET_MONITORING_PORTAL.Services;
 public class RevenueService : IRevenueService
 {
     private readonly AppDbContext _db;
+    private readonly ILogger<RevenueService> _logger;
 
-    public RevenueService(AppDbContext db) => _db = db;
+    public RevenueService(AppDbContext db, ILogger<RevenueService> logger)
+    {
+        _db = db;
+        _logger = logger;
+    }
 
     public async Task<RevenueEntryFormDto?> BuildFormAsync(long sectionId, string financialYear, string entryMonth)
     {
@@ -167,6 +172,9 @@ public class RevenueService : IRevenueService
             }
 
             await _db.SaveChangesAsync();
+            var resubmitTotal = form.Lines.Sum(l => l.Amount);
+            _logger.LogInformation("Revenue resubmit EntryId={EntryId} SectionId={SectionId} Month={Month} PF={Pf} Total={Total}",
+                existing.EntryId, form.SectionId, form.EntryMonth, makerPf, resubmitTotal);
             return ServiceResult.Ok(AppConstants.SuccessResubmit);
         }
 
@@ -199,6 +207,9 @@ public class RevenueService : IRevenueService
             });
         }
         await _db.SaveChangesAsync();
+        var submitTotal = form.Lines.Sum(l => l.Amount);
+        _logger.LogInformation("Revenue submit EntryId={EntryId} SectionId={SectionId} Month={Month} PF={Pf} Total={Total}",
+            entry.EntryId, form.SectionId, form.EntryMonth, makerPf, submitTotal);
         return ServiceResult.Ok(AppConstants.SuccessSubmit);
     }
 
@@ -307,6 +318,9 @@ public class RevenueService : IRevenueService
         entry.UpdatedAt = DateTime.Now;
         entry.UpdatedBy = checkerPf;
         await _db.SaveChangesAsync();
+
+        _logger.LogInformation("Revenue checker action EntryId={EntryId} Action={Action} CheckerPf={Pf}",
+            entryId, normalized, checkerPf);
 
         return ServiceResult.Ok(normalized switch
         {

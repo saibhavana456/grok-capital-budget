@@ -10,8 +10,13 @@ namespace IT_BUDGET_MONITORING_PORTAL.Services;
 public class CapitalService : ICapitalService
 {
     private readonly AppDbContext _db;
+    private readonly ILogger<CapitalService> _logger;
 
-    public CapitalService(AppDbContext db) => _db = db;
+    public CapitalService(AppDbContext db, ILogger<CapitalService> logger)
+    {
+        _db = db;
+        _logger = logger;
+    }
 
     public async Task<CapitalEntryFormDto?> BuildFormAsync(long projectId, string financialYear, string entryMonth)
     {
@@ -141,6 +146,8 @@ public class CapitalService : ICapitalService
             existing.UpdatedAt = DateTime.Now;
             existing.UpdatedBy = makerPf;
             await _db.SaveChangesAsync();
+            _logger.LogInformation("Capital resubmit EntryId={EntryId} ProjectId={ProjectId} Month={Month} PF={Pf} Total={Total}",
+                existing.EntryId, form.ProjectId, form.EntryMonth, makerPf, actualTotal);
             return ServiceResult.Ok(AppConstants.SuccessResubmit);
         }
 
@@ -168,6 +175,8 @@ public class CapitalService : ICapitalService
         };
         _db.CapitalMonthlyEntries.Add(entry);
         await _db.SaveChangesAsync();
+        _logger.LogInformation("Capital submit EntryId={EntryId} ProjectId={ProjectId} Month={Month} PF={Pf} Total={Total}",
+            entry.EntryId, form.ProjectId, form.EntryMonth, makerPf, actualTotal);
         return ServiceResult.Ok(AppConstants.SuccessSubmit);
     }
 
@@ -260,6 +269,9 @@ public class CapitalService : ICapitalService
         entry.UpdatedAt = DateTime.Now;
         entry.UpdatedBy = checkerPf;
         await _db.SaveChangesAsync();
+
+        _logger.LogInformation("Capital checker action EntryId={EntryId} Action={Action} CheckerPf={Pf}",
+            entryId, normalized, checkerPf);
 
         return ServiceResult.Ok(normalized switch
         {

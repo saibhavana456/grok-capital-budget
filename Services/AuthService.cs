@@ -89,12 +89,18 @@ public class AuthService : IAuthService
             .FirstOrDefaultAsync(u => u.PfNo == pf && u.IsActive == "Y");
 
         if (appUser == null)
+        {
+            _logger.LogWarning("Login failed — PF {Pf} not in APP_USER", pf);
             return Fail("User is not registered in APP_USER for this application.");
+        }
 
         var bypassAd = _config.GetValue("Auth:BypassAd", false);
         var adOk = bypassAd || await ValidateAgainstAdAsync(pf, request.Password);
         if (!adOk)
+        {
+            _logger.LogWarning("Login failed — AD auth rejected for PF {Pf}", pf);
             return Fail("AD authentication failed. Invalid PF or password.");
+        }
 
         // Single active session check (Personal USER_TOKEN pattern)
         var encryptedUserId = EncryptoData.EncryptString(pf);
@@ -135,6 +141,9 @@ public class AuthService : IAuthService
             Token = token
         };
         _currentUser = user;
+
+        _logger.LogInformation("Login success PF={Pf} Role={Role} DeptId={DeptId} BypassAd={Bypass}",
+            user.PfNo, user.RoleCode, user.DeptId, bypassAd);
 
         return new LoginResultDto
         {
