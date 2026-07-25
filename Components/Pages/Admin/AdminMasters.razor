@@ -33,14 +33,17 @@
         {
             <MudPaper Class="pa-4 mt-3" Elevation="1">
                 <MudText Typo="Typo.subtitle1" Class="mb-2">@(_editDept.DeptId == 0 ? "New" : "Edit") Department</MudText>
-                <MudTextField @bind-Value="_editDept.DeptCode" Label="Code" Variant="Variant.Outlined" Class="mb-2" />
-                <MudTextField @bind-Value="_editDept.DeptName" Label="Name" Variant="Variant.Outlined" Class="mb-2" />
+                <MudTextField @bind-Value="_editDept.DeptCode" Label="Code *" Variant="Variant.Outlined" Class="mb-2" Required="true" />
+                <MudTextField @bind-Value="_editDept.DeptName" Label="Name *" Variant="Variant.Outlined" Class="mb-2" Required="true" />
                 <MudSelect T="string" @bind-Value="_editDept.HasRevenue" Label="Has Revenue" Variant="Variant.Outlined" Class="mb-2">
                     <MudSelectItem Value="@("Y")">Y (DIT)</MudSelectItem>
                     <MudSelectItem Value="@("N")">N</MudSelectItem>
                 </MudSelect>
-                <MudTextField @bind-Value="_editDept.MakerPf" Label="Maker PF" Variant="Variant.Outlined" Class="mb-2" />
-                <MudTextField @bind-Value="_editDept.CheckerPf" Label="Checker PF" Variant="Variant.Outlined" Class="mb-2" />
+                <MudTextField @bind-Value="_editDept.MakerPf" Label="Maker PF *" Variant="Variant.Outlined" Class="mb-2" Required="true" />
+                <MudTextField @bind-Value="_editDept.CheckerPf" Label="Checker PF *" Variant="Variant.Outlined" Class="mb-2" Required="true" />
+                <MudText Typo="Typo.caption" Class="mb-2" Style="color:#64748b;">
+                    Maker and Checker are required. One PF can belong to only one active department.
+                </MudText>
                 <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveDept">Save</MudButton>
                 <MudButton OnClick="() => _editDept = null">Cancel</MudButton>
             </MudPaper>
@@ -164,6 +167,8 @@
         if (_editDept == null) return;
         var r = await MasterService.SaveDepartmentAsync(_editDept, AuthService.CurrentUser!.PfNo);
         Snackbar.Add(r.Message, r.Success ? Severity.Success : Severity.Error);
+        // Keep form + values on validation error so Admin does not retype everything
+        if (!r.Success) return;
         _editDept = null;
         await ReloadDepts();
     }
@@ -194,6 +199,7 @@
         if (_editSection == null) return;
         var r = await MasterService.SaveSectionAsync(_editSection, AuthService.CurrentUser!.PfNo);
         Snackbar.Add(r.Message, r.Success ? Severity.Success : Severity.Error);
+        if (!r.Success) return;
         _editSection = null;
         await OnFilterDept(_filterDeptId);
     }
@@ -222,6 +228,7 @@
         if (_editProject == null) return;
         var r = await MasterService.SaveProjectAsync(_editProject, AuthService.CurrentUser!.PfNo);
         Snackbar.Add(r.Message, r.Success ? Severity.Success : Severity.Error);
+        if (!r.Success) return;
         _editProject = null;
         await OnFilterSection(_filterSectionId);
     }

@@ -43,6 +43,8 @@ public static class AppConstants
     /// <summary>Capital: zero actual utilization is not allowed. Revenue may submit zeros with confirm.</summary>
     public const string CapitalZeroNotAllowedMessage =
         "Capital entry cannot be submitted with zero actual utilization. Enter spillover and/or fresh amount greater than zero.";
+    public const string MakerPfRequiredMessage = "Maker PF is required for a department.";
+    public const string CheckerPfRequiredMessage = "Checker PF is required for a department.";
     public const string MakerAlreadyAssignedMessage =
         "This PF is already Maker or Checker on another active department. One person can belong to only one department.";
     public const string CheckerAlreadyAssignedMessage =

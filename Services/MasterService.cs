@@ -59,6 +59,8 @@ public class MasterService : IMasterService
 
     public async Task<ServiceResult> SaveDepartmentAsync(Department dept, string actorPf)
     {
+        if (string.IsNullOrWhiteSpace(dept.DeptCode))
+            return ServiceResult.Fail("Department code is required.");
         if (string.IsNullOrWhiteSpace(dept.DeptName))
             return ServiceResult.Fail("Department name is required.");
 
@@ -67,29 +69,35 @@ public class MasterService : IMasterService
         dept.MakerPf = string.IsNullOrWhiteSpace(makerPf) ? null : makerPf;
         dept.CheckerPf = string.IsNullOrWhiteSpace(checkerPf) ? null : checkerPf;
 
-        if (!string.IsNullOrEmpty(makerPf) && !string.IsNullOrEmpty(checkerPf)
-            && string.Equals(makerPf, checkerPf, StringComparison.OrdinalIgnoreCase))
+        // Active department needs both Maker and Checker (Maker-Checker workflow)
+        if (string.IsNullOrEmpty(makerPf))
+            return ServiceResult.Fail(AppConstants.MakerPfRequiredMessage);
+        if (string.IsNullOrEmpty(checkerPf))
+            return ServiceResult.Fail(AppConstants.CheckerPfRequiredMessage);
+
+        if (string.Equals(makerPf, checkerPf, StringComparison.OrdinalIgnoreCase))
             return ServiceResult.Fail(AppConstants.MakerCheckerSamePfMessage);
 
-        // Docs: one person cannot be in two departments — PF may appear as Maker OR Checker
-        // on at most one active department (blocks role-swap across departments too).
-        if (!string.IsNullOrEmpty(makerPf))
+        // Collect ALL conflicts so Admin sees Maker and Checker issues together
+        var conflicts = new List<string>();
+        var makerConflict = await FindActiveDeptPfConflictAsync(makerPf, dept.DeptId);
+        if (makerConflict != null)
         {
-            var conflict = await FindActiveDeptPfConflictAsync(makerPf, dept.DeptId);
-            if (conflict != null)
-                return ServiceResult.Fail(string.Format(
-                    AppConstants.PfAlreadyOnOtherDeptMessage,
-                    makerPf, conflict.Value.Role, conflict.Value.DeptName));
+            conflicts.Add(string.Format(
+                AppConstants.PfAlreadyOnOtherDeptMessage,
+                makerPf, makerConflict.Value.Role, makerConflict.Value.DeptName));
         }
 
-        if (!string.IsNullOrEmpty(checkerPf))
+        var checkerConflict = await FindActiveDeptPfConflictAsync(checkerPf, dept.DeptId);
+        if (checkerConflict != null)
         {
-            var conflict = await FindActiveDeptPfConflictAsync(checkerPf, dept.DeptId);
-            if (conflict != null)
-                return ServiceResult.Fail(string.Format(
-                    AppConstants.PfAlreadyOnOtherDeptMessage,
-                    checkerPf, conflict.Value.Role, conflict.Value.DeptName));
+            conflicts.Add(string.Format(
+                AppConstants.PfAlreadyOnOtherDeptMessage,
+                checkerPf, checkerConflict.Value.Role, checkerConflict.Value.DeptName));
         }
+
+        if (conflicts.Count > 0)
+            return ServiceResult.Fail(string.Join(" ", conflicts));
 
         if (dept.DeptId == 0)
         {
@@ -108,7 +116,6 @@ public class MasterService : IMasterService
             existing.MakerPf = dept.MakerPf;
             existing.CheckerPf = dept.CheckerPf;
             // Do not overwrite IsActive here — soft-delete uses SoftDeleteDepartmentAsync.
-            // Edit form does not change Active flag; preserve existing value.
             existing.UpdatedAt = DateTime.Now;
             existing.UpdatedBy = actorPf;
         }
