@@ -19,6 +19,11 @@ var builder = WebApplication.CreateBuilder(args);
 // Serilog — same pattern as Personal/SCV (file under Log/)
 Directory.CreateDirectory(Path.Combine(builder.Environment.ContentRootPath, "Log"));
 Log.Logger = new LoggerConfiguration()
+    .MinimumLevel.Information()
+    .MinimumLevel.Override("Microsoft", Serilog.Events.LogEventLevel.Warning)
+    .MinimumLevel.Override("Microsoft.AspNetCore", Serilog.Events.LogEventLevel.Warning)
+    .MinimumLevel.Override("Microsoft.EntityFrameworkCore", Serilog.Events.LogEventLevel.Warning)
+    .MinimumLevel.Override("System", Serilog.Events.LogEventLevel.Warning)
     .ReadFrom.Configuration(builder.Configuration)
     .Enrich.FromLogContext()
     .Enrich.WithProperty("Application", "IT_BUDGET_MONITORING_PORTAL")

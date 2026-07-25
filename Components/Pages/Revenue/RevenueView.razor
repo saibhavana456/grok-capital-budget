@@ -28,11 +28,14 @@
             </div>
             <div class="metric-row">
                 <span class="metric-row-label">Utilized till @PrevMonth</span>
-                <span class="metric-row-value utilized">@(_form?.PrevTotal.ToString("0.00") ?? "0.00") <small>Cr</small></span>
+                <span class="metric-row-value utilized">@(_form?.UtilizedTillPreviousMonth.ToString("0.00") ?? "0.00") <small>Cr</small></span>
             </div>
-            <div class="metric-row accent">
+        </MudPaper>
+
+        <MudPaper Class="pa-3 mb-3 portal-card" Elevation="0">
+            <div class="metric-row accent mb-0">
                 <span class="metric-row-label">Entered Total (@_entry.EntryMonth)</span>
-                <span class="metric-row-value">@_enteredTotal.ToString("0.00") <small>Cr</small></span>
+                <span class="metric-row-value accent">@_enteredTotal.ToString("0.00") <small>Cr</small></span>
             </div>
         </MudPaper>
 

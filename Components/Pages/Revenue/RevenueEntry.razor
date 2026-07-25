@@ -68,7 +68,7 @@
                 <MudText Class="section-heading mb-3">Section Allotment (FY @_form.FinancialYear)</MudText>
                 <div class="metric-row"><span class="metric-row-label">Total Budget Allotted</span><span class="metric-row-value">@_form.TotalAllotted.ToString("0.00") <small>Cr</small></span></div>
                 <div class="metric-row"><span class="metric-row-label">Utilized till @PrevMonth</span><span class="metric-row-value utilized">@_form.UtilizedTillPreviousMonth.ToString("0.00") <small>Cr</small></span></div>
-                <div class="metric-row accent"><span class="metric-row-label">Entered total for @CurrMonth (auto)</span><span class="metric-row-value accent">@EnteredTotal.ToString("0.00") <small>Cr</small></span></div>
+                <div class="metric-row accent"><span class="metric-row-label">Remaining (before this entry)</span><span class="metric-row-value accent">@RemainingBeforeEntry.ToString("0.00") <small>Cr</small></span></div>
             </MudPaper>
 
             <MudGrid>
@@ -111,6 +111,7 @@
                                                          ValueChanged="@(v => OnHeadAmountChanged(line, v))"
                                                          Variant="Variant.Outlined"
                                                          Min="0"
+                                                         Format="N2"
                                                          Margin="Margin.Dense"
                                                          Immediate="true"
                                                          Adornment="Adornment.End"
@@ -139,7 +140,7 @@
                               HelperText="@($"{(_form.JustificationText?.Length ?? 0)} / {AppConstants.JustificationMaxLength}")" />
             </MudPaper>
 
-            <MudPaper Class="pa-3 mt-3 allotted-strip" Elevation="0">
+            <MudPaper Class="pa-3 mt-3 portal-card" Elevation="0">
                 <div class="metric-row accent mb-0">
                     <span class="metric-row-label">Total to submit for @CurrMonth</span>
                     <span class="metric-row-value accent">@EnteredTotal.ToString("0.00") <small>Cr</small></span>
@@ -171,10 +172,14 @@
     private string CurrMonth => _form?.EntryMonth ?? "";
     private string PrevMonth => string.IsNullOrEmpty(CurrMonth) ? "" : AppConstants.PreviousMonth(CurrMonth);
     private decimal EnteredTotal => _form?.Lines.Sum(l => l.Amount) ?? 0;
+    /// <summary>Allotment remaining before current-month amounts (does not change while typing heads).</summary>
+    private decimal RemainingBeforeEntry =>
+        (_form?.TotalAllotted ?? 0) - (_form?.UtilizedTillPreviousMonth ?? 0);
 
     private void OnHeadAmountChanged(RevenueLineDto line, decimal value)
     {
-        line.Amount = value < 0 ? 0 : value;
+        // Amounts in Rs. Cr — keep 2 decimal places (display/total consistency)
+        line.Amount = value < 0 ? 0 : Math.Round(value, 2, MidpointRounding.AwayFromZero);
     }
 
     protected override async Task OnInitializedAsync()
