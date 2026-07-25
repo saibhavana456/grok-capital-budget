@@ -195,11 +195,17 @@ public class AuthService : IAuthService
 
         var pf = pfNo.Trim();
         var encryptedUserId = EncryptoData.EncryptString(pf);
+
+        // Always hit the database — do not reuse tracked entities from this circuit.
+        _db.ChangeTracker.Clear();
         var tokenRow = await _db.UserTokens.AsNoTracking()
             .FirstOrDefaultAsync(t => t.UserId == encryptedUserId);
 
         if (tokenRow == null || string.IsNullOrEmpty(tokenRow.LastToken) || string.IsNullOrEmpty(tokenRow.HashToken))
+        {
+            _logger.LogInformation("Session invalid for PF {Pf} — USER_TOKEN missing", pf);
             return null;
+        }
 
         if (!string.Equals(tokenRow.HashToken, tokenHash.Trim(), StringComparison.Ordinal))
         {
@@ -229,6 +235,26 @@ public class AuthService : IAuthService
             Token = tokenRow.LastToken,
             TokenHash = tokenRow.HashToken
         };
+    }
+
+    /// <summary>
+    /// Live check for the current circuit user (nav / submit). False → caller must expire local cookie.
+    /// </summary>
+    public async Task<bool> IsCurrentSessionValidAsync()
+    {
+        var current = _currentUser;
+        if (current == null || string.IsNullOrWhiteSpace(current.TokenHash))
+            return false;
+
+        var validated = await ValidateSessionAsync(current.PfNo, current.TokenHash);
+        if (validated == null)
+        {
+            _currentUser = null;
+            return false;
+        }
+
+        _currentUser = validated;
+        return true;
     }
 
     public Task<LoggedInUserDto?> GetLoggedInUserByPfAsync(string pfNo) =>

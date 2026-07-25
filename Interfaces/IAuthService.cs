@@ -9,6 +9,8 @@ public interface IAuthService
     Task LogoutAsync(string pfNo);
     /// <summary>Validates PF + TokenHash against USER_TOKEN (single active session).</summary>
     Task<LoggedInUserDto?> ValidateSessionAsync(string pfNo, string? tokenHash);
+    /// <summary>True only if CurrentUser still matches USER_TOKEN in the database.</summary>
+    Task<bool> IsCurrentSessionValidAsync();
     Task<LoggedInUserDto?> GetLoggedInUserByPfAsync(string pfNo);
     LoggedInUserDto? CurrentUser { get; }
     void SetCurrentUser(LoggedInUserDto? user);

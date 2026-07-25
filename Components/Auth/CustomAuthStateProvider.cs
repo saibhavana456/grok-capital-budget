@@ -93,9 +93,9 @@ public class CustomAuthStateProvider : AuthenticationStateProvider
     }
 
     /// <summary>
-    /// Called on every in-app navigation (NavLink). Returns false only when this browser
-    /// had an authenticated session that is no longer valid in USER_TOKEN
-    /// (cleared or taken by another browser) — caller must expire the local cookie only.
+    /// Called on every in-app navigation (NavLink) and heartbeat.
+    /// Returns false only when this browser had an authenticated session that is no longer
+    /// valid in USER_TOKEN — caller must expire the local cookie only.
     /// </summary>
     public async Task<bool> EnsureSessionStillValidAsync()
     {

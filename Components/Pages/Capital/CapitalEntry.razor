@@ -198,8 +198,13 @@
     private async Task Submit()
     {
         if (_form == null || !_canSubmit) return;
+        if (!await AuthService.IsCurrentSessionValidAsync())
+        {
+            Nav.NavigateTo("/account/expire-cookie", forceLoad: true);
+            return;
+        }
         var user = AuthService.CurrentUser;
-        if (user == null) { Nav.NavigateTo("/login"); return; }
+        if (user == null) { Nav.NavigateTo("/account/expire-cookie", forceLoad: true); return; }
 
         if (string.IsNullOrWhiteSpace(_form.JustificationText))
         {
