@@ -45,6 +45,12 @@ public static class AppConstants
         "Entered amount exceeds remaining allotment. Do you still want to submit for checker review?";
     public const string RemarkRequiredMessage = "Remark is required for Return and Reject.";
     public const string JustificationRequiredMessage = "Justification is required.";
+    /// <summary>Same message as Personal/SCV live when USER_TOKEN already exists.</summary>
+    public const string PreviousSessionExistsMessage =
+        "Please Clear previous Session then try to login again";
+    public const string ClearPreviousSessionTitle = "Previous session active";
+    public const string ClearPreviousSessionMessage =
+        "User already logged in. Click OK to clear the previous session, then login again.";
 
     public const int JustificationMaxLength = 5000;
     public const string DefaultFinancialYear = "2026-27";

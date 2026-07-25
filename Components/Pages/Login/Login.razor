@@ -5,6 +5,7 @@
 @inject LoginTicketStore TicketStore
 @inject NavigationManager Nav
 @inject ISnackbar Snackbar
+@inject IDialogService DialogService
 
 <div class="login-card">
         <div class="d-flex justify-center mb-2">
@@ -120,12 +121,24 @@
 
             if (!result.Success || result.User == null)
             {
+                // Personal/SCV live: offer to clear previous USER_TOKEN session
+                if (string.Equals(result.Message, AppConstants.PreviousSessionExistsMessage, StringComparison.Ordinal))
+                {
+                    var cleared = await OfferClearPreviousSessionAsync();
+                    if (cleared)
+                    {
+                        Snackbar.Add("Previous session cleared. Please login again.", Severity.Info);
+                        await LoadCaptcha();
+                        return;
+                    }
+                }
+
                 Snackbar.Add(result.Message, Severity.Error);
                 await LoadCaptcha();
                 return;
             }
 
-            // Full browser redirect so Set-Cookie is applied (survives refresh).
+            // Browser redirect sets session cookie (F5 OK; close browser → login again — SCV pattern)
             var ticket = TicketStore.Create(result.User);
             Nav.NavigateTo($"/account/establish/{ticket}", forceLoad: true);
         }
@@ -135,5 +148,24 @@
             await LoadCaptcha();
             _busy = false;
         }
+    }
+
+    private async Task<bool> OfferClearPreviousSessionAsync()
+    {
+        var parameters = new DialogParameters<ConfirmDialog>
+        {
+            { x => x.Title, AppConstants.ClearPreviousSessionTitle },
+            { x => x.Message, AppConstants.ClearPreviousSessionMessage },
+            { x => x.ConfirmText, "OK" },
+            { x => x.CancelText, "Cancel" },
+            { x => x.ConfirmColor, Color.Warning }
+        };
+        var options = new DialogOptions { CloseOnEscapeKey = true, MaxWidth = MaxWidth.Small, FullWidth = true };
+        var dialog = await DialogService.ShowAsync<ConfirmDialog>(AppConstants.ClearPreviousSessionTitle, parameters, options);
+        var result = await dialog.Result;
+        if (result is null || result.Canceled) return false;
+
+        await AuthService.LogoutAsync(_pf.Trim());
+        return true;
     }
 }

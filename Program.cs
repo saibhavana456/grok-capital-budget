@@ -85,7 +85,7 @@ builder.Services.AddScoped<IMasterService, MasterService>();
 builder.Services.AddScoped<ICapitalService, CapitalService>();
 builder.Services.AddScoped<IRevenueService, RevenueService>();
 
-// Cookie auth — set via /account/establish (browser GET), survives F5 refresh
+// Cookie auth — session cookie (Personal/SCV live pattern): F5 OK, browser close → login again
 builder.Services
     .AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
     .AddCookie(options =>
@@ -93,10 +93,12 @@ builder.Services
         options.LoginPath = "/login";
         options.LogoutPath = "/account/logout";
         options.AccessDeniedPath = "/login";
-        options.ExpireTimeSpan = TimeSpan.FromHours(2);
-        options.SlidingExpiration = true;
+        // Same lifetime as Personal/SCV JWT (120 minutes); not sliding — fixed window
+        options.ExpireTimeSpan = TimeSpan.FromMinutes(120);
+        options.SlidingExpiration = false;
         options.Cookie.Name = "ITBudget.Auth";
         options.Cookie.HttpOnly = true;
+        options.Cookie.IsEssential = true;
         options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
         options.Cookie.SameSite = SameSiteMode.Lax;
     });
@@ -149,17 +151,18 @@ app.MapGet("/account/establish/{ticket}", async (
     }
 
     var principal = CustomAuthStateProvider.CreateCookiePrincipal(user);
+    // Session cookie (IsPersistent=false) — matches Personal/SCV sessionStorage: refresh OK, close browser → login
     await http.SignInAsync(
         CookieAuthenticationDefaults.AuthenticationScheme,
         principal,
         new Microsoft.AspNetCore.Authentication.AuthenticationProperties
         {
-            IsPersistent = true,
-            AllowRefresh = true,
-            ExpiresUtc = DateTimeOffset.UtcNow.AddHours(2)
+            IsPersistent = false,
+            AllowRefresh = false,
+            ExpiresUtc = DateTimeOffset.UtcNow.AddMinutes(120)
         });
 
-    Log.Information("Auth cookie established for PF={Pf} Role={Role}", user.PfNo, user.RoleCode);
+    Log.Information("Auth session cookie established for PF={Pf} Role={Role}", user.PfNo, user.RoleCode);
     return Results.Redirect("/portal");
 }).AllowAnonymous();
 

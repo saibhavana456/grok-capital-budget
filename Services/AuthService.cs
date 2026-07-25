@@ -102,14 +102,13 @@ public class AuthService : IAuthService
             return Fail("AD authentication failed. Invalid PF or password.");
         }
 
-        // Single active session check (Personal USER_TOKEN pattern)
+        // Single active session — same as Personal/SCV live (USER_TOKEN)
         var encryptedUserId = EncryptoData.EncryptString(pf);
         var existing = await _db.UserTokens.FirstOrDefaultAsync(t => t.UserId == encryptedUserId);
         if (existing != null && !string.IsNullOrEmpty(existing.LastToken))
         {
-            // Allow re-login by clearing previous token (Blazor UX); Personal blocks — we clear for laptop UAT friendliness
-            _db.UserTokens.Remove(existing);
-            await _db.SaveChangesAsync();
+            _logger.LogWarning("Login blocked — previous session exists for PF {Pf}", pf);
+            return Fail(AppConstants.PreviousSessionExistsMessage);
         }
 
         var staff = await _staffLookup.LookupByPfAsync(pf);
