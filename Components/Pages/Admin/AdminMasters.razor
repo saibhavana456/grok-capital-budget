@@ -2,26 +2,28 @@
 @attribute [Authorize(Roles = "ADMIN")]
 @inject IMasterService MasterService
 @inject IAuthService AuthService
+@inject IStaffLookupService StaffLookup
 @inject ISnackbar Snackbar
 
+<div class="admin-page">
 <MudText Typo="Typo.h5" Style="color:#003366;font-weight:700;">Admin Masters</MudText>
 <MudText Typo="Typo.body2" Class="mb-4" Style="color:#64748b;">Department, Section, and Project masters</MudText>
 
 <MudTabs Elevation="1" Rounded="true" PanelClass="pa-4">
     <MudTabPanel Text="Departments">
         <MudButton Variant="Variant.Filled" Color="Color.Primary" Class="mb-3" OnClick="NewDept">Add Department</MudButton>
-        <MudTable Items="_departments" Dense="true" Hover="true">
+        <MudTable Items="_departments" Dense="true" Hover="true" Breakpoint="Breakpoint.Sm">
             <HeaderContent>
-                <MudTh>Code</MudTh><MudTh>Name</MudTh><MudTh>Has Revenue</MudTh><MudTh>Maker PF</MudTh><MudTh>Checker PF</MudTh><MudTh>Active</MudTh><MudTh></MudTh>
+                <MudTh>Code</MudTh><MudTh>Name</MudTh><MudTh>Has Revenue</MudTh><MudTh>Maker PF</MudTh><MudTh>Checker PF</MudTh><MudTh>Active</MudTh><MudTh Style="text-align:right;">Actions</MudTh>
             </HeaderContent>
             <RowTemplate>
-                <MudTd>@context.DeptCode</MudTd>
-                <MudTd>@context.DeptName</MudTd>
-                <MudTd>@context.HasRevenue</MudTd>
-                <MudTd>@context.MakerPf</MudTd>
-                <MudTd>@context.CheckerPf</MudTd>
-                <MudTd>@context.IsActive</MudTd>
-                <MudTd>
+                <MudTd DataLabel="Code">@context.DeptCode</MudTd>
+                <MudTd DataLabel="Name">@context.DeptName</MudTd>
+                <MudTd DataLabel="Has Revenue">@context.HasRevenue</MudTd>
+                <MudTd DataLabel="Maker PF">@context.MakerPf</MudTd>
+                <MudTd DataLabel="Checker PF">@context.CheckerPf</MudTd>
+                <MudTd DataLabel="Active">@context.IsActive</MudTd>
+                <MudTd DataLabel="Actions" Style="text-align:right;white-space:nowrap;">
                     <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(() => EditDept(context))" />
                     <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error"
                                    OnClick="@(() => SoftDeleteDept(context.DeptId))" />
@@ -31,29 +33,108 @@
 
         @if (_editDept != null)
         {
-            <MudPaper Class="pa-4 mt-3" Elevation="1">
-                <MudText Typo="Typo.subtitle1" Class="mb-2">@(_editDept.DeptId == 0 ? "New" : "Edit") Department</MudText>
-                <MudTextField @bind-Value="_editDept.DeptCode" Label="Code *" Variant="Variant.Outlined" Class="mb-2" Required="true" />
-                <MudTextField @bind-Value="_editDept.DeptName" Label="Name *" Variant="Variant.Outlined" Class="mb-2" Required="true" />
-                <MudSelect T="string" @bind-Value="_editDept.HasRevenue" Label="Has Revenue" Variant="Variant.Outlined" Class="mb-2">
-                    <MudSelectItem Value="@("Y")">Y (DIT)</MudSelectItem>
-                    <MudSelectItem Value="@("N")">N</MudSelectItem>
-                </MudSelect>
-                <MudTextField @bind-Value="_editDept.MakerPf" Label="Maker PF *" Variant="Variant.Outlined" Class="mb-2" Required="true" />
-                <MudTextField @bind-Value="_editDept.CheckerPf" Label="Checker PF *" Variant="Variant.Outlined" Class="mb-2" Required="true" />
-                <MudText Typo="Typo.caption" Class="mb-2" Style="color:#64748b;">
+            <MudPaper Class="pa-4 mt-3 admin-form-card" Elevation="1">
+                <MudText Typo="Typo.subtitle1" Class="mb-3" Style="color:#003366;font-weight:700;">
+                    @(_editDept.DeptId == 0 ? "New" : "Edit") Department
+                </MudText>
+                <MudGrid>
+                    <MudItem xs="12" md="6">
+                        <MudTextField @bind-Value="_editDept.DeptCode" Label="Code *" Variant="Variant.Outlined" Required="true" />
+                    </MudItem>
+                    <MudItem xs="12" md="6">
+                        <MudTextField @bind-Value="_editDept.DeptName" Label="Name *" Variant="Variant.Outlined" Required="true" />
+                    </MudItem>
+                    <MudItem xs="12" md="6">
+                        <MudSelect T="string" @bind-Value="_editDept.HasRevenue" Label="Has Revenue" Variant="Variant.Outlined">
+                            <MudSelectItem Value="@("Y")">Y (DIT)</MudSelectItem>
+                            <MudSelectItem Value="@("N")">N</MudSelectItem>
+                        </MudSelect>
+                    </MudItem>
+                    <MudItem xs="12" md="6">
+                        <MudText Typo="Typo.caption" Style="color:#64748b;">
+                            Maker and Checker must exist in APP_USER. When Organisations DB is configured,
+                            use View to confirm PF against STAFF_DETAILS / StaffDetails (email &amp; phone).
+                        </MudText>
+                    </MudItem>
+                    <MudItem xs="12" md="6">
+                        <MudTextField @bind-Value="_editDept.MakerPf" Label="Maker PF *" Variant="Variant.Outlined" Required="true" />
+                        <MudStack Row="true" Class="mt-1" Spacing="1" AlignItems="AlignItems.Center">
+                            <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Primary"
+                                       Disabled="_lookupBusy" OnClick="@(() => LookupPf(_editDept.MakerPf, isMaker: true))">
+                                View Maker
+                            </MudButton>
+                            @if (_makerStaff != null)
+                            {
+                                <MudText Typo="Typo.caption" Style="color:#15803d;">
+                                    @_makerStaff.EmpName
+                                    @if (!string.IsNullOrWhiteSpace(_makerStaff.Designation))
+                                    {
+                                        <text> · @_makerStaff.Designation</text>
+                                    }
+                                </MudText>
+                            }
+                        </MudStack>
+                    </MudItem>
+                    <MudItem xs="12" md="6">
+                        <MudTextField @bind-Value="_editDept.CheckerPf" Label="Checker PF *" Variant="Variant.Outlined" Required="true" />
+                        <MudStack Row="true" Class="mt-1" Spacing="1" AlignItems="AlignItems.Center">
+                            <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Primary"
+                                       Disabled="_lookupBusy" OnClick="@(() => LookupPf(_editDept.CheckerPf, isMaker: false))">
+                                View Checker
+                            </MudButton>
+                            @if (_checkerStaff != null)
+                            {
+                                <MudText Typo="Typo.caption" Style="color:#15803d;">
+                                    @_checkerStaff.EmpName
+                                    @if (!string.IsNullOrWhiteSpace(_checkerStaff.Designation))
+                                    {
+                                        <text> · @_checkerStaff.Designation</text>
+                                    }
+                                </MudText>
+                            }
+                        </MudStack>
+                    </MudItem>
+                </MudGrid>
+
+                @if (_makerStaff != null || _checkerStaff != null)
+                {
+                    <MudTable Items="StaffPreviewRows" Dense="true" Hover="true" Class="mt-3" Elevation="0">
+                        <HeaderContent>
+                            <MudTh>Role</MudTh>
+                            <MudTh>PF</MudTh>
+                            <MudTh>Name</MudTh>
+                            <MudTh>Designation</MudTh>
+                            <MudTh>Location</MudTh>
+                            <MudTh>Email</MudTh>
+                            <MudTh>Phone</MudTh>
+                        </HeaderContent>
+                        <RowTemplate>
+                            <MudTd>@context.Role</MudTd>
+                            <MudTd>@context.Pf</MudTd>
+                            <MudTd>@context.Name</MudTd>
+                            <MudTd>@context.Designation</MudTd>
+                            <MudTd>@context.Location</MudTd>
+                            <MudTd>@(context.Email ?? "—")</MudTd>
+                            <MudTd>@(context.Phone ?? "—")</MudTd>
+                        </RowTemplate>
+                    </MudTable>
+                }
+
+                <MudText Typo="Typo.caption" Class="mt-3 mb-2" Style="color:#64748b;">
                     Maker and Checker are required. Both must exist in APP_USER (role MAKER / CHECKER).
                     Admin PF cannot be assigned. One PF can belong to only one active department.
                 </MudText>
-                <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveDept">Save</MudButton>
-                <MudButton OnClick="() => _editDept = null">Cancel</MudButton>
+                <MudStack Row="true" Spacing="2">
+                    <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveDept">Save</MudButton>
+                    <MudButton Variant="Variant.Outlined" OnClick="CancelDept">Cancel</MudButton>
+                </MudStack>
             </MudPaper>
         }
     </MudTabPanel>
 
     <MudTabPanel Text="Sections">
         <MudSelect T="long?" Value="_filterDeptId" Label="Department" Variant="Variant.Outlined" Class="mb-3"
-                   ValueChanged="OnFilterDept">
+                   ValueChanged="OnFilterDept" Style="max-width:420px;">
             @foreach (var d in _departments)
             {
                 <MudSelectItem T="long?" Value="@((long?)d.DeptId)">@d.DeptName</MudSelectItem>
@@ -62,13 +143,13 @@
         <MudButton Variant="Variant.Filled" Color="Color.Primary" Class="mb-3" Disabled="!_filterDeptId.HasValue" OnClick="NewSection">Add Section</MudButton>
         <MudTable Items="_sections" Dense="true" Hover="true">
             <HeaderContent>
-                <MudTh>Code</MudTh><MudTh>Name</MudTh><MudTh>Active</MudTh><MudTh></MudTh>
+                <MudTh>Code</MudTh><MudTh>Name</MudTh><MudTh>Active</MudTh><MudTh Style="text-align:right;">Actions</MudTh>
             </HeaderContent>
             <RowTemplate>
                 <MudTd>@context.SectionCode</MudTd>
                 <MudTd>@context.SectionName</MudTd>
                 <MudTd>@context.IsActive</MudTd>
-                <MudTd>
+                <MudTd Style="text-align:right;white-space:nowrap;">
                     <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(() => EditSection(context))" />
                     <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error"
                                    OnClick="@(() => SoftDeleteSection(context.SectionId))" />
@@ -77,18 +158,26 @@
         </MudTable>
         @if (_editSection != null)
         {
-            <MudPaper Class="pa-4 mt-3">
-                <MudTextField @bind-Value="_editSection.SectionCode" Label="Code" Variant="Variant.Outlined" Class="mb-2" />
-                <MudTextField @bind-Value="_editSection.SectionName" Label="Name" Variant="Variant.Outlined" Class="mb-2" />
-                <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveSection">Save</MudButton>
-                <MudButton OnClick="() => _editSection = null">Cancel</MudButton>
+            <MudPaper Class="pa-4 mt-3 admin-form-card" Elevation="1">
+                <MudGrid>
+                    <MudItem xs="12" md="6">
+                        <MudTextField @bind-Value="_editSection.SectionCode" Label="Code" Variant="Variant.Outlined" />
+                    </MudItem>
+                    <MudItem xs="12" md="6">
+                        <MudTextField @bind-Value="_editSection.SectionName" Label="Name" Variant="Variant.Outlined" />
+                    </MudItem>
+                </MudGrid>
+                <MudStack Row="true" Class="mt-3" Spacing="2">
+                    <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveSection">Save</MudButton>
+                    <MudButton Variant="Variant.Outlined" OnClick="() => _editSection = null">Cancel</MudButton>
+                </MudStack>
             </MudPaper>
         }
     </MudTabPanel>
 
     <MudTabPanel Text="Projects">
         <MudSelect T="long?" Value="_filterSectionId" Label="Section" Variant="Variant.Outlined" Class="mb-3"
-                   ValueChanged="OnFilterSection">
+                   ValueChanged="OnFilterSection" Style="max-width:420px;">
             @foreach (var s in _sections)
             {
                 <MudSelectItem T="long?" Value="@((long?)s.SectionId)">@s.SectionName</MudSelectItem>
@@ -97,13 +186,13 @@
         <MudButton Variant="Variant.Filled" Color="Color.Primary" Class="mb-3" Disabled="!_filterSectionId.HasValue" OnClick="NewProject">Add Project</MudButton>
         <MudTable Items="_projects" Dense="true" Hover="true">
             <HeaderContent>
-                <MudTh>Code</MudTh><MudTh>Name</MudTh><MudTh>Active</MudTh><MudTh></MudTh>
+                <MudTh>Code</MudTh><MudTh>Name</MudTh><MudTh>Active</MudTh><MudTh Style="text-align:right;">Actions</MudTh>
             </HeaderContent>
             <RowTemplate>
                 <MudTd>@context.ProjectCode</MudTd>
                 <MudTd>@context.ProjectName</MudTd>
                 <MudTd>@context.IsActive</MudTd>
-                <MudTd>
+                <MudTd Style="text-align:right;white-space:nowrap;">
                     <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(() => EditProject(context))" />
                     <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error"
                                    OnClick="@(() => SoftDeleteProject(context.ProjectId))" />
@@ -112,11 +201,19 @@
         </MudTable>
         @if (_editProject != null)
         {
-            <MudPaper Class="pa-4 mt-3">
-                <MudTextField @bind-Value="_editProject.ProjectCode" Label="Code" Variant="Variant.Outlined" Class="mb-2" />
-                <MudTextField @bind-Value="_editProject.ProjectName" Label="Name" Variant="Variant.Outlined" Class="mb-2" />
-                <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveProject">Save</MudButton>
-                <MudButton OnClick="() => _editProject = null">Cancel</MudButton>
+            <MudPaper Class="pa-4 mt-3 admin-form-card" Elevation="1">
+                <MudGrid>
+                    <MudItem xs="12" md="6">
+                        <MudTextField @bind-Value="_editProject.ProjectCode" Label="Code" Variant="Variant.Outlined" />
+                    </MudItem>
+                    <MudItem xs="12" md="6">
+                        <MudTextField @bind-Value="_editProject.ProjectName" Label="Name" Variant="Variant.Outlined" />
+                    </MudItem>
+                </MudGrid>
+                <MudStack Row="true" Class="mt-3" Spacing="2">
+                    <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveProject">Save</MudButton>
+                    <MudButton Variant="Variant.Outlined" OnClick="() => _editProject = null">Cancel</MudButton>
+                </MudStack>
             </MudPaper>
         }
     </MudTabPanel>
@@ -135,6 +232,7 @@
         </MudTable>
     </MudTabPanel>
 </MudTabs>
+</div>
 
 @code {
     private List<Department> _departments = new();
@@ -146,6 +244,20 @@
     private Project? _editProject;
     private long? _filterDeptId;
     private long? _filterSectionId;
+    private StaffLookupResult? _makerStaff;
+    private StaffLookupResult? _checkerStaff;
+    private bool _lookupBusy;
+
+    private IEnumerable<StaffPreviewRow> StaffPreviewRows
+    {
+        get
+        {
+            if (_makerStaff != null)
+                yield return ToPreview("Maker", _editDept?.MakerPf, _makerStaff);
+            if (_checkerStaff != null)
+                yield return ToPreview("Checker", _editDept?.CheckerPf, _checkerStaff);
+        }
+    }
 
     protected override async Task OnInitializedAsync()
     {
@@ -156,11 +268,71 @@
     private async Task ReloadDepts() =>
         _departments = await MasterService.GetDepartmentsAsync(false);
 
-    private void NewDept() => _editDept = new Department { HasRevenue = "N", IsActive = "Y" };
-    private void EditDept(Department d) => _editDept = new Department
+    private void NewDept()
     {
-        DeptId = d.DeptId, DeptCode = d.DeptCode, DeptName = d.DeptName,
-        HasRevenue = d.HasRevenue, MakerPf = d.MakerPf, CheckerPf = d.CheckerPf, IsActive = d.IsActive
+        _editDept = new Department { HasRevenue = "N", IsActive = "Y" };
+        _makerStaff = null;
+        _checkerStaff = null;
+    }
+
+    private void EditDept(Department d)
+    {
+        _editDept = new Department
+        {
+            DeptId = d.DeptId, DeptCode = d.DeptCode, DeptName = d.DeptName,
+            HasRevenue = d.HasRevenue, MakerPf = d.MakerPf, CheckerPf = d.CheckerPf, IsActive = d.IsActive
+        };
+        _makerStaff = null;
+        _checkerStaff = null;
+    }
+
+    private void CancelDept()
+    {
+        _editDept = null;
+        _makerStaff = null;
+        _checkerStaff = null;
+    }
+
+    private async Task LookupPf(string? pf, bool isMaker)
+    {
+        if (string.IsNullOrWhiteSpace(pf))
+        {
+            Snackbar.Add(isMaker ? AppConstants.MakerPfRequiredMessage : AppConstants.CheckerPfRequiredMessage, Severity.Warning);
+            return;
+        }
+
+        if (!StaffLookup.IsOrganisationsConfigured)
+        {
+            Snackbar.Add(AppConstants.OrganisationsNotConfiguredMessage, Severity.Info);
+            return;
+        }
+
+        _lookupBusy = true;
+        try
+        {
+            var staff = await StaffLookup.LookupByPfAsync(pf.Trim());
+            if (staff == null)
+            {
+                if (isMaker) _makerStaff = null; else _checkerStaff = null;
+                Snackbar.Add(string.Format(AppConstants.StaffNotInOrganisationsMessage, pf.Trim()), Severity.Warning);
+                return;
+            }
+
+            if (isMaker) _makerStaff = staff; else _checkerStaff = staff;
+            Snackbar.Add($"Found {staff.EmpName} ({staff.EmpId})", Severity.Success);
+        }
+        finally { _lookupBusy = false; }
+    }
+
+    private static StaffPreviewRow ToPreview(string role, string? pf, StaffLookupResult s) => new()
+    {
+        Role = role,
+        Pf = pf ?? s.EmpId,
+        Name = s.EmpName,
+        Designation = s.Designation ?? "—",
+        Location = string.IsNullOrWhiteSpace(s.LocationDesc) ? (s.LocationCode ?? "—") : s.LocationDesc,
+        Email = s.Email,
+        Phone = s.Phone
     };
 
     private async Task SaveDept()
@@ -170,7 +342,7 @@
         Snackbar.Add(r.Message, r.Success ? Severity.Success : Severity.Error);
         // Keep form + values on validation error so Admin does not retype everything
         if (!r.Success) return;
-        _editDept = null;
+        CancelDept();
         await ReloadDepts();
     }
 
@@ -238,5 +410,16 @@
     {
         await MasterService.SoftDeleteProjectAsync(id, AuthService.CurrentUser!.PfNo);
         await OnFilterSection(_filterSectionId);
+    }
+
+    private sealed class StaffPreviewRow
+    {
+        public string Role { get; set; } = "";
+        public string Pf { get; set; } = "";
+        public string Name { get; set; } = "";
+        public string Designation { get; set; } = "";
+        public string Location { get; set; } = "";
+        public string? Email { get; set; }
+        public string? Phone { get; set; }
     }
 }

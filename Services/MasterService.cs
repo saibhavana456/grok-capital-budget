@@ -10,8 +10,13 @@ namespace IT_BUDGET_MONITORING_PORTAL.Services;
 public class MasterService : IMasterService
 {
     private readonly AppDbContext _db;
+    private readonly IStaffLookupService _staffLookup;
 
-    public MasterService(AppDbContext db) => _db = db;
+    public MasterService(AppDbContext db, IStaffLookupService staffLookup)
+    {
+        _db = db;
+        _staffLookup = staffLookup;
+    }
 
     public Task<List<Department>> GetDepartmentsAsync(bool activeOnly = true) =>
         _db.Departments.AsNoTracking()
@@ -117,6 +122,19 @@ public class MasterService : IMasterService
 
         if (errors.Count > 0)
             return ServiceResult.Fail(string.Join(" ", errors));
+
+        // SCV-style Organisations check when ConnStr is configured (skip when empty for local/dev).
+        if (_staffLookup.IsOrganisationsConfigured)
+        {
+            var makerStaff = await _staffLookup.LookupByPfAsync(makerPf);
+            if (makerStaff == null)
+                errors.Add(string.Format(AppConstants.StaffNotInOrganisationsMessage, makerPf));
+            var checkerStaff = await _staffLookup.LookupByPfAsync(checkerPf);
+            if (checkerStaff == null)
+                errors.Add(string.Format(AppConstants.StaffNotInOrganisationsMessage, checkerPf));
+            if (errors.Count > 0)
+                return ServiceResult.Fail(string.Join(" ", errors));
+        }
 
         if (dept.DeptId == 0)
         {

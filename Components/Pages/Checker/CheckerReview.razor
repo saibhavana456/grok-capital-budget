@@ -46,6 +46,7 @@
                         <HeaderContent>
                             <MudTh>FY</MudTh>
                             <MudTh>Month</MudTh>
+                            <MudTh>Department</MudTh>
                             <MudTh>Section</MudTh>
                             <MudTh>Project</MudTh>
                             <MudTh>Maker</MudTh>
@@ -55,6 +56,7 @@
                         <RowTemplate>
                             <MudTd DataLabel="FY">@context.FinancialYear</MudTd>
                             <MudTd DataLabel="Month"><b>@context.Month</b></MudTd>
+                            <MudTd DataLabel="Department">@(string.IsNullOrWhiteSpace(context.DeptName) ? "-" : context.DeptName)</MudTd>
                             <MudTd DataLabel="Section">@context.SectionName</MudTd>
                             <MudTd DataLabel="Project">@context.ProjectName</MudTd>
                             <MudTd DataLabel="Maker">@context.SubmittedByPf</MudTd>
@@ -89,6 +91,7 @@
                         <HeaderContent>
                             <MudTh>FY</MudTh>
                             <MudTh>Month</MudTh>
+                            <MudTh>Department</MudTh>
                             <MudTh>Section</MudTh>
                             <MudTh>Total (Cr)</MudTh>
                             <MudTh>Maker</MudTh>
@@ -98,6 +101,7 @@
                         <RowTemplate>
                             <MudTd DataLabel="FY">@context.FinancialYear</MudTd>
                             <MudTd DataLabel="Month"><b>@context.Month</b></MudTd>
+                            <MudTd DataLabel="Department">@(string.IsNullOrWhiteSpace(context.DeptName) ? "-" : context.DeptName)</MudTd>
                             <MudTd DataLabel="Section">@context.SectionName</MudTd>
                             <MudTd DataLabel="Total">@context.TotalAmount.ToString("0.00")</MudTd>
                             <MudTd DataLabel="Maker">@context.SubmittedByPf</MudTd>

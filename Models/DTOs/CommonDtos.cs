@@ -41,6 +41,7 @@ public class CapitalSubmissionListItem
     public long EntryId { get; set; }
     public string FinancialYear { get; set; } = string.Empty;
     public string Month { get; set; } = string.Empty;
+    public string DeptName { get; set; } = string.Empty;
     public string SectionName { get; set; } = string.Empty;
     public string ProjectName { get; set; } = string.Empty;
     public string Status { get; set; } = string.Empty;
@@ -52,6 +53,7 @@ public class RevenueSubmissionListItem
     public long EntryId { get; set; }
     public string FinancialYear { get; set; } = string.Empty;
     public string Month { get; set; } = string.Empty;
+    public string DeptName { get; set; } = string.Empty;
     public string SectionName { get; set; } = string.Empty;
     public decimal TotalAmount { get; set; }
     public string Status { get; set; } = string.Empty;
@@ -71,6 +73,13 @@ public class CapitalEntryFormDto
     public decimal PrevSpillover { get; set; }
     public decimal PrevFresh { get; set; }
     public decimal PrevTotal { get; set; }
+    /// <summary>
+    /// Estimates for the current entry month that were submitted on the previous month's form
+    /// (previous entry EstSpilloverNext / EstFreshNext).
+    /// </summary>
+    public decimal PrevEstSpilloverForCurrent { get; set; }
+    public decimal PrevEstFreshForCurrent { get; set; }
+    public decimal PrevEstTotalForCurrent { get; set; }
     public decimal ActualSpillover { get; set; }
     public decimal ActualFresh { get; set; }
     public decimal EstSpilloverNext { get; set; }

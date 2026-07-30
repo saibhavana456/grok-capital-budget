@@ -19,11 +19,21 @@
             <MudGrid>
                 <MudItem xs="12" md="6">
                     <MudSelect T="string" Value="_form.FinancialYear" Label="Financial Year" Variant="Variant.Outlined"
-                               Disabled="true">
-                        <MudSelectItem Value="@_form.FinancialYear">@_form.FinancialYear</MudSelectItem>
+                               ValueChanged="OnFyChanged">
+                        @foreach (var fy in AppConstants.SelectableFinancialYears())
+                        {
+                            <MudSelectItem Value="@fy">@fy</MudSelectItem>
+                        }
                     </MudSelect>
                     <MudText Typo="Typo.caption" Class="mt-1" Style="color:#64748b;">
-                        Current FY only — previous years are view-only via Submissions.
+                        @if (AppConstants.IsCurrentFinancialYear(_form.FinancialYear))
+                        {
+                            <text>Current FY — entry allowed for current and previous calendar month.</text>
+                        }
+                        else
+                        {
+                            <text>Previous FY — read-only. Open any month to view submitted data.</text>
+                        }
                     </MudText>
                 </MudItem>
                 <MudItem xs="12" md="6">
@@ -31,7 +41,7 @@
                                ValueChanged="OnMonthChanged">
                         @foreach (var m in AppConstants.FyMonths)
                         {
-                            <MudSelectItem Value="@m" Disabled="@(!AppConstants.IsEntryMonthSelectable(m))">@m</MudSelectItem>
+                            <MudSelectItem Value="@m" Disabled="@(!AppConstants.IsMonthOpenable(_form.FinancialYear, m))">@m</MudSelectItem>
                         }
                     </MudSelect>
                 </MudItem>
@@ -42,9 +52,10 @@
         {
             <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Class="mb-3" Dense="true">
                 Already submitted for <b>@_form.EntryMonth</b> — status <b>@_existing.Status</b>
-                (PF @(_existing.SubmittedByPf ?? "-")).
-                <MudLink Href="@($"/capital/view/{_existing.EntryId}")" Class="ml-2">View submission</MudLink>
+                (PF @(_existing.SubmittedByPf ?? "-")). Read-only below.
+                <MudLink Href="@($"/capital/view/{_existing.EntryId}")" Class="ml-2">Open detail view</MudLink>
             </MudAlert>
+            @RenderBudgetPanels(readOnly: true)
         }
         else if (!_canSubmit)
         {
@@ -55,13 +66,17 @@
                 }
                 else
                 {
-                    <text>No submission for <b>@_form.EntryMonth</b>. @AppConstants.EntryMonthWindowMessage</text>
+                    <text>No editable submission for <b>@_form.EntryMonth</b>. @AppConstants.EntryMonthWindowMessage</text>
                 }
                 @if (_existing != null)
                 {
-                    <MudLink Href="@($"/capital/view/{_existing.EntryId}")" Class="ml-2">View submission</MudLink>
+                    <MudLink Href="@($"/capital/view/{_existing.EntryId}")" Class="ml-2">Open detail view</MudLink>
                 }
             </MudAlert>
+            @if (_existing != null)
+            {
+                @RenderBudgetPanels(readOnly: true)
+            }
         }
         else
         {
@@ -76,47 +91,7 @@
                 </MudAlert>
             }
 
-            <MudPaper Class="allotted-strip pa-4 mb-3" Elevation="0">
-                <MudText Class="section-heading mb-3">Allotted Budget (FY @_form.FinancialYear)</MudText>
-                <div class="metric-row"><span class="metric-row-label">Spillover Allotted</span><span class="metric-row-value">@_form.SpilloverAllotted.ToString("0.00") <small>Cr</small></span></div>
-                <div class="metric-row"><span class="metric-row-label">Fresh Allotted</span><span class="metric-row-value">@_form.FreshAllotted.ToString("0.00") <small>Cr</small></span></div>
-                <div class="metric-row"><span class="metric-row-label">Total Allotted</span><span class="metric-row-value">@_form.TotalAllotted.ToString("0.00") <small>Cr</small></span></div>
-                <div class="metric-row accent"><span class="metric-row-label">Utilized till @PrevMonth</span><span class="metric-row-value accent">@_form.UtilizedTillPreviousMonth.ToString("0.00") <small>Cr</small></span></div>
-            </MudPaper>
-
-            <MudGrid>
-                <MudItem xs="12" md="5">
-                    <MudPaper Class="pa-4 panel-readonly h-100" Elevation="0">
-                        <MudText Class="section-heading mb-3">Previous Month (@PrevMonth.ToUpperInvariant())</MudText>
-                        <div class="metric-row"><span class="metric-row-label">Spillover Utilized</span><span class="metric-row-value">@_form.PrevSpillover.ToString("0.00")</span></div>
-                        <div class="metric-row"><span class="metric-row-label">Fresh Utilized</span><span class="metric-row-value">@_form.PrevFresh.ToString("0.00")</span></div>
-                        <div class="metric-row accent"><span class="metric-row-label">Total Utilized</span><span class="metric-row-value">@_form.PrevTotal.ToString("0.00")</span></div>
-                    </MudPaper>
-                </MudItem>
-                <MudItem xs="12" md="7">
-                    <MudPaper Class="pa-4 panel-entry h-100" Elevation="0">
-                        <MudText Class="section-heading mb-3">Current Month (@CurrMonth.ToUpperInvariant())</MudText>
-                        <MudNumericField @bind-Value="_form.ActualSpillover"
-                                         Label="@($"Actual Spillover Utilization for {CurrMonth} (Rs. Cr)")"
-                                         Variant="Variant.Outlined" Min="0" Class="mb-3" Required="true" />
-                        <MudNumericField @bind-Value="_form.ActualFresh"
-                                         Label="@($"Actual Fresh Utilization for {CurrMonth} (Rs. Cr)")"
-                                         Variant="Variant.Outlined" Min="0" Class="mb-2" Required="true" />
-                        <div class="metric-row mb-3"><span class="metric-row-label">Actual Total (auto)</span><span class="metric-row-value">@((_form.ActualSpillover + _form.ActualFresh).ToString("0.00"))</span></div>
-
-                        <MudDivider Class="my-3" />
-
-                        <MudText Class="section-heading mb-3">Estimates for @NextMon.ToUpperInvariant()</MudText>
-                        <MudNumericField @bind-Value="_form.EstSpilloverNext"
-                                         Label="@($"Estimated Spillover for {NextMon} (Rs. Cr)")"
-                                         Variant="Variant.Outlined" Min="0" Class="mb-3" Required="true" />
-                        <MudNumericField @bind-Value="_form.EstFreshNext"
-                                         Label="@($"Estimated Fresh for {NextMon} (Rs. Cr)")"
-                                         Variant="Variant.Outlined" Min="0" Class="mb-2" Required="true" />
-                        <div class="metric-row"><span class="metric-row-label">Estimated Total (auto)</span><span class="metric-row-value">@((_form.EstSpilloverNext + _form.EstFreshNext).ToString("0.00"))</span></div>
-                    </MudPaper>
-                </MudItem>
-            </MudGrid>
+            @RenderBudgetPanels(readOnly: false)
 
             <MudPaper Class="pa-4 mt-3 portal-card" Elevation="0">
                 <MudText Class="justification-title mb-2">Justification</MudText>
@@ -144,6 +119,7 @@
 @code {
     [SupplyParameterFromQuery] public long? ProjectId { get; set; }
     [SupplyParameterFromQuery] public string? Month { get; set; }
+    [SupplyParameterFromQuery] public string? Fy { get; set; }
 
     private CapitalEntryFormDto? _form;
     private ExistingEntryInfo? _existing;
@@ -156,6 +132,81 @@
     private string PrevMonth => string.IsNullOrEmpty(CurrMonth) ? "" : AppConstants.PreviousMonth(CurrMonth);
     private string NextMon => string.IsNullOrEmpty(CurrMonth) ? "" : AppConstants.NextMonth(CurrMonth);
 
+    private RenderFragment RenderBudgetPanels(bool readOnly) => __builder =>
+    {
+        if (_form == null) return;
+        <MudPaper Class="allotted-strip pa-4 mb-3" Elevation="0">
+            <MudText Class="section-heading mb-3">Allotted Budget (FY @_form.FinancialYear)</MudText>
+            <div class="metric-row"><span class="metric-row-label">Spillover Allotted</span><span class="metric-row-value">@_form.SpilloverAllotted.ToString("0.00") <small>Cr</small></span></div>
+            <div class="metric-row"><span class="metric-row-label">Fresh Allotted</span><span class="metric-row-value">@_form.FreshAllotted.ToString("0.00") <small>Cr</small></span></div>
+            <div class="metric-row"><span class="metric-row-label">Total Allotted</span><span class="metric-row-value">@_form.TotalAllotted.ToString("0.00") <small>Cr</small></span></div>
+            <div class="metric-row accent"><span class="metric-row-label">Utilized till @PrevMonth</span><span class="metric-row-value accent">@_form.UtilizedTillPreviousMonth.ToString("0.00") <small>Cr</small></span></div>
+        </MudPaper>
+
+        <MudGrid>
+            <MudItem xs="12" md="5">
+                <MudPaper Class="pa-4 panel-readonly h-100" Elevation="0">
+                    <MudText Class="section-heading mb-3">Previous Month (@PrevMonth.ToUpperInvariant())</MudText>
+                    <MudText Typo="Typo.caption" Class="mb-2" Style="color:#64748b;">Approved utilization</MudText>
+                    <div class="metric-row"><span class="metric-row-label">Spillover Utilized</span><span class="metric-row-value">@_form.PrevSpillover.ToString("0.00")</span></div>
+                    <div class="metric-row"><span class="metric-row-label">Fresh Utilized</span><span class="metric-row-value">@_form.PrevFresh.ToString("0.00")</span></div>
+                    <div class="metric-row accent"><span class="metric-row-label">Total Utilized</span><span class="metric-row-value">@_form.PrevTotal.ToString("0.00")</span></div>
+
+                    <MudDivider Class="my-3" />
+                    <MudText Typo="Typo.caption" Class="mb-2" Style="color:#64748b;">
+                        Estimates for @CurrMonth (from @PrevMonth submission)
+                    </MudText>
+                    <div class="metric-row"><span class="metric-row-label">Est. Spillover (@CurrMonth)</span><span class="metric-row-value">@_form.PrevEstSpilloverForCurrent.ToString("0.00")</span></div>
+                    <div class="metric-row"><span class="metric-row-label">Est. Fresh (@CurrMonth)</span><span class="metric-row-value">@_form.PrevEstFreshForCurrent.ToString("0.00")</span></div>
+                    <div class="metric-row accent"><span class="metric-row-label">Est. Total (@CurrMonth)</span><span class="metric-row-value">@_form.PrevEstTotalForCurrent.ToString("0.00")</span></div>
+                </MudPaper>
+            </MudItem>
+            <MudItem xs="12" md="7">
+                <MudPaper Class="pa-4 panel-entry h-100" Elevation="0">
+                    <MudText Class="section-heading mb-3">Current Month (@CurrMonth.ToUpperInvariant())</MudText>
+                    @if (readOnly)
+                    {
+                        <div class="metric-row"><span class="metric-row-label">Actual Spillover</span><span class="metric-row-value">@_form.ActualSpillover.ToString("0.00")</span></div>
+                        <div class="metric-row"><span class="metric-row-label">Actual Fresh</span><span class="metric-row-value">@_form.ActualFresh.ToString("0.00")</span></div>
+                        <div class="metric-row accent mb-3"><span class="metric-row-label">Actual Total</span><span class="metric-row-value">@((_form.ActualSpillover + _form.ActualFresh).ToString("0.00"))</span></div>
+                        <MudDivider Class="my-3" />
+                        <MudText Class="section-heading mb-3">Estimates for @NextMon.ToUpperInvariant()</MudText>
+                        <div class="metric-row"><span class="metric-row-label">Est. Spillover</span><span class="metric-row-value">@_form.EstSpilloverNext.ToString("0.00")</span></div>
+                        <div class="metric-row"><span class="metric-row-label">Est. Fresh</span><span class="metric-row-value">@_form.EstFreshNext.ToString("0.00")</span></div>
+                        <div class="metric-row accent"><span class="metric-row-label">Est. Total</span><span class="metric-row-value">@((_form.EstSpilloverNext + _form.EstFreshNext).ToString("0.00"))</span></div>
+                        @if (!string.IsNullOrWhiteSpace(_form.JustificationText))
+                        {
+                            <MudDivider Class="my-3" />
+                            <MudText Class="justification-title mb-2">Justification</MudText>
+                            <MudPaper Class="pa-3 justification-body">@_form.JustificationText</MudPaper>
+                        }
+                    }
+                    else
+                    {
+                        <MudNumericField @bind-Value="_form.ActualSpillover"
+                                         Label="@($"Actual Spillover Utilization for {CurrMonth} (Rs. Cr)")"
+                                         Variant="Variant.Outlined" Min="0" Class="mb-3" Required="true" />
+                        <MudNumericField @bind-Value="_form.ActualFresh"
+                                         Label="@($"Actual Fresh Utilization for {CurrMonth} (Rs. Cr)")"
+                                         Variant="Variant.Outlined" Min="0" Class="mb-2" Required="true" />
+                        <div class="metric-row mb-3"><span class="metric-row-label">Actual Total (auto)</span><span class="metric-row-value">@((_form.ActualSpillover + _form.ActualFresh).ToString("0.00"))</span></div>
+
+                        <MudDivider Class="my-3" />
+
+                        <MudText Class="section-heading mb-3">Estimates for @NextMon.ToUpperInvariant()</MudText>
+                        <MudNumericField @bind-Value="_form.EstSpilloverNext"
+                                         Label="@($"Estimated Spillover for {NextMon} (Rs. Cr)")"
+                                         Variant="Variant.Outlined" Min="0" Class="mb-3" Required="true" />
+                        <MudNumericField @bind-Value="_form.EstFreshNext"
+                                         Label="@($"Estimated Fresh for {NextMon} (Rs. Cr)")"
+                                         Variant="Variant.Outlined" Min="0" Class="mb-2" Required="true" />
+                        <div class="metric-row"><span class="metric-row-label">Estimated Total (auto)</span><span class="metric-row-value">@((_form.EstSpilloverNext + _form.EstFreshNext).ToString("0.00"))</span></div>
+                    }
+                </MudPaper>
+            </MudItem>
+        </MudGrid>
+    };
+
     protected override async Task OnInitializedAsync()
     {
         if (!ProjectId.HasValue)
@@ -165,18 +216,33 @@
             return;
         }
 
-        var month = !string.IsNullOrWhiteSpace(Month) && AppConstants.IsEntryMonthSelectable(Month)
-            ? Month!
-            : AppConstants.DefaultEntryMonth();
-        await Load(AppConstants.CurrentFinancialYear(), month);
+        var fy = !string.IsNullOrWhiteSpace(Fy)
+                 && AppConstants.SelectableFinancialYears().Any(y =>
+                     string.Equals(y, Fy, StringComparison.OrdinalIgnoreCase))
+            ? Fy!
+            : AppConstants.CurrentFinancialYear();
+
+        string month;
+        if (!string.IsNullOrWhiteSpace(Month) && AppConstants.IsMonthOpenable(fy, Month))
+            month = Month!;
+        else if (AppConstants.IsCurrentFinancialYear(fy))
+            month = AppConstants.DefaultEntryMonth();
+        else
+            month = "April";
+
+        await Load(fy, month);
     }
 
     private async Task Load(string fy, string month)
     {
-        // Entry page always works in the current FY — previous FY is view-only via Submissions.
-        fy = AppConstants.CurrentFinancialYear();
-        if (!AppConstants.IsEntryMonthSelectable(month))
-            month = AppConstants.DefaultEntryMonth();
+        if (!AppConstants.SelectableFinancialYears().Any(y =>
+                string.Equals(y, fy, StringComparison.OrdinalIgnoreCase)))
+            fy = AppConstants.CurrentFinancialYear();
+
+        if (!AppConstants.IsMonthOpenable(fy, month))
+            month = AppConstants.IsCurrentFinancialYear(fy)
+                ? AppConstants.DefaultEntryMonth()
+                : "April";
 
         _form = await CapitalService.BuildFormAsync(ProjectId!.Value, fy, month);
         if (_form == null)
@@ -199,9 +265,18 @@
             (_existing == null && AppConstants.CanSubmitNewEntry(fy, month)));
     }
 
+    private async Task OnFyChanged(string fy)
+    {
+        if (_form == null || !ProjectId.HasValue) return;
+        var month = AppConstants.IsCurrentFinancialYear(fy)
+            ? AppConstants.DefaultEntryMonth()
+            : "April";
+        await Load(fy, month);
+    }
+
     private async Task OnMonthChanged(string month)
     {
-        if (_form == null || !ProjectId.HasValue || !AppConstants.IsEntryMonthSelectable(month)) return;
+        if (_form == null || !ProjectId.HasValue || !AppConstants.IsMonthOpenable(_form.FinancialYear, month)) return;
         await Load(_form.FinancialYear, month);
     }
 

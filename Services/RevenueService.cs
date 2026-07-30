@@ -76,9 +76,7 @@ public class RevenueService : IRevenueService
             .FirstOrDefaultAsync(e => e.SectionId == sectionId
                                       && e.FinancialYear == financialYear
                                       && e.EntryMonth == entryMonth
-                                      && e.IsActive == "Y"
-                                      && (e.EntryStatus == AppConstants.EntryStatus.Returned
-                                          || e.EntryStatus == AppConstants.EntryStatus.Rejected));
+                                      && e.IsActive == "Y");
         if (editable != null)
         {
             form.JustificationText = editable.JustificationText ?? "";
@@ -218,17 +216,27 @@ public class RevenueService : IRevenueService
         return ServiceResult.Ok(AppConstants.SuccessSubmit);
     }
 
-    public async Task<List<RevenueSubmissionListItem>> GetSubmissionsAsync(string? makerPfFilter, long? deptIdFilter)
+    public async Task<List<RevenueSubmissionListItem>> GetSubmissionsAsync(
+        string? makerPfFilter, long? deptIdFilter, string? checkerPfFilter = null)
     {
         var q = from e in _db.RevenueMonthlyEntries.AsNoTracking()
                 join s in _db.Sections.AsNoTracking() on e.SectionId equals s.SectionId
+                join d in _db.Departments.AsNoTracking() on s.DeptId equals d.DeptId
                 where e.IsActive == "Y"
-                select new { e, s };
+                select new { e, s, d };
 
         if (!string.IsNullOrWhiteSpace(makerPfFilter))
             q = q.Where(x => x.e.SubmittedByPf == makerPfFilter);
-        if (deptIdFilter.HasValue)
+
+        if (!string.IsNullOrWhiteSpace(checkerPfFilter))
+        {
+            var checkerDeptIds = await GetActiveDeptIdsForCheckerAsync(checkerPfFilter);
+            q = q.Where(x => checkerDeptIds.Contains(x.s.DeptId));
+        }
+        else if (deptIdFilter.HasValue)
+        {
             q = q.Where(x => x.s.DeptId == deptIdFilter.Value);
+        }
 
         var rows = await q.OrderByDescending(x => x.e.SubmittedAt).ToListAsync();
         var result = new List<RevenueSubmissionListItem>();
@@ -242,6 +250,7 @@ public class RevenueService : IRevenueService
                 EntryId = row.e.EntryId,
                 FinancialYear = row.e.FinancialYear,
                 Month = row.e.EntryMonth,
+                DeptName = row.d.DeptName,
                 SectionName = row.s.SectionName,
                 TotalAmount = total,
                 Status = row.e.EntryStatus,
@@ -260,18 +269,23 @@ public class RevenueService : IRevenueService
 
     public async Task<List<RevenueSubmissionListItem>> GetPendingForCheckerAsync(string checkerPf)
     {
-        var deptIds = await _db.Departments.AsNoTracking()
-            .Where(d => d.CheckerPf == checkerPf && d.IsActive == "Y")
-            .Select(d => d.DeptId)
-            .ToListAsync();
+        var deptIds = await GetActiveDeptIdsForCheckerAsync(checkerPf);
+        if (deptIds.Count == 0)
+        {
+            _logger.LogWarning(
+                "Revenue pending empty — no active DEPARTMENT with CHECKER_PF={Pf}",
+                checkerPf);
+            return new List<RevenueSubmissionListItem>();
+        }
 
         var q = from e in _db.RevenueMonthlyEntries.AsNoTracking()
                 join s in _db.Sections.AsNoTracking() on e.SectionId equals s.SectionId
+                join d in _db.Departments.AsNoTracking() on s.DeptId equals d.DeptId
                 where e.IsActive == "Y"
                       && e.EntryStatus == AppConstants.EntryStatus.Pending
                       && deptIds.Contains(s.DeptId)
                 orderby e.SubmittedAt descending
-                select new { e, s };
+                select new { e, s, d };
 
         var rows = await q.ToListAsync();
         var result = new List<RevenueSubmissionListItem>();
@@ -285,6 +299,7 @@ public class RevenueService : IRevenueService
                 EntryId = row.e.EntryId,
                 FinancialYear = row.e.FinancialYear,
                 Month = row.e.EntryMonth,
+                DeptName = row.d.DeptName,
                 SectionName = row.s.SectionName,
                 TotalAmount = total,
                 Status = row.e.EntryStatus,
@@ -292,6 +307,23 @@ public class RevenueService : IRevenueService
             });
         }
         return result;
+    }
+
+    private async Task<List<long>> GetActiveDeptIdsForCheckerAsync(string checkerPf)
+    {
+        var pfNorm = (checkerPf ?? "").Trim();
+        if (string.IsNullOrEmpty(pfNorm)) return new List<long>();
+
+        var rows = await _db.Departments.AsNoTracking()
+            .Where(d => d.IsActive == "Y")
+            .Select(d => new { d.DeptId, d.CheckerPf })
+            .ToListAsync();
+
+        return rows
+            .Where(d => !string.IsNullOrWhiteSpace(d.CheckerPf)
+                        && string.Equals(d.CheckerPf.Trim(), pfNorm, StringComparison.OrdinalIgnoreCase))
+            .Select(d => d.DeptId)
+            .ToList();
     }
 
     public async Task<ServiceResult> CheckerActionAsync(long entryId, string action, string checkerPf, string? remark)
@@ -305,7 +337,8 @@ public class RevenueService : IRevenueService
         var dept = section == null ? null :
             await _db.Departments.FirstOrDefaultAsync(d => d.DeptId == section.DeptId);
         if (dept == null ||
-            !string.Equals(dept.CheckerPf, checkerPf, StringComparison.OrdinalIgnoreCase))
+            string.IsNullOrWhiteSpace(dept.CheckerPf) ||
+            !string.Equals(dept.CheckerPf.Trim(), checkerPf.Trim(), StringComparison.OrdinalIgnoreCase))
             return ServiceResult.Fail("You are not the Checker for this department.");
 
         var normalized = action.Trim().ToUpperInvariant();

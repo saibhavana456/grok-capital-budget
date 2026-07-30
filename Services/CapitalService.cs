@@ -30,12 +30,18 @@ public class CapitalService : ICapitalService
             .FirstOrDefaultAsync(a => a.ProjectId == projectId && a.FinancialYear == financialYear && a.IsActive == "Y");
 
         var prevMonth = AppConstants.PreviousMonth(entryMonth);
-        var prev = await _db.CapitalMonthlyEntries.AsNoTracking()
-            .FirstOrDefaultAsync(e => e.ProjectId == projectId
-                                      && e.FinancialYear == financialYear
-                                      && e.EntryMonth == prevMonth
-                                      && e.IsActive == "Y"
-                                      && e.EntryStatus == AppConstants.EntryStatus.Approved);
+        // Previous-month panel: approved actuals for utilization; any active prior submission
+        // also carries Est*Next = estimates already submitted for the current entry month.
+        var prevRows = await _db.CapitalMonthlyEntries.AsNoTracking()
+            .Where(e => e.ProjectId == projectId
+                        && e.FinancialYear == financialYear
+                        && e.EntryMonth == prevMonth
+                        && e.IsActive == "Y")
+            .ToListAsync();
+        var prevApproved = prevRows.FirstOrDefault(e =>
+            string.Equals(e.EntryStatus, AppConstants.EntryStatus.Approved, StringComparison.OrdinalIgnoreCase));
+        var prevSubmitted = prevApproved
+            ?? prevRows.OrderByDescending(e => e.SubmittedAt).FirstOrDefault();
 
         var utilizedTillPrev = await SumApprovedUtilizedThroughAsync(projectId, financialYear, prevMonth);
 
@@ -51,25 +57,28 @@ public class CapitalService : ICapitalService
             FreshAllotted = allotment?.FreshAllotted ?? 0,
             TotalAllotted = allotment?.TotalAllotted ?? 0,
             UtilizedTillPreviousMonth = utilizedTillPrev,
-            PrevSpillover = prev?.ActualSpillover ?? 0,
-            PrevFresh = prev?.ActualFresh ?? 0,
-            PrevTotal = prev?.ActualTotal ?? 0
+            PrevSpillover = prevApproved?.ActualSpillover ?? 0,
+            PrevFresh = prevApproved?.ActualFresh ?? 0,
+            PrevTotal = prevApproved?.ActualTotal ?? 0,
+            PrevEstSpilloverForCurrent = prevSubmitted?.EstSpilloverNext ?? 0,
+            PrevEstFreshForCurrent = prevSubmitted?.EstFreshNext ?? 0,
+            PrevEstTotalForCurrent = prevSubmitted?.EstTotalNext
+                ?? ((prevSubmitted?.EstSpilloverNext ?? 0) + (prevSubmitted?.EstFreshNext ?? 0))
         };
 
-        var editable = await _db.CapitalMonthlyEntries.AsNoTracking()
+        // Load amounts for edit (RETURNED/REJECTED) or read-only display (any active entry).
+        var existingMonth = await _db.CapitalMonthlyEntries.AsNoTracking()
             .FirstOrDefaultAsync(e => e.ProjectId == projectId
                                       && e.FinancialYear == financialYear
                                       && e.EntryMonth == entryMonth
-                                      && e.IsActive == "Y"
-                                      && (e.EntryStatus == AppConstants.EntryStatus.Returned
-                                          || e.EntryStatus == AppConstants.EntryStatus.Rejected));
-        if (editable != null)
+                                      && e.IsActive == "Y");
+        if (existingMonth != null)
         {
-            form.ActualSpillover = editable.ActualSpillover;
-            form.ActualFresh = editable.ActualFresh;
-            form.EstSpilloverNext = editable.EstSpilloverNext;
-            form.EstFreshNext = editable.EstFreshNext;
-            form.JustificationText = editable.JustificationText ?? "";
+            form.ActualSpillover = existingMonth.ActualSpillover;
+            form.ActualFresh = existingMonth.ActualFresh;
+            form.EstSpilloverNext = existingMonth.EstSpilloverNext;
+            form.EstFreshNext = existingMonth.EstFreshNext;
+            form.JustificationText = existingMonth.JustificationText ?? "";
         }
 
         return form;
@@ -187,18 +196,29 @@ public class CapitalService : ICapitalService
         return ServiceResult.Ok(AppConstants.SuccessSubmit);
     }
 
-    public async Task<List<CapitalSubmissionListItem>> GetSubmissionsAsync(string? makerPfFilter, long? deptIdFilter)
+    public async Task<List<CapitalSubmissionListItem>> GetSubmissionsAsync(
+        string? makerPfFilter, long? deptIdFilter, string? checkerPfFilter = null)
     {
         var q = from e in _db.CapitalMonthlyEntries.AsNoTracking()
                 join p in _db.Projects.AsNoTracking() on e.ProjectId equals p.ProjectId
                 join s in _db.Sections.AsNoTracking() on p.SectionId equals s.SectionId
+                join d in _db.Departments.AsNoTracking() on s.DeptId equals d.DeptId
                 where e.IsActive == "Y"
-                select new { e, p, s };
+                select new { e, p, s, d };
 
         if (!string.IsNullOrWhiteSpace(makerPfFilter))
             q = q.Where(x => x.e.SubmittedByPf == makerPfFilter);
-        if (deptIdFilter.HasValue)
+
+        // Checker: scope by DEPARTMENT.CHECKER_PF (not APP_USER.DEPT_ID alone).
+        if (!string.IsNullOrWhiteSpace(checkerPfFilter))
+        {
+            var checkerDeptIds = await GetActiveDeptIdsForCheckerAsync(checkerPfFilter);
+            q = q.Where(x => checkerDeptIds.Contains(x.s.DeptId));
+        }
+        else if (deptIdFilter.HasValue)
+        {
             q = q.Where(x => x.s.DeptId == deptIdFilter.Value);
+        }
 
         return await q.OrderByDescending(x => x.e.SubmittedAt)
             .Select(x => new CapitalSubmissionListItem
@@ -206,6 +226,7 @@ public class CapitalService : ICapitalService
                 EntryId = x.e.EntryId,
                 FinancialYear = x.e.FinancialYear,
                 Month = x.e.EntryMonth,
+                DeptName = x.d.DeptName,
                 SectionName = x.s.SectionName,
                 ProjectName = x.p.ProjectName,
                 Status = x.e.EntryStatus,
@@ -221,14 +242,19 @@ public class CapitalService : ICapitalService
 
     public async Task<List<CapitalSubmissionListItem>> GetPendingForCheckerAsync(string checkerPf)
     {
-        var deptIds = await _db.Departments.AsNoTracking()
-            .Where(d => d.CheckerPf == checkerPf && d.IsActive == "Y")
-            .Select(d => d.DeptId)
-            .ToListAsync();
+        var deptIds = await GetActiveDeptIdsForCheckerAsync(checkerPf);
+        if (deptIds.Count == 0)
+        {
+            _logger.LogWarning(
+                "Capital pending empty — no active DEPARTMENT with CHECKER_PF={Pf}",
+                checkerPf);
+            return new List<CapitalSubmissionListItem>();
+        }
 
         var q = from e in _db.CapitalMonthlyEntries.AsNoTracking()
                 join p in _db.Projects.AsNoTracking() on e.ProjectId equals p.ProjectId
                 join s in _db.Sections.AsNoTracking() on p.SectionId equals s.SectionId
+                join d in _db.Departments.AsNoTracking() on s.DeptId equals d.DeptId
                 where e.IsActive == "Y"
                       && e.EntryStatus == AppConstants.EntryStatus.Pending
                       && deptIds.Contains(s.DeptId)
@@ -238,6 +264,7 @@ public class CapitalService : ICapitalService
                     EntryId = e.EntryId,
                     FinancialYear = e.FinancialYear,
                     Month = e.EntryMonth,
+                    DeptName = d.DeptName,
                     SectionName = s.SectionName,
                     ProjectName = p.ProjectName,
                     Status = e.EntryStatus,
@@ -245,6 +272,26 @@ public class CapitalService : ICapitalService
                 };
 
         return await q.ToListAsync();
+    }
+
+    /// <summary>
+    /// Active departments where this PF is Checker (trim + case-insensitive — Oracle CHAR padding safe).
+    /// </summary>
+    private async Task<List<long>> GetActiveDeptIdsForCheckerAsync(string checkerPf)
+    {
+        var pfNorm = (checkerPf ?? "").Trim();
+        if (string.IsNullOrEmpty(pfNorm)) return new List<long>();
+
+        var rows = await _db.Departments.AsNoTracking()
+            .Where(d => d.IsActive == "Y")
+            .Select(d => new { d.DeptId, d.CheckerPf })
+            .ToListAsync();
+
+        return rows
+            .Where(d => !string.IsNullOrWhiteSpace(d.CheckerPf)
+                        && string.Equals(d.CheckerPf.Trim(), pfNorm, StringComparison.OrdinalIgnoreCase))
+            .Select(d => d.DeptId)
+            .ToList();
     }
 
     public async Task<ServiceResult> CheckerActionAsync(long entryId, string action, string checkerPf, string? remark)
@@ -258,7 +305,8 @@ public class CapitalService : ICapitalService
         var dept = project?.Section == null ? null :
             await _db.Departments.FirstOrDefaultAsync(d => d.DeptId == project.Section.DeptId);
         if (dept == null ||
-            !string.Equals(dept.CheckerPf, checkerPf, StringComparison.OrdinalIgnoreCase))
+            string.IsNullOrWhiteSpace(dept.CheckerPf) ||
+            !string.Equals(dept.CheckerPf.Trim(), checkerPf.Trim(), StringComparison.OrdinalIgnoreCase))
             return ServiceResult.Fail("You are not the Checker for this department.");
 
         var normalized = action.Trim().ToUpperInvariant();

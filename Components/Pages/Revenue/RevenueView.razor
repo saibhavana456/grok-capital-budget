@@ -153,6 +153,9 @@
         {
             <MudPaper Class="pa-4 mt-3 portal-card" Elevation="0">
                 <MudText Class="section-heading mb-3">Checker action</MudText>
+                <MudText Typo="Typo.caption" Class="mb-2" Style="color:#64748b;">
+                    Approve locks the entry. Return / Reject send it back to the Maker with a required remark so they can correct and resubmit the same month.
+                </MudText>
                 <MudStack Row="true" Spacing="2">
                     <MudButton Variant="Variant.Filled" Color="Color.Success" Disabled="_busy"
                                OnClick="@(() => Act("APPROVED"))">Approve</MudButton>

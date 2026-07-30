@@ -69,9 +69,17 @@
             <MudItem xs="12" md="5">
                 <MudPaper Class="pa-4 panel-readonly h-100" Elevation="0">
                     <MudText Class="section-heading mb-3">Previous Month (@PrevMonth.ToUpperInvariant())</MudText>
+                    <MudText Typo="Typo.caption" Class="mb-2" Style="color:#64748b;">Approved utilization</MudText>
                     <div class="metric-row"><span class="metric-row-label">Spillover Utilized</span><span class="metric-row-value">@(_context?.PrevSpillover.ToString("0.00") ?? "0.00")</span></div>
                     <div class="metric-row"><span class="metric-row-label">Fresh Utilized</span><span class="metric-row-value">@(_context?.PrevFresh.ToString("0.00") ?? "0.00")</span></div>
                     <div class="metric-row accent"><span class="metric-row-label">Total Utilized</span><span class="metric-row-value">@(_context?.PrevTotal.ToString("0.00") ?? "0.00")</span></div>
+                    <MudDivider Class="my-3" />
+                    <MudText Typo="Typo.caption" Class="mb-2" Style="color:#64748b;">
+                        Estimates for @CurrMonth (from @PrevMonth submission)
+                    </MudText>
+                    <div class="metric-row"><span class="metric-row-label">Est. Spillover (@CurrMonth)</span><span class="metric-row-value">@(_context?.PrevEstSpilloverForCurrent.ToString("0.00") ?? "0.00")</span></div>
+                    <div class="metric-row"><span class="metric-row-label">Est. Fresh (@CurrMonth)</span><span class="metric-row-value">@(_context?.PrevEstFreshForCurrent.ToString("0.00") ?? "0.00")</span></div>
+                    <div class="metric-row accent"><span class="metric-row-label">Est. Total (@CurrMonth)</span><span class="metric-row-value">@(_context?.PrevEstTotalForCurrent.ToString("0.00") ?? "0.00")</span></div>
                 </MudPaper>
             </MudItem>
             <MudItem xs="12" md="7">
@@ -105,6 +113,9 @@
         {
             <MudPaper Class="pa-4 mt-3 portal-card" Elevation="0">
                 <MudText Class="section-heading mb-3">Checker action</MudText>
+                <MudText Typo="Typo.caption" Class="mb-2" Style="color:#64748b;">
+                    Approve locks the entry. Return / Reject send it back to the Maker with a required remark so they can correct and resubmit the same month.
+                </MudText>
                 <MudStack Row="true" Spacing="2">
                     <MudButton Variant="Variant.Filled" Color="Color.Success" Disabled="_busy"
                                OnClick="@(() => Act("APPROVED"))">Approve</MudButton>

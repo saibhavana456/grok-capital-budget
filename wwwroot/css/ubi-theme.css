@@ -524,3 +524,14 @@ html, body {
     text-align: left;
   }
 }
+
+.admin-page .admin-form-card {
+  border: 1px solid var(--ubi-border);
+  border-radius: 10px;
+  background: #fff;
+  max-width: 960px;
+}
+
+.admin-page .mud-table-cell {
+  vertical-align: middle;
+}

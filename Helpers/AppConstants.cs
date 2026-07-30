@@ -51,6 +51,10 @@ public static class AppConstants
         "Checker PF '{0}' is not registered as an active Checker in APP_USER.";
     public const string AdminCannotBeMakerOrCheckerMessage =
         "PF '{0}' is ADMIN and cannot be assigned as Maker or Checker.";
+    public const string StaffNotInOrganisationsMessage =
+        "PF '{0}' was not found in Organisations STAFF_DETAILS / StaffDetails. Confirm the PF with HR data before assigning.";
+    public const string OrganisationsNotConfiguredMessage =
+        "Organisations DB is not configured — staff name/email lookup is skipped (APP_USER validation still applies).";
     public const string MakerAlreadyAssignedMessage =
         "This PF is already Maker or Checker on another active department. One person can belong to only one department.";
     public const string CheckerAlreadyAssignedMessage =
@@ -104,6 +108,30 @@ public static class AppConstants
     {
         if (string.IsNullOrWhiteSpace(financialYear)) return false;
         return string.Equals(financialYear.Trim(), CurrentFinancialYear(asOf), StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>Previous Indian FY label, e.g. current 2026-27 → 2025-26.</summary>
+    public static string PreviousFinancialYear(DateTime? asOf = null)
+    {
+        var current = CurrentFinancialYear(asOf);
+        var start = int.Parse(current.AsSpan(0, 4), CultureInfo.InvariantCulture) - 1;
+        return $"{start}-{(start + 1) % 100:D2}";
+    }
+
+    /// <summary>FY choices on entry pages: current (editable window) + previous (read-only).</summary>
+    public static IReadOnlyList<string> SelectableFinancialYears(DateTime? asOf = null) =>
+        new[] { CurrentFinancialYear(asOf), PreviousFinancialYear(asOf) };
+
+    /// <summary>
+    /// Month openable on entry/view: current FY uses entry window for edit and all past months for view;
+    /// previous FY opens every month (all read-only).
+    /// </summary>
+    public static bool IsMonthOpenable(string? financialYear, string? month, DateTime? asOf = null)
+    {
+        if (string.IsNullOrWhiteSpace(month)) return false;
+        if (!IsCurrentFinancialYear(financialYear, asOf))
+            return FyMonths.Any(m => string.Equals(m, month, StringComparison.OrdinalIgnoreCase));
+        return CanOpenMonth(month, asOf);
     }
 
     /// <summary>

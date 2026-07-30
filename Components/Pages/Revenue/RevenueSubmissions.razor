@@ -27,6 +27,15 @@
                 }
             </MudSelect>
         </MudItem>
+        <MudItem xs="12" sm="6" md="2">
+            <MudSelect T="string" Label="Department" Variant="Variant.Outlined" Dense="true"
+                       Value="_dept" ValueChanged="OnDept" Clearable="true">
+                @foreach (var v in DeptOptions)
+                {
+                    <MudSelectItem Value="@v">@v</MudSelectItem>
+                }
+            </MudSelect>
+        </MudItem>
         <MudItem xs="12" sm="6" md="3">
             <MudSelect T="string" Label="Section" Variant="Variant.Outlined" Dense="true"
                        Value="_section" ValueChanged="OnSection" Clearable="true">
@@ -72,6 +81,7 @@
     <HeaderContent>
         <MudTh>Financial Year</MudTh>
         <MudTh>Month</MudTh>
+        <MudTh>Department</MudTh>
         <MudTh>Section</MudTh>
         <MudTh>Total (Cr)</MudTh>
         @if (_showMakerFilter)
@@ -84,6 +94,7 @@
     <RowTemplate>
         <MudTd>@context.FinancialYear</MudTd>
         <MudTd>@context.Month</MudTd>
+        <MudTd>@(string.IsNullOrWhiteSpace(context.DeptName) ? "-" : context.DeptName)</MudTd>
         <MudTd>@context.SectionName</MudTd>
         <MudTd>@context.TotalAmount.ToString("0.00")</MudTd>
         @if (_showMakerFilter)
@@ -107,6 +118,7 @@
 
     private string? _fy;
     private string? _month;
+    private string? _dept;
     private string? _section;
     private string? _status;
     private string? _makerPf;
@@ -115,6 +127,8 @@
         _all.Select(x => x.FinancialYear).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct().OrderByDescending(x => x);
     private IEnumerable<string> MonthOptions =>
         AppConstants.FyMonths.Where(m => _all.Any(x => string.Equals(x.Month, m, StringComparison.OrdinalIgnoreCase)));
+    private IEnumerable<string> DeptOptions =>
+        _all.Select(x => x.DeptName).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct().OrderBy(x => x);
     private IEnumerable<string> SectionOptions =>
         _all.Select(x => x.SectionName).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct().OrderBy(x => x);
     private IEnumerable<string> StatusOptions =>
@@ -136,8 +150,11 @@
             _showMakerFilter = user?.RoleCode == AppConstants.Roles.Admin
                                || user?.RoleCode == AppConstants.Roles.Checker;
             string? makerFilter = user?.RoleCode == AppConstants.Roles.Maker ? user.PfNo : null;
-            long? deptFilter = user?.RoleCode == AppConstants.Roles.Admin ? null : user?.DeptId;
-            _all = await RevenueService.GetSubmissionsAsync(makerFilter, deptFilter);
+            string? checkerFilter = user?.RoleCode == AppConstants.Roles.Checker ? user.PfNo : null;
+            long? deptFilter = user?.RoleCode == AppConstants.Roles.Admin || checkerFilter != null
+                ? null
+                : user?.DeptId;
+            _all = await RevenueService.GetSubmissionsAsync(makerFilter, deptFilter, checkerFilter);
             ApplyFilters();
         }
         catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }
@@ -146,13 +163,14 @@
 
     private Task OnFy(string? v) { _fy = v; ApplyFilters(); return Task.CompletedTask; }
     private Task OnMonth(string? v) { _month = v; ApplyFilters(); return Task.CompletedTask; }
+    private Task OnDept(string? v) { _dept = v; ApplyFilters(); return Task.CompletedTask; }
     private Task OnSection(string? v) { _section = v; ApplyFilters(); return Task.CompletedTask; }
     private Task OnStatus(string? v) { _status = v; ApplyFilters(); return Task.CompletedTask; }
     private Task OnMaker(string? v) { _makerPf = v; ApplyFilters(); return Task.CompletedTask; }
 
     private void ClearFilters()
     {
-        _fy = _month = _section = _status = _makerPf = null;
+        _fy = _month = _dept = _section = _status = _makerPf = null;
         ApplyFilters();
     }
 
@@ -163,6 +181,8 @@
             q = q.Where(x => string.Equals(x.FinancialYear, _fy, StringComparison.OrdinalIgnoreCase));
         if (!string.IsNullOrWhiteSpace(_month))
             q = q.Where(x => string.Equals(x.Month, _month, StringComparison.OrdinalIgnoreCase));
+        if (!string.IsNullOrWhiteSpace(_dept))
+            q = q.Where(x => string.Equals(x.DeptName, _dept, StringComparison.OrdinalIgnoreCase));
         if (!string.IsNullOrWhiteSpace(_section))
             q = q.Where(x => string.Equals(x.SectionName, _section, StringComparison.OrdinalIgnoreCase));
         if (!string.IsNullOrWhiteSpace(_status))

@@ -73,7 +73,8 @@ builder.Services.AddPooledDbContextFactory<AppDbContext>(options =>
 builder.Services.AddScoped(sp =>
     sp.GetRequiredService<IDbContextFactory<AppDbContext>>().CreateDbContext());
 
-// SQL Server STAFF_DETAILS optional — leave OrganisationsDb empty to skip
+// SQL Server Organisations — STAFF_DETAILS + StaffDetails (email/phone). Leave empty to skip.
+// Same pattern as Personal/SCV ConnStrOrganisations (optional ENC: prefix).
 
 builder.Services.AddHttpClient("AdApi");
 builder.Services.AddHttpContextAccessor();

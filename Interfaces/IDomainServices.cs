@@ -27,7 +27,7 @@ public interface ICapitalService
     Task<CapitalEntryFormDto?> BuildFormAsync(long projectId, string financialYear, string entryMonth);
     Task<ExistingEntryInfo?> FindActiveEntryAsync(long projectId, string financialYear, string entryMonth);
     Task<ServiceResult> SubmitAsync(CapitalEntryFormDto form, string makerPf);
-    Task<List<CapitalSubmissionListItem>> GetSubmissionsAsync(string? makerPfFilter, long? deptIdFilter);
+    Task<List<CapitalSubmissionListItem>> GetSubmissionsAsync(string? makerPfFilter, long? deptIdFilter, string? checkerPfFilter = null);
     Task<CapitalMonthlyEntry?> GetEntryAsync(long entryId);
     Task<ServiceResult> CheckerActionAsync(long entryId, string action, string checkerPf, string? remark);
     Task<List<CapitalSubmissionListItem>> GetPendingForCheckerAsync(string checkerPf);
@@ -38,7 +38,7 @@ public interface IRevenueService
     Task<RevenueEntryFormDto?> BuildFormAsync(long sectionId, string financialYear, string entryMonth);
     Task<ExistingEntryInfo?> FindActiveEntryAsync(long sectionId, string financialYear, string entryMonth);
     Task<ServiceResult> SubmitAsync(RevenueEntryFormDto form, string makerPf);
-    Task<List<RevenueSubmissionListItem>> GetSubmissionsAsync(string? makerPfFilter, long? deptIdFilter);
+    Task<List<RevenueSubmissionListItem>> GetSubmissionsAsync(string? makerPfFilter, long? deptIdFilter, string? checkerPfFilter = null);
     Task<RevenueMonthlyEntry?> GetEntryAsync(long entryId);
     Task<ServiceResult> CheckerActionAsync(long entryId, string action, string checkerPf, string? remark);
     Task<List<RevenueSubmissionListItem>> GetPendingForCheckerAsync(string checkerPf);
@@ -46,7 +46,13 @@ public interface IRevenueService
 
 public interface IStaffLookupService
 {
+    /// <summary>
+    /// Organisations DB lookup (SCV pattern): STAFF_DETAILS for identity,
+    /// StaffDetails (EMPLID) for EMAIL/PHONE when present.
+    /// Returns null when OrganisationsDb is not configured or PF not found.
+    /// </summary>
     Task<StaffLookupResult?> LookupByPfAsync(string pfNo);
+    bool IsOrganisationsConfigured { get; }
 }
 
 public class StaffLookupResult
@@ -54,4 +60,12 @@ public class StaffLookupResult
     public string EmpId { get; set; } = string.Empty;
     public string EmpName { get; set; } = string.Empty;
     public string? Designation { get; set; }
+    public string? DesignationCode { get; set; }
+    public string? LocationCode { get; set; }
+    public string? LocationDesc { get; set; }
+    public string? DeptDesc { get; set; }
+    public string? Email { get; set; }
+    public string? Phone { get; set; }
+    /// <summary>True when EMAIL/PHONE came from Organisations StaffDetails table.</summary>
+    public bool HasContactFromStaffDetails { get; set; }
 }
