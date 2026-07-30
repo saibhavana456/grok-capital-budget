@@ -4,10 +4,10 @@ using Microsoft.EntityFrameworkCore;
 namespace IT_BUDGET_MONITORING_PORTAL.Data;
 
 /// <summary>
-/// SQL Server Organisations DB — Personal/SCV pattern.
-/// Priyadarshini confirmed scale/email/phone come from employee master;
-/// <c>dbo.StaffDetails</c> (mixed-case) has EMPLID, NAME, EMP_SCALE_CODE, EMAIL, PHONE —
-/// use this single table (not uppercase STAFF_DETAILS) when available.
+/// SQL Server Organisations DB connection (set OrganisationsDb in appsettings).
+/// Maps the staff master table the bank created as <c>STAFF_DETAILS</c> with
+/// EMPLID / NAME / EMP_SCALE_CODE / EMAIL / PHONE (same shape as former StaffDetails).
+/// Empty OrganisationsDb connection string → lookup skipped (not an empty-data error).
 /// </summary>
 public class OrganisationsDbContext : DbContext
 {
@@ -18,8 +18,10 @@ public class OrganisationsDbContext : DbContext
     public DbSet<OrgStaffDetail> StaffDetails => Set<OrgStaffDetail>();
 }
 
-/// <summary>Maps Organisations dbo.StaffDetails — primary staff source for this app.</summary>
-[Table("StaffDetails")]
+/// <summary>
+/// Bank staff master — table name STAFF_DETAILS, key EMPLID (as created in SQL Developer).
+/// </summary>
+[Table("STAFF_DETAILS")]
 [Keyless]
 public class OrgStaffDetail
 {

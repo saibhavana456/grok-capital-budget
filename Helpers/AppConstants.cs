@@ -60,9 +60,9 @@ public static class AppConstants
     public const string AdminCannotBeMakerOrCheckerMessage =
         "PF '{0}' is ADMIN and cannot be assigned as Maker or Checker.";
     public const string StaffNotInOrganisationsMessage =
-        "PF '{0}' was not found in Organisations StaffDetails. Confirm the PF with HR data before assigning.";
+        "PF '{0}' was not found in STAFF_DETAILS (EMPLID). If the table is empty, load sample data first — this is not a connection error.";
     public const string OrganisationsNotConfiguredMessage =
-        "Organisations DB is not configured — staff name/email/scale lookup is skipped (APP_USER validation still applies).";
+        "Staff lookup uses Oracle STAFF_DETAILS in the app schema when OrganisationsDb is empty. Optional: set OrganisationsDb (SQL Server) in appsettings for a separate Organisations DB.";
     public const string MakerScaleInvalidMessage =
         "Maker PF '{0}' must be Scale 1 to 4 (Organisations EMP_SCALE_CODE). Found: {1}.";
     public const string CheckerScaleInvalidMessage =

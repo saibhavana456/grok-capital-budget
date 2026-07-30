@@ -27,9 +27,14 @@ public class AppDbContext : DbContext
     public DbSet<UserToken> UserTokens => Set<UserToken>();
     public DbSet<LoginCaptchaQuestion> LoginCaptchaQuestions => Set<LoginCaptchaQuestion>();
 
+    /// <summary>Optional Oracle STAFF_DETAILS (EMPLID) — same shape as Organisations staff master.</summary>
+    public DbSet<OrgStaffDetail> OracleStaffDetails => Set<OrgStaffDetail>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
+
+        modelBuilder.Entity<OrgStaffDetail>().HasNoKey().ToTable("STAFF_DETAILS");
 
         modelBuilder.Entity<CapitalMonthlyEntry>()
             .HasIndex(e => new { e.ProjectId, e.FinancialYear, e.EntryMonth })

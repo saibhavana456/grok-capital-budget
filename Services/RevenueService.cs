@@ -248,6 +248,7 @@ public class RevenueService : IRevenueService
             result.Add(new RevenueSubmissionListItem
             {
                 EntryId = row.e.EntryId,
+                SectionId = row.e.SectionId,
                 FinancialYear = row.e.FinancialYear,
                 Month = row.e.EntryMonth,
                 DeptName = row.d.DeptName,
@@ -301,6 +302,7 @@ public class RevenueService : IRevenueService
             result.Add(new RevenueSubmissionListItem
             {
                 EntryId = row.e.EntryId,
+                SectionId = row.e.SectionId,
                 FinancialYear = row.e.FinancialYear,
                 Month = row.e.EntryMonth,
                 DeptName = row.d.DeptName,

@@ -39,6 +39,7 @@ public class CaptchaQuestionDto
 public class CapitalSubmissionListItem
 {
     public long EntryId { get; set; }
+    public long ProjectId { get; set; }
     public string FinancialYear { get; set; } = string.Empty;
     public string Month { get; set; } = string.Empty;
     public string DeptName { get; set; } = string.Empty;
@@ -51,6 +52,7 @@ public class CapitalSubmissionListItem
 public class RevenueSubmissionListItem
 {
     public long EntryId { get; set; }
+    public long SectionId { get; set; }
     public string FinancialYear { get; set; } = string.Empty;
     public string Month { get; set; } = string.Empty;
     public string DeptName { get; set; } = string.Empty;

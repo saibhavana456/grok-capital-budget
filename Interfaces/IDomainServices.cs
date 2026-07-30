@@ -55,9 +55,8 @@ public interface IRevenueService
 public interface IStaffLookupService
 {
     /// <summary>
-    /// Organisations DB lookup (Priyadarshini): dbo.StaffDetails by EMPLID
-    /// (name, designation, scale, email, phone).
-    /// Returns null when OrganisationsDb is not configured or PF not found.
+    /// STAFF_DETAILS lookup by EMPLID (Oracle app schema, or SQL Server OrganisationsDb when set).
+    /// Returns null when PF not found (including empty sample data).
     /// </summary>
     Task<StaffLookupResult?> LookupByPfAsync(string pfNo);
     bool IsOrganisationsConfigured { get; }

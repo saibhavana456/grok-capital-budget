@@ -230,6 +230,7 @@ public class CapitalService : ICapitalService
             .Select(x => new CapitalSubmissionListItem
             {
                 EntryId = x.e.EntryId,
+                ProjectId = x.e.ProjectId,
                 FinancialYear = x.e.FinancialYear,
                 Month = x.e.EntryMonth,
                 DeptName = x.d.DeptName,
@@ -272,6 +273,7 @@ public class CapitalService : ICapitalService
                 select new CapitalSubmissionListItem
                 {
                     EntryId = e.EntryId,
+                    ProjectId = e.ProjectId,
                     FinancialYear = e.FinancialYear,
                     Month = e.EntryMonth,
                     DeptName = d.DeptName,

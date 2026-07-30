@@ -157,9 +157,13 @@ public class MasterService : IMasterService
         dept.MakerPf = string.IsNullOrWhiteSpace(makerPf) ? null : makerPf;
         dept.CheckerPf = string.IsNullOrWhiteSpace(checkerPf) ? null : checkerPf;
 
-        // Non-DIT: one Maker + Checker for whole department (Priyadarshini).
-        // DIT: Maker/Checker live on project (capital) / section (revenue) — dept fields optional.
-        if (!isDit)
+        // DIT: Maker/Checker live on project (capital) / section (revenue) — clear dept fields.
+        if (isDit)
+        {
+            dept.MakerPf = null;
+            dept.CheckerPf = null;
+        }
+        else
         {
             if (string.IsNullOrEmpty(makerPf))
                 return ServiceResult.Fail(AppConstants.MakerPfRequiredMessage);
@@ -168,16 +172,6 @@ public class MasterService : IMasterService
             if (string.Equals(makerPf, checkerPf, StringComparison.OrdinalIgnoreCase))
                 return ServiceResult.Fail(AppConstants.MakerCheckerSamePfMessage);
 
-            var assignErrors = await ValidateMakerCheckerPairAsync(makerPf, checkerPf);
-            if (assignErrors.Count > 0)
-                return ServiceResult.Fail(string.Join(" ", assignErrors));
-        }
-        else if (!string.IsNullOrEmpty(makerPf) || !string.IsNullOrEmpty(checkerPf))
-        {
-            if (string.IsNullOrEmpty(makerPf) || string.IsNullOrEmpty(checkerPf))
-                return ServiceResult.Fail("For DIT, set both department Maker and Checker together, or leave both blank (prefer project/section assignment).");
-            if (string.Equals(makerPf, checkerPf, StringComparison.OrdinalIgnoreCase))
-                return ServiceResult.Fail(AppConstants.MakerCheckerSamePfMessage);
             var assignErrors = await ValidateMakerCheckerPairAsync(makerPf, checkerPf);
             if (assignErrors.Count > 0)
                 return ServiceResult.Fail(string.Join(" ", assignErrors));
@@ -220,7 +214,7 @@ public class MasterService : IMasterService
         section.MakerPf = string.IsNullOrWhiteSpace(makerPf) ? null : makerPf;
         section.CheckerPf = string.IsNullOrWhiteSpace(checkerPf) ? null : checkerPf;
 
-        // Revenue (DIT): section-wise Maker/Checker + total allotted (Priyadarshini).
+        // Revenue (DIT HasRevenue=Y): section-wise Maker/Checker. Otherwise clear — capital uses project/dept.
         if (AppConstants.IsDitDepartment(dept.DeptCode) && dept.HasRevenue == "Y")
         {
             if (string.IsNullOrEmpty(makerPf) || string.IsNullOrEmpty(checkerPf))
@@ -230,6 +224,11 @@ public class MasterService : IMasterService
             var assignErrors = await ValidateMakerCheckerPairAsync(makerPf, checkerPf);
             if (assignErrors.Count > 0)
                 return ServiceResult.Fail(string.Join(" ", assignErrors));
+        }
+        else
+        {
+            section.MakerPf = null;
+            section.CheckerPf = null;
         }
 
         if (section.SectionId == 0)
@@ -282,7 +281,7 @@ public class MasterService : IMasterService
         project.MakerPf = string.IsNullOrWhiteSpace(makerPf) ? null : makerPf;
         project.CheckerPf = string.IsNullOrWhiteSpace(checkerPf) ? null : checkerPf;
 
-        // DIT capital: project-wise Maker/Checker (Priyadarshini).
+        // DIT capital: project-wise Maker/Checker. Non-DIT: clear — use department Maker/Checker.
         if (AppConstants.IsDitDepartment(section.Department.DeptCode))
         {
             if (string.IsNullOrEmpty(makerPf) || string.IsNullOrEmpty(checkerPf))
@@ -292,6 +291,11 @@ public class MasterService : IMasterService
             var assignErrors = await ValidateMakerCheckerPairAsync(makerPf, checkerPf);
             if (assignErrors.Count > 0)
                 return ServiceResult.Fail(string.Join(" ", assignErrors));
+        }
+        else
+        {
+            project.MakerPf = null;
+            project.CheckerPf = null;
         }
 
         if (project.ProjectId == 0)

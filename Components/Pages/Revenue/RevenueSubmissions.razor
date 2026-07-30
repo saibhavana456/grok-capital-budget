@@ -93,7 +93,19 @@
             <MudTd>@(context.SubmittedByPf ?? "-")</MudTd>
         }
         <MudTd><StatusChip Status="@context.Status" /></MudTd>
-        <MudTd><MudLink Href="@($"/revenue/view/{context.EntryId}")">View</MudLink></MudTd>
+        <MudTd>
+            <MudStack Row="true" Spacing="2">
+                <MudLink Href="@($"/revenue/view/{context.EntryId}")">View</MudLink>
+                @if (_isMaker && AppConstants.IsEditableStatus(context.Status))
+                {
+                    <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Secondary"
+                               Style="background:#c8102e;"
+                               Href="@($"/revenue/entry?sectionId={context.SectionId}&month={Uri.EscapeDataString(context.Month)}&fy={Uri.EscapeDataString(context.FinancialYear)}")">
+                        Resubmit
+                    </MudButton>
+                }
+            </MudStack>
+        </MudTd>
     </RowTemplate>
     <PagerContent>
         <MudTablePager PageSizeOptions="new int[] { 5, 10, 25 }" />
@@ -106,6 +118,7 @@
     private List<RevenueSubmissionListItem> _filtered = new();
     private bool _loading = true;
     private bool _showMakerFilter;
+    private bool _isMaker;
 
     private string? _fy;
     private string? _month;
@@ -135,6 +148,7 @@
         try
         {
             var user = AuthService.CurrentUser;
+            _isMaker = user?.RoleCode == AppConstants.Roles.Maker;
             _showMakerFilter = user?.RoleCode == AppConstants.Roles.Admin
                                || user?.RoleCode == AppConstants.Roles.Checker;
             string? makerFilter = user?.RoleCode == AppConstants.Roles.Maker ? user.PfNo : null;

@@ -103,7 +103,17 @@
         }
         <MudTd><StatusChip Status="@context.Status" /></MudTd>
         <MudTd>
-            <MudLink Href="@($"/capital/view/{context.EntryId}")">View</MudLink>
+            <MudStack Row="true" Spacing="2">
+                <MudLink Href="@($"/capital/view/{context.EntryId}")">View</MudLink>
+                @if (_isMaker && AppConstants.IsEditableStatus(context.Status))
+                {
+                    <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Secondary"
+                               Style="background:#c8102e;"
+                               Href="@($"/capital/entry?projectId={context.ProjectId}&month={Uri.EscapeDataString(context.Month)}&fy={Uri.EscapeDataString(context.FinancialYear)}")">
+                        Resubmit
+                    </MudButton>
+                }
+            </MudStack>
         </MudTd>
     </RowTemplate>
     <PagerContent>
@@ -117,6 +127,7 @@
     private List<CapitalSubmissionListItem> _filtered = new();
     private bool _loading = true;
     private bool _showMakerFilter;
+    private bool _isMaker;
 
     private string? _fy;
     private string? _month;
@@ -149,6 +160,7 @@
         try
         {
             var user = AuthService.CurrentUser;
+            _isMaker = user?.RoleCode == AppConstants.Roles.Maker;
             _showMakerFilter = user?.RoleCode == AppConstants.Roles.Admin
                                || user?.RoleCode == AppConstants.Roles.Checker;
 

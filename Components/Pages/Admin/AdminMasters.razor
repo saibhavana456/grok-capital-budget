@@ -7,21 +7,34 @@
 
 <div class="admin-page">
 <MudText Typo="Typo.h5" Style="color:#003366;font-weight:700;">Admin Masters</MudText>
-<MudText Typo="Typo.body2" Class="mb-4" Style="color:#64748b;">Department, Section, and Project masters</MudText>
+<MudText Typo="Typo.body2" Class="mb-3" Style="color:#64748b;">Department, Section, and Project masters</MudText>
+
+<MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Dense="true" Class="mb-4">
+    <b>Where to set Maker / Checker</b><br />
+    <b>DIT</b> — Capital: each <b>Project</b>. Revenue: each <b>Section</b> (not on the department).<br />
+    <b>Other departments</b> — one Maker + one Checker on the <b>Department</b> only (not on sections/projects).<br />
+    <b>Staff lookup (View)</b> — uses Oracle <code>STAFF_DETAILS</code> (EMPLID) in the app DB. Empty table or missing PF → “not found” after you load sample data. That is <b>not</b> a missing-connection error.
+</MudAlert>
 
 <MudTabs Elevation="1" Rounded="true" PanelClass="pa-4">
     <MudTabPanel Text="Departments">
         <MudButton Variant="Variant.Filled" Color="Color.Primary" Class="mb-3" OnClick="NewDept">Add Department</MudButton>
         <MudTable Items="_departments" Dense="true" Hover="true" Breakpoint="Breakpoint.Sm">
             <HeaderContent>
-                <MudTh>Code</MudTh><MudTh>Name</MudTh><MudTh>Has Revenue</MudTh><MudTh>Maker PF</MudTh><MudTh>Checker PF</MudTh><MudTh>Active</MudTh><MudTh Style="text-align:right;">Actions</MudTh>
+                <MudTh>Code</MudTh><MudTh>Name</MudTh><MudTh>Has Revenue</MudTh>
+                <MudTh>Maker PF</MudTh><MudTh>Checker PF</MudTh><MudTh>Active</MudTh>
+                <MudTh Style="text-align:right;">Actions</MudTh>
             </HeaderContent>
             <RowTemplate>
                 <MudTd DataLabel="Code">@context.DeptCode</MudTd>
                 <MudTd DataLabel="Name">@context.DeptName</MudTd>
                 <MudTd DataLabel="Has Revenue">@context.HasRevenue</MudTd>
-                <MudTd DataLabel="Maker PF">@context.MakerPf</MudTd>
-                <MudTd DataLabel="Checker PF">@context.CheckerPf</MudTd>
+                <MudTd DataLabel="Maker PF">
+                    @(AppConstants.IsDitDepartment(context.DeptCode) ? "— (Projects / Sections)" : (context.MakerPf ?? "—"))
+                </MudTd>
+                <MudTd DataLabel="Checker PF">
+                    @(AppConstants.IsDitDepartment(context.DeptCode) ? "— (Projects / Sections)" : (context.CheckerPf ?? "—"))
+                </MudTd>
                 <MudTd DataLabel="Active">@context.IsActive</MudTd>
                 <MudTd DataLabel="Actions" Style="text-align:right;white-space:nowrap;">
                     <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(() => EditDept(context))" />
@@ -37,29 +50,35 @@
                 <MudText Typo="Typo.subtitle1" Class="mb-3" Style="color:#003366;font-weight:700;">
                     @(_editDept.DeptId == 0 ? "New" : "Edit") Department
                 </MudText>
+                <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Dense="true" Class="mb-3">
+                    <b>DIT</b> (Code = DIT): do <b>not</b> set Maker/Checker here — Capital on Projects, Revenue on Sections.<br />
+                    <b>Other departments</b>: set one Maker + one Checker here for the whole department.
+                </MudAlert>
                 <MudGrid>
-                    <MudItem xs="12" md="6">
-                        <MudTextField @bind-Value="_editDept.DeptCode" Label="Code *" Variant="Variant.Outlined" Required="true" />
+                    <MudItem xs="12" md="4">
+                        <MudTextField Value="_editDept.DeptCode" Label="Code *" Variant="Variant.Outlined" Required="true"
+                                      ValueChanged="@((string code) => OnDeptCodeChanged(code))" />
                     </MudItem>
-                    <MudItem xs="12" md="6">
+                    <MudItem xs="12" md="4">
                         <MudTextField @bind-Value="_editDept.DeptName" Label="Name *" Variant="Variant.Outlined" Required="true" />
                     </MudItem>
-                    <MudItem xs="12" md="6">
+                    <MudItem xs="12" md="4">
                         <MudSelect T="string" @bind-Value="_editDept.HasRevenue" Label="Has Revenue" Variant="Variant.Outlined">
-                            <MudSelectItem Value="@("Y")">Y (DIT)</MudSelectItem>
+                            <MudSelectItem Value="@("Y")">Y (DIT revenue)</MudSelectItem>
                             <MudSelectItem Value="@("N")">N</MudSelectItem>
                         </MudSelect>
                     </MudItem>
-                    <MudItem xs="12" md="6">
-                        <MudText Typo="Typo.caption" Style="color:#64748b;">
-                            Maker and Checker must exist in APP_USER. When Organisations DB is configured,
-                            use View to confirm PF against STAFF_DETAILS / StaffDetails (email &amp; phone).
-                        </MudText>
-                    </MudItem>
-                    <MudItem xs="12" md="6">
-                        <MudTextField @bind-Value="_editDept.MakerPf" Label="Maker PF *" Variant="Variant.Outlined" Required="true" />
-                        <MudStack Row="true" Class="mt-1" Spacing="1" AlignItems="AlignItems.Center">
-                            <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Primary"
+                </MudGrid>
+
+                @if (!_editDeptIsDit)
+                {
+                    <MudText Typo="Typo.subtitle2" Class="mt-4 mb-2" Style="color:#003366;">
+                        Department Maker / Checker (required for non-DIT)
+                    </MudText>
+                    <MudGrid>
+                        <MudItem xs="12" md="6">
+                            <MudTextField @bind-Value="_editDept.MakerPf" Label="Maker PF *" Variant="Variant.Outlined" Required="true" />
+                            <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Primary" Class="mt-1"
                                        Disabled="_lookupBusy" OnClick="@(() => LookupPf(_editDept.MakerPf, isMaker: true))">
                                 View Maker
                             </MudButton>
@@ -67,18 +86,13 @@
                             {
                                 <MudText Typo="Typo.caption" Style="color:#15803d;">
                                     @_makerStaff.EmpName
-                                    @if (!string.IsNullOrWhiteSpace(_makerStaff.Designation))
-                                    {
-                                        <text> · @_makerStaff.Designation</text>
-                                    }
+                                    @if (_makerStaff.ScaleNumber.HasValue) { <text> · Scale @_makerStaff.ScaleNumber</text> }
                                 </MudText>
                             }
-                        </MudStack>
-                    </MudItem>
-                    <MudItem xs="12" md="6">
-                        <MudTextField @bind-Value="_editDept.CheckerPf" Label="Checker PF *" Variant="Variant.Outlined" Required="true" />
-                        <MudStack Row="true" Class="mt-1" Spacing="1" AlignItems="AlignItems.Center">
-                            <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Primary"
+                        </MudItem>
+                        <MudItem xs="12" md="6">
+                            <MudTextField @bind-Value="_editDept.CheckerPf" Label="Checker PF *" Variant="Variant.Outlined" Required="true" />
+                            <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Primary" Class="mt-1"
                                        Disabled="_lookupBusy" OnClick="@(() => LookupPf(_editDept.CheckerPf, isMaker: false))">
                                 View Checker
                             </MudButton>
@@ -86,45 +100,40 @@
                             {
                                 <MudText Typo="Typo.caption" Style="color:#15803d;">
                                     @_checkerStaff.EmpName
-                                    @if (!string.IsNullOrWhiteSpace(_checkerStaff.Designation))
-                                    {
-                                        <text> · @_checkerStaff.Designation</text>
-                                    }
+                                    @if (_checkerStaff.ScaleNumber.HasValue) { <text> · Scale @_checkerStaff.ScaleNumber</text> }
                                 </MudText>
                             }
-                        </MudStack>
-                    </MudItem>
-                </MudGrid>
-
-                @if (_makerStaff != null || _checkerStaff != null)
+                        </MudItem>
+                    </MudGrid>
+                    @if (_makerStaff != null || _checkerStaff != null)
+                    {
+                        <MudTable Items="StaffPreviewRows" Dense="true" Hover="true" Class="mt-3" Elevation="0">
+                            <HeaderContent>
+                                <MudTh>Role</MudTh><MudTh>PF</MudTh><MudTh>Name</MudTh><MudTh>Designation</MudTh>
+                                <MudTh>Scale</MudTh><MudTh>Email</MudTh><MudTh>Phone</MudTh>
+                            </HeaderContent>
+                            <RowTemplate>
+                                <MudTd>@context.Role</MudTd>
+                                <MudTd>@context.Pf</MudTd>
+                                <MudTd>@context.Name</MudTd>
+                                <MudTd>@context.Designation</MudTd>
+                                <MudTd>@(context.Scale ?? "—")</MudTd>
+                                <MudTd>@(context.Email ?? "—")</MudTd>
+                                <MudTd>@(context.Phone ?? "—")</MudTd>
+                            </RowTemplate>
+                        </MudTable>
+                    }
+                }
+                else
                 {
-                    <MudTable Items="StaffPreviewRows" Dense="true" Hover="true" Class="mt-3" Elevation="0">
-                        <HeaderContent>
-                            <MudTh>Role</MudTh>
-                            <MudTh>PF</MudTh>
-                            <MudTh>Name</MudTh>
-                            <MudTh>Designation</MudTh>
-                            <MudTh>Location</MudTh>
-                            <MudTh>Email</MudTh>
-                            <MudTh>Phone</MudTh>
-                        </HeaderContent>
-                        <RowTemplate>
-                            <MudTd>@context.Role</MudTd>
-                            <MudTd>@context.Pf</MudTd>
-                            <MudTd>@context.Name</MudTd>
-                            <MudTd>@context.Designation</MudTd>
-                            <MudTd>@context.Location</MudTd>
-                            <MudTd>@(context.Email ?? "—")</MudTd>
-                            <MudTd>@(context.Phone ?? "—")</MudTd>
-                        </RowTemplate>
-                    </MudTable>
+                    <MudAlert Severity="Severity.Success" Variant="Variant.Outlined" Dense="true" Class="mt-3">
+                        DIT selected — assign <b>Capital</b> Maker/Checker on each <b>Project</b>, and <b>Revenue</b> Maker/Checker on each <b>Section</b>.
+                    </MudAlert>
                 }
 
                 <MudText Typo="Typo.caption" Class="mt-3 mb-2" Style="color:#64748b;">
-                    Non-DIT: one Maker + Checker for the whole department (required).
-                    DIT: prefer project-level (capital) and section-level (revenue) Maker/Checker; department fields optional.
-                    Scale (from Organisations StaffDetails): Maker 1–4, Checker 4+. Same PF may be Maker on one project and Checker on another.
-                    Same project/section: Maker ≠ Checker.
+                    View Maker/Checker reads <code>STAFF_DETAILS</code> by EMPLID (scale, email, phone). Empty sample data → PF not found.
+                    APP_USER must also exist (Maker/Checker role, not ADMIN). Scale: Maker 1–4, Checker 4+.
                 </MudText>
                 <MudStack Row="true" Spacing="2">
                     <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveDept">Save</MudButton>
@@ -139,19 +148,43 @@
                    ValueChanged="OnFilterDept" Style="max-width:420px;">
             @foreach (var d in _departments)
             {
-                <MudSelectItem T="long?" Value="@((long?)d.DeptId)">@d.DeptName</MudSelectItem>
+                <MudSelectItem T="long?" Value="@((long?)d.DeptId)">@d.DeptName (@d.DeptCode)</MudSelectItem>
             }
         </MudSelect>
+
+        @if (_filterDeptId.HasValue && _filterDeptHasRevenue)
+        {
+            <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Dense="true" Class="mb-3">
+                DIT revenue: set <b>Revenue</b> Maker/Checker on each section below.
+                Capital Maker/Checker stay on the <b>Projects</b> tab — not here.
+            </MudAlert>
+        }
+        else if (_filterDeptId.HasValue && !_filterDeptHasRevenue)
+        {
+            <MudAlert Severity="Severity.Normal" Variant="Variant.Outlined" Dense="true" Class="mb-3">
+                This department has no Revenue. Section form is code/name only.
+                Capital Maker/Checker: @( _filterDeptIsDit ? "Projects tab" : "Department tab" ).
+            </MudAlert>
+        }
+
         <MudButton Variant="Variant.Filled" Color="Color.Primary" Class="mb-3" Disabled="!_filterDeptId.HasValue" OnClick="NewSection">Add Section</MudButton>
         <MudTable Items="_sections" Dense="true" Hover="true">
             <HeaderContent>
-                <MudTh>Code</MudTh><MudTh>Name</MudTh><MudTh>Maker</MudTh><MudTh>Checker</MudTh><MudTh>Active</MudTh><MudTh Style="text-align:right;">Actions</MudTh>
+                <MudTh>Code</MudTh><MudTh>Name</MudTh>
+                @if (_filterDeptHasRevenue)
+                {
+                    <MudTh>Rev Maker</MudTh><MudTh>Rev Checker</MudTh>
+                }
+                <MudTh>Active</MudTh><MudTh Style="text-align:right;">Actions</MudTh>
             </HeaderContent>
             <RowTemplate>
                 <MudTd>@context.SectionCode</MudTd>
                 <MudTd>@context.SectionName</MudTd>
-                <MudTd>@(context.MakerPf ?? "—")</MudTd>
-                <MudTd>@(context.CheckerPf ?? "—")</MudTd>
+                @if (_filterDeptHasRevenue)
+                {
+                    <MudTd>@(context.MakerPf ?? "—")</MudTd>
+                    <MudTd>@(context.CheckerPf ?? "—")</MudTd>
+                }
                 <MudTd>@context.IsActive</MudTd>
                 <MudTd Style="text-align:right;white-space:nowrap;">
                     <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(() => EditSection(context))" />
@@ -164,29 +197,50 @@
         {
             <MudPaper Class="pa-4 mt-3 admin-form-card" Elevation="1">
                 <MudText Typo="Typo.subtitle2" Class="mb-2" Style="color:#003366;">
-                    Section — DIT revenue: Maker/Checker + total allotted per section
+                    @(_editSection.SectionId == 0 ? "New" : "Edit") Section
                 </MudText>
                 <MudGrid>
                     <MudItem xs="12" md="6">
                         <MudTextField @bind-Value="_editSection.SectionCode" Label="Code" Variant="Variant.Outlined" />
                     </MudItem>
                     <MudItem xs="12" md="6">
-                        <MudTextField @bind-Value="_editSection.SectionName" Label="Name" Variant="Variant.Outlined" />
+                        <MudTextField @bind-Value="_editSection.SectionName" Label="Name *" Variant="Variant.Outlined" />
                     </MudItem>
-                    @if (_filterDeptHasRevenue)
-                    {
-                        <MudItem xs="12" md="6">
-                            <MudTextField @bind-Value="_editSection.MakerPf" Label="Maker PF *" Variant="Variant.Outlined" />
+                </MudGrid>
+
+                @* Revenue Maker/Checker only when department HasRevenue=Y (DIT). Capital stays on Projects. *@
+                @if (_filterDeptHasRevenue)
+                {
+                    <MudDivider Class="my-3" />
+                    <MudText Typo="Typo.subtitle2" Class="mb-1" Style="color:#003366;">
+                        Revenue Maker / Checker (section-wise)
+                    </MudText>
+                    <MudText Typo="Typo.caption" Class="mb-2" Style="color:#64748b;">
+                        These PFs are only for Revenue submissions of this section. Capital Maker/Checker are on each Project.
+                    </MudText>
+                    <MudGrid>
+                        <MudItem xs="12" md="4">
+                            <MudTextField @bind-Value="_editSection.MakerPf" Label="Revenue Maker PF *" Variant="Variant.Outlined" />
+                            <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Primary" Class="mt-1"
+                                       Disabled="_lookupBusy" OnClick="@(() => LookupPf(_editSection.MakerPf, isMaker: true))">
+                                View Maker
+                            </MudButton>
                         </MudItem>
-                        <MudItem xs="12" md="6">
-                            <MudTextField @bind-Value="_editSection.CheckerPf" Label="Checker PF *" Variant="Variant.Outlined" />
+                        <MudItem xs="12" md="4">
+                            <MudTextField @bind-Value="_editSection.CheckerPf" Label="Revenue Checker PF *" Variant="Variant.Outlined" />
+                            <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Primary" Class="mt-1"
+                                       Disabled="_lookupBusy" OnClick="@(() => LookupPf(_editSection.CheckerPf, isMaker: false))">
+                                View Checker
+                            </MudButton>
                         </MudItem>
-                        <MudItem xs="12" md="6">
-                            <MudNumericField @bind-Value="_sectionRevenueAllotted" Label="@($"Total Revenue Allotted (Cr) FY {_allotmentFy}")"
+                        <MudItem xs="12" md="4">
+                            <MudNumericField @bind-Value="_sectionRevenueAllotted"
+                                             Label="@($"Total Revenue Allotted (Cr) FY {_allotmentFy}")"
                                              Variant="Variant.Outlined" Min="0" />
                         </MudItem>
-                    }
-                </MudGrid>
+                    </MudGrid>
+                }
+
                 <MudStack Row="true" Class="mt-3" Spacing="2">
                     <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveSection">Save</MudButton>
                     <MudButton Variant="Variant.Outlined" OnClick="() => _editSection = null">Cancel</MudButton>
@@ -196,23 +250,52 @@
     </MudTabPanel>
 
     <MudTabPanel Text="Projects">
+        <MudSelect T="long?" Value="_filterDeptId" Label="Department" Variant="Variant.Outlined" Class="mb-3"
+                   ValueChanged="OnFilterDeptForProjects" Style="max-width:420px;">
+            @foreach (var d in _departments)
+            {
+                <MudSelectItem T="long?" Value="@((long?)d.DeptId)">@d.DeptName (@d.DeptCode)</MudSelectItem>
+            }
+        </MudSelect>
         <MudSelect T="long?" Value="_filterSectionId" Label="Section" Variant="Variant.Outlined" Class="mb-3"
-                   ValueChanged="OnFilterSection" Style="max-width:420px;">
+                   ValueChanged="OnFilterSection" Style="max-width:420px;" Disabled="!_filterDeptId.HasValue">
             @foreach (var s in _sections)
             {
                 <MudSelectItem T="long?" Value="@((long?)s.SectionId)">@s.SectionName</MudSelectItem>
             }
         </MudSelect>
+
+        @if (_filterDeptId.HasValue && _filterDeptIsDit)
+        {
+            <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Dense="true" Class="mb-3">
+                DIT capital: set <b>Capital</b> Maker/Checker on each project. Maker ≠ Checker on the same project.
+            </MudAlert>
+        }
+        else if (_filterDeptId.HasValue && !_filterDeptIsDit)
+        {
+            <MudAlert Severity="Severity.Normal" Variant="Variant.Outlined" Dense="true" Class="mb-3">
+                Non-DIT: Maker/Checker are on the Department — project form is name + allotment only.
+            </MudAlert>
+        }
+
         <MudButton Variant="Variant.Filled" Color="Color.Primary" Class="mb-3" Disabled="!_filterSectionId.HasValue" OnClick="NewProject">Add Project</MudButton>
         <MudTable Items="_projects" Dense="true" Hover="true">
             <HeaderContent>
-                <MudTh>Code</MudTh><MudTh>Name</MudTh><MudTh>Maker</MudTh><MudTh>Checker</MudTh><MudTh>Active</MudTh><MudTh Style="text-align:right;">Actions</MudTh>
+                <MudTh>Code</MudTh><MudTh>Name</MudTh>
+                @if (_filterDeptIsDit)
+                {
+                    <MudTh>Cap Maker</MudTh><MudTh>Cap Checker</MudTh>
+                }
+                <MudTh>Active</MudTh><MudTh Style="text-align:right;">Actions</MudTh>
             </HeaderContent>
             <RowTemplate>
                 <MudTd>@context.ProjectCode</MudTd>
                 <MudTd>@context.ProjectName</MudTd>
-                <MudTd>@(context.MakerPf ?? "—")</MudTd>
-                <MudTd>@(context.CheckerPf ?? "—")</MudTd>
+                @if (_filterDeptIsDit)
+                {
+                    <MudTd>@(context.MakerPf ?? "—")</MudTd>
+                    <MudTd>@(context.CheckerPf ?? "—")</MudTd>
+                }
                 <MudTd>@context.IsActive</MudTd>
                 <MudTd Style="text-align:right;white-space:nowrap;">
                     <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(() => EditProject(context))" />
@@ -225,24 +308,15 @@
         {
             <MudPaper Class="pa-4 mt-3 admin-form-card" Elevation="1">
                 <MudText Typo="Typo.subtitle2" Class="mb-2" Style="color:#003366;">
-                    Project — DIT capital: Maker/Checker + spillover/fresh/total allotted
+                    @(_editProject.ProjectId == 0 ? "New" : "Edit") Project + FY allotment
                 </MudText>
                 <MudGrid>
                     <MudItem xs="12" md="6">
                         <MudTextField @bind-Value="_editProject.ProjectCode" Label="Code" Variant="Variant.Outlined" />
                     </MudItem>
                     <MudItem xs="12" md="6">
-                        <MudTextField @bind-Value="_editProject.ProjectName" Label="Name" Variant="Variant.Outlined" />
+                        <MudTextField @bind-Value="_editProject.ProjectName" Label="Name *" Variant="Variant.Outlined" />
                     </MudItem>
-                    @if (_filterDeptIsDit)
-                    {
-                        <MudItem xs="12" md="6">
-                            <MudTextField @bind-Value="_editProject.MakerPf" Label="Maker PF *" Variant="Variant.Outlined" />
-                        </MudItem>
-                        <MudItem xs="12" md="6">
-                            <MudTextField @bind-Value="_editProject.CheckerPf" Label="Checker PF *" Variant="Variant.Outlined" />
-                        </MudItem>
-                    }
                     <MudItem xs="12" md="4">
                         <MudNumericField @bind-Value="_projectSpillover" Label="@($"Spillover Allotted (Cr) FY {_allotmentFy}")"
                                          Variant="Variant.Outlined" Min="0" />
@@ -255,6 +329,34 @@
                                          Variant="Variant.Outlined" Disabled="true" />
                     </MudItem>
                 </MudGrid>
+
+                @if (_filterDeptIsDit)
+                {
+                    <MudDivider Class="my-3" />
+                    <MudText Typo="Typo.subtitle2" Class="mb-1" Style="color:#003366;">
+                        Capital Maker / Checker (project-wise — DIT)
+                    </MudText>
+                    <MudText Typo="Typo.caption" Class="mb-2" Style="color:#64748b;">
+                        Each DIT project has its own Capital Maker and Checker. Same PF may be Maker on one project and Checker on another.
+                    </MudText>
+                    <MudGrid>
+                        <MudItem xs="12" md="6">
+                            <MudTextField @bind-Value="_editProject.MakerPf" Label="Capital Maker PF *" Variant="Variant.Outlined" />
+                            <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Primary" Class="mt-1"
+                                       Disabled="_lookupBusy" OnClick="@(() => LookupPf(_editProject.MakerPf, isMaker: true))">
+                                View Maker
+                            </MudButton>
+                        </MudItem>
+                        <MudItem xs="12" md="6">
+                            <MudTextField @bind-Value="_editProject.CheckerPf" Label="Capital Checker PF *" Variant="Variant.Outlined" />
+                            <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Primary" Class="mt-1"
+                                       Disabled="_lookupBusy" OnClick="@(() => LookupPf(_editProject.CheckerPf, isMaker: false))">
+                                View Checker
+                            </MudButton>
+                        </MudItem>
+                    </MudGrid>
+                }
+
                 <MudStack Row="true" Class="mt-3" Spacing="2">
                     <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveProject">Save</MudButton>
                     <MudButton Variant="Variant.Outlined" OnClick="() => _editProject = null">Cancel</MudButton>
@@ -264,6 +366,9 @@
     </MudTabPanel>
 
     <MudTabPanel Text="Revenue Heads">
+        <MudText Typo="Typo.caption" Class="mb-3" Style="color:#64748b;">
+            Fixed revenue head list used on Revenue monthly entry (read-only here).
+        </MudText>
         <MudTable Items="_heads" Dense="true">
             <HeaderContent>
                 <MudTh>Order</MudTh><MudTh>Code</MudTh><MudTh>Name</MudTh><MudTh>Active</MudTh>
@@ -301,6 +406,8 @@
         _departments.FirstOrDefault(d => d.DeptId == _filterDeptId)?.HasRevenue == "Y";
     private bool _filterDeptIsDit =>
         AppConstants.IsDitDepartment(_departments.FirstOrDefault(d => d.DeptId == _filterDeptId)?.DeptCode);
+    private bool _editDeptIsDit =>
+        _editDept != null && AppConstants.IsDitDepartment(_editDept.DeptCode);
 
     private IEnumerable<StaffPreviewRow> StaffPreviewRows
     {
@@ -340,6 +447,20 @@
         _checkerStaff = null;
     }
 
+    private void OnDeptCodeChanged(string code)
+    {
+        if (_editDept == null) return;
+        _editDept.DeptCode = code;
+        if (AppConstants.IsDitDepartment(code))
+        {
+            _editDept.MakerPf = null;
+            _editDept.CheckerPf = null;
+            _editDept.HasRevenue = "Y";
+            _makerStaff = null;
+            _checkerStaff = null;
+        }
+    }
+
     private void CancelDept()
     {
         _editDept = null;
@@ -355,12 +476,6 @@
             return;
         }
 
-        if (!StaffLookup.IsOrganisationsConfigured)
-        {
-            Snackbar.Add(AppConstants.OrganisationsNotConfiguredMessage, Severity.Info);
-            return;
-        }
-
         _lookupBusy = true;
         try
         {
@@ -373,7 +488,8 @@
             }
 
             if (isMaker) _makerStaff = staff; else _checkerStaff = staff;
-            Snackbar.Add($"Found {staff.EmpName} ({staff.EmpId})", Severity.Success);
+            var scaleText = staff.ScaleNumber.HasValue ? $" · Scale {staff.ScaleNumber}" : "";
+            Snackbar.Add($"Found {staff.EmpName} ({staff.EmpId}){scaleText}", Severity.Success);
         }
         finally { _lookupBusy = false; }
     }
@@ -384,7 +500,8 @@
         Pf = pf ?? s.EmpId,
         Name = s.EmpName,
         Designation = s.Designation ?? "—",
-        Location = string.IsNullOrWhiteSpace(s.LocationDesc) ? (s.LocationCode ?? "—") : s.LocationDesc,
+        Scale = s.ScaleNumber?.ToString()
+                ?? (string.IsNullOrWhiteSpace(s.ScaleCode) ? null : s.ScaleCode),
         Email = s.Email,
         Phone = s.Phone
     };
@@ -392,6 +509,11 @@
     private async Task SaveDept()
     {
         if (_editDept == null) return;
+        if (AppConstants.IsDitDepartment(_editDept.DeptCode))
+        {
+            _editDept.MakerPf = null;
+            _editDept.CheckerPf = null;
+        }
         var r = await MasterService.SaveDepartmentAsync(_editDept, AuthService.CurrentUser!.PfNo);
         Snackbar.Add(r.Message, r.Success ? Severity.Success : Severity.Error);
         if (!r.Success) return;
@@ -413,6 +535,13 @@
         _filterSectionId = null;
         _editSection = null;
         _editProject = null;
+        _makerStaff = null;
+        _checkerStaff = null;
+    }
+
+    private async Task OnFilterDeptForProjects(long? id)
+    {
+        await OnFilterDept(id);
     }
 
     private void NewSection()
@@ -420,6 +549,8 @@
         _editSection = new Section { DeptId = _filterDeptId!.Value, IsActive = "Y" };
         _sectionRevenueAllotted = 0;
         _allotmentFy = AppConstants.CurrentFinancialYear();
+        _makerStaff = null;
+        _checkerStaff = null;
     }
 
     private async Task EditSection(Section s)
@@ -433,11 +564,18 @@
         _allotmentFy = AppConstants.CurrentFinancialYear();
         var allot = await MasterService.GetSectionRevenueAllotmentAsync(s.SectionId, _allotmentFy);
         _sectionRevenueAllotted = allot?.TotalAllotted ?? 0;
+        _makerStaff = null;
+        _checkerStaff = null;
     }
 
     private async Task SaveSection()
     {
         if (_editSection == null) return;
+        if (!_filterDeptHasRevenue)
+        {
+            _editSection.MakerPf = null;
+            _editSection.CheckerPf = null;
+        }
         decimal? rev = _filterDeptHasRevenue ? _sectionRevenueAllotted : null;
         var r = await MasterService.SaveSectionAsync(
             _editSection, AuthService.CurrentUser!.PfNo, rev, _allotmentFy);
@@ -458,6 +596,8 @@
         _filterSectionId = id;
         _projects = id.HasValue ? await MasterService.GetProjectsBySectionAsync(id.Value, false) : new();
         _editProject = null;
+        _makerStaff = null;
+        _checkerStaff = null;
     }
 
     private void NewProject()
@@ -466,6 +606,8 @@
         _projectSpillover = 0;
         _projectFresh = 0;
         _allotmentFy = AppConstants.CurrentFinancialYear();
+        _makerStaff = null;
+        _checkerStaff = null;
     }
 
     private async Task EditProject(Project p)
@@ -480,11 +622,18 @@
         var allot = await MasterService.GetProjectAllotmentAsync(p.ProjectId, _allotmentFy);
         _projectSpillover = allot?.SpilloverAllotted ?? 0;
         _projectFresh = allot?.FreshAllotted ?? 0;
+        _makerStaff = null;
+        _checkerStaff = null;
     }
 
     private async Task SaveProject()
     {
         if (_editProject == null) return;
+        if (!_filterDeptIsDit)
+        {
+            _editProject.MakerPf = null;
+            _editProject.CheckerPf = null;
+        }
         var r = await MasterService.SaveProjectAsync(
             _editProject, AuthService.CurrentUser!.PfNo,
             _projectSpillover, _projectFresh, _allotmentFy);
@@ -506,7 +655,7 @@
         public string Pf { get; set; } = "";
         public string Name { get; set; } = "";
         public string Designation { get; set; } = "";
-        public string Location { get; set; } = "";
+        public string? Scale { get; set; }
         public string? Email { get; set; }
         public string? Phone { get; set; }
     }

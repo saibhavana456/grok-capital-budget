@@ -52,10 +52,10 @@
         {
             <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Class="mb-3" Dense="true">
                 Already submitted for <b>@_form.EntryMonth</b> — status <b>@_existing.Status</b>
-                (PF @(_existing.SubmittedByPf ?? "-")). Read-only below.
-                <MudLink Href="@($"/revenue/view/{_existing.EntryId}")" Class="ml-2">Open detail view</MudLink>
+                (PF @(_existing.SubmittedByPf ?? "-")).
+                Open it from Revenue Submissions, or
+                <MudLink Href="@($"/revenue/view/{_existing.EntryId}")" Class="ml-1">view detail</MudLink>
             </MudAlert>
-            @RenderRevenueReadOnly()
         }
         else if (!_canSubmit)
         {
@@ -70,13 +70,9 @@
                 }
                 @if (_existing != null)
                 {
-                    <MudLink Href="@($"/revenue/view/{_existing.EntryId}")" Class="ml-2">Open detail view</MudLink>
+                    <span> See Revenue Submissions, or <MudLink Href="@($"/revenue/view/{_existing.EntryId}")">view detail</MudLink>.</span>
                 }
             </MudAlert>
-            @if (_existing != null)
-            {
-                @RenderRevenueReadOnly()
-            }
         }
         else
         {
@@ -196,63 +192,6 @@
     /// <summary>Allotment remaining before current-month amounts (does not change while typing heads).</summary>
     private decimal RemainingBeforeEntry =>
         (_form?.TotalAllotted ?? 0) - (_form?.UtilizedTillPreviousMonth ?? 0);
-
-    private RenderFragment RenderRevenueReadOnly() => __builder =>
-    {
-        if (_form == null) return;
-        <MudPaper Class="allotted-strip pa-4 mb-3" Elevation="0">
-            <MudText Class="section-heading mb-3">Section Allotment (FY @_form.FinancialYear)</MudText>
-            <div class="metric-row"><span class="metric-row-label">Total Budget Allotted</span><span class="metric-row-value">@_form.TotalAllotted.ToString("0.00") <small>Cr</small></span></div>
-            <div class="metric-row"><span class="metric-row-label">Utilized till @PrevMonth</span><span class="metric-row-value utilized">@_form.UtilizedTillPreviousMonth.ToString("0.00") <small>Cr</small></span></div>
-        </MudPaper>
-        <MudGrid>
-            <MudItem xs="12" lg="4">
-                <MudPaper Class="pa-4 panel-readonly h-100" Elevation="0">
-                    <MudText Class="section-heading mb-3">Previous Month (@PrevMonth.ToUpperInvariant())</MudText>
-                    @if (_form.PrevTotal <= 0 && _form.PrevLines.All(l => l.Amount == 0))
-                    {
-                        <MudText Typo="Typo.body2" Style="color:#64748b;">No approved submission for @PrevMonth.</MudText>
-                    }
-                    else
-                    {
-                        @foreach (var line in _form.PrevLines.Where(l => l.Amount > 0))
-                        {
-                            <div class="metric-row compact">
-                                <span class="metric-row-label">@line.HeadName</span>
-                                <span class="metric-row-value sm">@line.Amount.ToString("0.00")</span>
-                            </div>
-                        }
-                        <div class="metric-row accent mt-2">
-                            <span class="metric-row-label">Total</span>
-                            <span class="metric-row-value">@_form.PrevTotal.ToString("0.00")</span>
-                        </div>
-                    }
-                </MudPaper>
-            </MudItem>
-            <MudItem xs="12" lg="8">
-                <MudPaper Class="pa-4 panel-entry" Elevation="0">
-                    <MudText Class="section-heading mb-3">Current Month (@CurrMonth.ToUpperInvariant()) — read-only</MudText>
-                    @foreach (var line in _form.Lines.Where(l => l.Amount > 0))
-                    {
-                        <div class="metric-row compact">
-                            <span class="metric-row-label">@line.HeadName</span>
-                            <span class="metric-row-value sm">@line.Amount.ToString("0.00")</span>
-                        </div>
-                    }
-                    <div class="metric-row accent mt-2">
-                        <span class="metric-row-label">Total for @CurrMonth</span>
-                        <span class="metric-row-value">@EnteredTotal.ToString("0.00")</span>
-                    </div>
-                    @if (!string.IsNullOrWhiteSpace(_form.JustificationText))
-                    {
-                        <MudDivider Class="my-3" />
-                        <MudText Class="justification-title mb-2">Justification</MudText>
-                        <MudPaper Class="pa-3 justification-body">@_form.JustificationText</MudPaper>
-                    }
-                </MudPaper>
-            </MudItem>
-        </MudGrid>
-    };
 
     private void OnHeadAmountChanged(RevenueLineDto line, decimal value)
     {
