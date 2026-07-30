@@ -11,9 +11,10 @@
 
 <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Dense="true" Class="mb-4">
     <b>Where to set Maker / Checker</b><br />
-    <b>DIT</b> — Capital: each <b>Project</b>. Revenue: each <b>Section</b> (not on the department).<br />
-    <b>Other departments</b> — one Maker + one Checker on the <b>Department</b> only (not on sections/projects).<br />
-    <b>Staff lookup (View)</b> — uses Oracle <code>STAFF_DETAILS</code> (EMPLID) in the app DB. Empty table or missing PF → “not found” after you load sample data. That is <b>not</b> a missing-connection error.
+    <b>DIT</b> — Capital Maker/Checker on each <b>Project</b>. Revenue Maker/Checker on each <b>Section</b> (not on the department).<br />
+    <b>Other departments</b> — one Maker + one Checker on the <b>Department</b> only.<br />
+    <b>DIT Capital setup</b> — there is no separate “capital section”. Create/use a Section (Sections tab), then add a <b>Project</b> under it (Projects tab) with Capital Maker/Checker + allotment.<br />
+    <b>Staff lookup (View)</b> — Oracle <code>STAFF_DETAILS</code> (EMPLID). Empty table / missing PF → “not found” (not a connection error).
 </MudAlert>
 
 <MudTabs Elevation="1" Rounded="true" PanelClass="pa-4">
@@ -144,19 +145,29 @@
     </MudTabPanel>
 
     <MudTabPanel Text="Sections">
-        <MudSelect T="long?" Value="_filterDeptId" Label="Department" Variant="Variant.Outlined" Class="mb-3"
-                   ValueChanged="OnFilterDept" Style="max-width:420px;">
-            @foreach (var d in _departments)
-            {
-                <MudSelectItem T="long?" Value="@((long?)d.DeptId)">@d.DeptName (@d.DeptCode)</MudSelectItem>
-            }
-        </MudSelect>
+        <MudGrid Class="admin-filter-row mb-2" Spacing="2">
+            <MudItem xs="12" md="6" lg="4">
+                <MudSelect T="long?" Value="_filterDeptId" Label="Department" Variant="Variant.Outlined" Dense="true"
+                           ValueChanged="OnFilterDept" Class="admin-filter-field">
+                    @foreach (var d in _departments)
+                    {
+                        <MudSelectItem T="long?" Value="@((long?)d.DeptId)">@d.DeptName (@d.DeptCode)</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="12" md="6" lg="4" Class="d-flex align-end">
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="!_filterDeptId.HasValue" OnClick="NewSection"
+                           Class="admin-filter-action">
+                    Add Section
+                </MudButton>
+            </MudItem>
+        </MudGrid>
 
         @if (_filterDeptId.HasValue && _filterDeptHasRevenue)
         {
             <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Dense="true" Class="mb-3">
-                DIT revenue: set <b>Revenue</b> Maker/Checker on each section below.
-                Capital Maker/Checker stay on the <b>Projects</b> tab — not here.
+                Section = shared folder for Capital <b>and</b> Revenue. Here set <b>Revenue</b> Maker/Checker (+ allotment).
+                For Capital, open <b>Projects</b> → pick this section → Add Project.
             </MudAlert>
         }
         else if (_filterDeptId.HasValue && !_filterDeptHasRevenue)
@@ -166,9 +177,7 @@
                 Capital Maker/Checker: @( _filterDeptIsDit ? "Projects tab" : "Department tab" ).
             </MudAlert>
         }
-
-        <MudButton Variant="Variant.Filled" Color="Color.Primary" Class="mb-3" Disabled="!_filterDeptId.HasValue" OnClick="NewSection">Add Section</MudButton>
-        <MudTable Items="_sections" Dense="true" Hover="true">
+        <MudTable Items="_sections" Dense="true" Hover="true" Class="admin-masters-table">
             <HeaderContent>
                 <MudTh>Code</MudTh><MudTh>Name</MudTh>
                 @if (_filterDeptHasRevenue)
@@ -192,6 +201,11 @@
                                    OnClick="@(() => SoftDeleteSection(context.SectionId))" />
                 </MudTd>
             </RowTemplate>
+            <NoRecordsContent>
+                <MudText Typo="Typo.body2" Style="color:#64748b;">
+                    @(_filterDeptId.HasValue ? "No sections yet — click Add Section." : "Select a department first.")
+                </MudText>
+            </NoRecordsContent>
         </MudTable>
         @if (_editSection != null)
         {
@@ -250,25 +264,40 @@
     </MudTabPanel>
 
     <MudTabPanel Text="Projects">
-        <MudSelect T="long?" Value="_filterDeptId" Label="Department" Variant="Variant.Outlined" Class="mb-3"
-                   ValueChanged="OnFilterDeptForProjects" Style="max-width:420px;">
-            @foreach (var d in _departments)
-            {
-                <MudSelectItem T="long?" Value="@((long?)d.DeptId)">@d.DeptName (@d.DeptCode)</MudSelectItem>
-            }
-        </MudSelect>
-        <MudSelect T="long?" Value="_filterSectionId" Label="Section" Variant="Variant.Outlined" Class="mb-3"
-                   ValueChanged="OnFilterSection" Style="max-width:420px;" Disabled="!_filterDeptId.HasValue">
-            @foreach (var s in _sections)
-            {
-                <MudSelectItem T="long?" Value="@((long?)s.SectionId)">@s.SectionName</MudSelectItem>
-            }
-        </MudSelect>
+        <MudGrid Class="admin-filter-row mb-2" Spacing="2">
+            <MudItem xs="12" md="4">
+                <MudSelect T="long?" Value="_filterDeptId" Label="Department" Variant="Variant.Outlined" Dense="true"
+                           ValueChanged="OnFilterDeptForProjects" Class="admin-filter-field">
+                    @foreach (var d in _departments)
+                    {
+                        <MudSelectItem T="long?" Value="@((long?)d.DeptId)">@d.DeptName (@d.DeptCode)</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="12" md="4">
+                <MudSelect T="long?" Value="_filterSectionId" Label="Section" Variant="Variant.Outlined" Dense="true"
+                           ValueChanged="OnFilterSection" Class="admin-filter-field"
+                           Disabled="!_filterDeptId.HasValue">
+                    @foreach (var s in _sections)
+                    {
+                        <MudSelectItem T="long?" Value="@((long?)s.SectionId)">@s.SectionName</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="12" md="4" Class="d-flex align-end">
+                <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                           Disabled="!_filterSectionId.HasValue" OnClick="NewProject"
+                           Class="admin-filter-action">
+                    Add Project
+                </MudButton>
+            </MudItem>
+        </MudGrid>
 
         @if (_filterDeptId.HasValue && _filterDeptIsDit)
         {
             <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Dense="true" Class="mb-3">
-                DIT capital: set <b>Capital</b> Maker/Checker on each project. Maker ≠ Checker on the same project.
+                <b>DIT Capital</b> = add a <b>Project</b> under a section (not a separate capital section).
+                Select Department → Section → Add Project, then set Capital Maker/Checker + allotment. Maker ≠ Checker on the same project.
             </MudAlert>
         }
         else if (_filterDeptId.HasValue && !_filterDeptIsDit)
@@ -278,8 +307,20 @@
             </MudAlert>
         }
 
-        <MudButton Variant="Variant.Filled" Color="Color.Primary" Class="mb-3" Disabled="!_filterSectionId.HasValue" OnClick="NewProject">Add Project</MudButton>
-        <MudTable Items="_projects" Dense="true" Hover="true">
+        @if (_filterDeptId.HasValue && _sections.Count == 0)
+        {
+            <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Dense="true" Class="mb-3">
+                No sections for this department yet. Open the <b>Sections</b> tab, Add Section, then return here to Add Project.
+            </MudAlert>
+        }
+        else if (_filterDeptId.HasValue && !_filterSectionId.HasValue)
+        {
+            <MudText Typo="Typo.caption" Class="mb-3" Style="color:#64748b;">
+                Select a Section above to list projects and enable Add Project.
+            </MudText>
+        }
+
+        <MudTable Items="_projects" Dense="true" Hover="true" Class="admin-masters-table">
             <HeaderContent>
                 <MudTh>Code</MudTh><MudTh>Name</MudTh>
                 @if (_filterDeptIsDit)
@@ -303,6 +344,11 @@
                                    OnClick="@(() => SoftDeleteProject(context.ProjectId))" />
                 </MudTd>
             </RowTemplate>
+            <NoRecordsContent>
+                <MudText Typo="Typo.body2" Style="color:#64748b;">
+                    @(_filterSectionId.HasValue ? "No projects in this section yet." : "Select a section to view projects.")
+                </MudText>
+            </NoRecordsContent>
         </MudTable>
         @if (_editProject != null)
         {

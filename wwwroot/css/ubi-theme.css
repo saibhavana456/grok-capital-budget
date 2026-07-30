@@ -535,3 +535,26 @@ html, body {
 .admin-page .mud-table-cell {
   vertical-align: middle;
 }
+
+.admin-page .admin-filter-row {
+  align-items: flex-end;
+}
+
+.admin-page .admin-filter-field {
+  width: 100%;
+  margin-bottom: 0;
+}
+
+.admin-page .admin-filter-action {
+  margin-bottom: 4px;
+  white-space: nowrap;
+}
+
+.admin-page .admin-masters-table {
+  width: 100%;
+}
+
+.admin-page .d-flex.align-end {
+  display: flex;
+  align-items: flex-end;
+}
