@@ -6,17 +6,25 @@ namespace IT_BUDGET_MONITORING_PORTAL.Interfaces;
 public interface IMasterService
 {
     Task<List<Department>> GetDepartmentsAsync(bool activeOnly = true);
-    /// <summary>Active departments where this PF is the department Maker (one Maker → their dept only).</summary>
+    /// <summary>
+    /// Departments the Maker can enter: non-DIT where dept.MakerPf matches,
+    /// or DIT where any project/section MakerPf matches.
+    /// </summary>
     Task<List<Department>> GetDepartmentsForMakerAsync(string makerPf);
     Task<List<Section>> GetSectionsByDeptAsync(long deptId, bool activeOnly = true);
+    /// <summary>Capital sections/projects filtered to Maker assignments when DIT.</summary>
+    Task<List<Section>> GetSectionsForMakerAsync(long deptId, string makerPf, bool capitalPath, bool activeOnly = true);
     Task<List<Project>> GetProjectsBySectionAsync(long sectionId, bool activeOnly = true);
+    Task<List<Project>> GetProjectsForMakerAsync(long sectionId, string makerPf, bool activeOnly = true);
     Task<List<RevenueHead>> GetRevenueHeadsAsync();
     Task<Department?> GetDepartmentAsync(long deptId);
     Task<Section?> GetSectionAsync(long sectionId);
     Task<Project?> GetProjectAsync(long projectId);
+    Task<ProjectFyAllotment?> GetProjectAllotmentAsync(long projectId, string financialYear);
+    Task<SectionFyRevenueAllotment?> GetSectionRevenueAllotmentAsync(long sectionId, string financialYear);
     Task<ServiceResult> SaveDepartmentAsync(Department dept, string actorPf);
-    Task<ServiceResult> SaveSectionAsync(Section section, string actorPf);
-    Task<ServiceResult> SaveProjectAsync(Project project, string actorPf);
+    Task<ServiceResult> SaveSectionAsync(Section section, string actorPf, decimal? revenueAllotted = null, string? financialYear = null);
+    Task<ServiceResult> SaveProjectAsync(Project project, string actorPf, decimal? spillover = null, decimal? fresh = null, string? financialYear = null);
     Task SoftDeleteDepartmentAsync(long deptId, string actorPf);
     Task SoftDeleteSectionAsync(long sectionId, string actorPf);
     Task SoftDeleteProjectAsync(long projectId, string actorPf);
@@ -47,8 +55,8 @@ public interface IRevenueService
 public interface IStaffLookupService
 {
     /// <summary>
-    /// Organisations DB lookup (SCV pattern): STAFF_DETAILS for identity,
-    /// StaffDetails (EMPLID) for EMAIL/PHONE when present.
+    /// Organisations DB lookup (Priyadarshini): dbo.StaffDetails by EMPLID
+    /// (name, designation, scale, email, phone).
     /// Returns null when OrganisationsDb is not configured or PF not found.
     /// </summary>
     Task<StaffLookupResult?> LookupByPfAsync(string pfNo);
@@ -66,6 +74,9 @@ public class StaffLookupResult
     public string? DeptDesc { get; set; }
     public string? Email { get; set; }
     public string? Phone { get; set; }
-    /// <summary>True when EMAIL/PHONE came from Organisations StaffDetails table.</summary>
+    public string? ScaleCode { get; set; }
+    public string? ScaleDescr { get; set; }
+    public int? ScaleNumber { get; set; }
+    /// <summary>True when EMAIL/PHONE present on Organisations StaffDetails.</summary>
     public bool HasContactFromStaffDetails { get; set; }
 }

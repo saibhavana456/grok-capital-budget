@@ -376,14 +376,15 @@
                 new("Remaining before entry", $"{RemainingBeforeEntry:0.00} Cr"),
                 new("Entered exceeds by", $"{(total - _form.TotalAllotted):0.00} Cr", "warn")
             };
+            // Priyadarshini: Revenue — informational popup for Maker; still allow submit.
             if (!await ConfirmAsync(
-                    AppConstants.ConfirmOverBudgetTitle,
-                    AppConstants.ConfirmOverBudgetMessage,
+                    AppConstants.RevenueOverBudgetInfoTitle,
+                    AppConstants.RevenueOverBudgetInfoMessage + " Do you still want to submit?",
                     "Submit anyway",
                     Color.Warning,
                     contextSubtitle,
                     overDetails,
-                    Icons.Material.Filled.TrendingUp))
+                    Icons.Material.Filled.Info))
                 return;
         }
 

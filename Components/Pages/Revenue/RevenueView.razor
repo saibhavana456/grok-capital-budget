@@ -42,6 +42,13 @@
             </div>
         </MudPaper>
 
+        @if (_enteredTotal > _allotted)
+        {
+            <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Class="mb-3" Dense="true">
+                @AppConstants.RevenueOverBudgetInfoMessage
+            </MudAlert>
+        }
+
         <MudPaper Class="pa-4 mb-3 portal-card" Elevation="0">
             <MudGrid>
                 <MudItem xs="6" sm="4" md="2">

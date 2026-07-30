@@ -178,7 +178,8 @@
         if (!deptId.HasValue) return;
         var dept = _departments.FirstOrDefault(d => d.DeptId == deptId.Value);
         _showBudgetType = dept?.HasRevenue == "Y";
-        _sections = await MasterService.GetSectionsByDeptAsync(deptId.Value);
+        var pf = AuthService.CurrentUser?.PfNo ?? "";
+        _sections = await MasterService.GetSectionsForMakerAsync(deptId.Value, pf, capitalPath: true);
     }
 
     private async Task OnBudgetTypeChanged(string type)
@@ -188,7 +189,11 @@
         _projectId = null;
         _projects.Clear();
         if (_deptId.HasValue)
-            _sections = await MasterService.GetSectionsByDeptAsync(_deptId.Value);
+        {
+            var pf = AuthService.CurrentUser?.PfNo ?? "";
+            _sections = await MasterService.GetSectionsForMakerAsync(
+                _deptId.Value, pf, capitalPath: type == "CAPITAL");
+        }
     }
 
     private async Task OnSectionChanged(long? sectionId)
@@ -198,7 +203,10 @@
         _projects.Clear();
         if (!sectionId.HasValue) return;
         if (IsCapitalPath)
-            _projects = await MasterService.GetProjectsBySectionAsync(sectionId.Value);
+        {
+            var pf = AuthService.CurrentUser?.PfNo ?? "";
+            _projects = await MasterService.GetProjectsForMakerAsync(sectionId.Value, pf);
+        }
     }
 
     private Task OnProjectChanged(long? projectId)

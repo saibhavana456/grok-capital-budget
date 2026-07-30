@@ -121,8 +121,10 @@
                 }
 
                 <MudText Typo="Typo.caption" Class="mt-3 mb-2" Style="color:#64748b;">
-                    Maker and Checker are required. Both must exist in APP_USER (role MAKER / CHECKER).
-                    Admin PF cannot be assigned. One PF can belong to only one active department.
+                    Non-DIT: one Maker + Checker for the whole department (required).
+                    DIT: prefer project-level (capital) and section-level (revenue) Maker/Checker; department fields optional.
+                    Scale (from Organisations StaffDetails): Maker 1–4, Checker 4+. Same PF may be Maker on one project and Checker on another.
+                    Same project/section: Maker ≠ Checker.
                 </MudText>
                 <MudStack Row="true" Spacing="2">
                     <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveDept">Save</MudButton>
@@ -143,11 +145,13 @@
         <MudButton Variant="Variant.Filled" Color="Color.Primary" Class="mb-3" Disabled="!_filterDeptId.HasValue" OnClick="NewSection">Add Section</MudButton>
         <MudTable Items="_sections" Dense="true" Hover="true">
             <HeaderContent>
-                <MudTh>Code</MudTh><MudTh>Name</MudTh><MudTh>Active</MudTh><MudTh Style="text-align:right;">Actions</MudTh>
+                <MudTh>Code</MudTh><MudTh>Name</MudTh><MudTh>Maker</MudTh><MudTh>Checker</MudTh><MudTh>Active</MudTh><MudTh Style="text-align:right;">Actions</MudTh>
             </HeaderContent>
             <RowTemplate>
                 <MudTd>@context.SectionCode</MudTd>
                 <MudTd>@context.SectionName</MudTd>
+                <MudTd>@(context.MakerPf ?? "—")</MudTd>
+                <MudTd>@(context.CheckerPf ?? "—")</MudTd>
                 <MudTd>@context.IsActive</MudTd>
                 <MudTd Style="text-align:right;white-space:nowrap;">
                     <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(() => EditSection(context))" />
@@ -159,6 +163,9 @@
         @if (_editSection != null)
         {
             <MudPaper Class="pa-4 mt-3 admin-form-card" Elevation="1">
+                <MudText Typo="Typo.subtitle2" Class="mb-2" Style="color:#003366;">
+                    Section — DIT revenue: Maker/Checker + total allotted per section
+                </MudText>
                 <MudGrid>
                     <MudItem xs="12" md="6">
                         <MudTextField @bind-Value="_editSection.SectionCode" Label="Code" Variant="Variant.Outlined" />
@@ -166,6 +173,19 @@
                     <MudItem xs="12" md="6">
                         <MudTextField @bind-Value="_editSection.SectionName" Label="Name" Variant="Variant.Outlined" />
                     </MudItem>
+                    @if (_filterDeptHasRevenue)
+                    {
+                        <MudItem xs="12" md="6">
+                            <MudTextField @bind-Value="_editSection.MakerPf" Label="Maker PF *" Variant="Variant.Outlined" />
+                        </MudItem>
+                        <MudItem xs="12" md="6">
+                            <MudTextField @bind-Value="_editSection.CheckerPf" Label="Checker PF *" Variant="Variant.Outlined" />
+                        </MudItem>
+                        <MudItem xs="12" md="6">
+                            <MudNumericField @bind-Value="_sectionRevenueAllotted" Label="@($"Total Revenue Allotted (Cr) FY {_allotmentFy}")"
+                                             Variant="Variant.Outlined" Min="0" />
+                        </MudItem>
+                    }
                 </MudGrid>
                 <MudStack Row="true" Class="mt-3" Spacing="2">
                     <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveSection">Save</MudButton>
@@ -186,11 +206,13 @@
         <MudButton Variant="Variant.Filled" Color="Color.Primary" Class="mb-3" Disabled="!_filterSectionId.HasValue" OnClick="NewProject">Add Project</MudButton>
         <MudTable Items="_projects" Dense="true" Hover="true">
             <HeaderContent>
-                <MudTh>Code</MudTh><MudTh>Name</MudTh><MudTh>Active</MudTh><MudTh Style="text-align:right;">Actions</MudTh>
+                <MudTh>Code</MudTh><MudTh>Name</MudTh><MudTh>Maker</MudTh><MudTh>Checker</MudTh><MudTh>Active</MudTh><MudTh Style="text-align:right;">Actions</MudTh>
             </HeaderContent>
             <RowTemplate>
                 <MudTd>@context.ProjectCode</MudTd>
                 <MudTd>@context.ProjectName</MudTd>
+                <MudTd>@(context.MakerPf ?? "—")</MudTd>
+                <MudTd>@(context.CheckerPf ?? "—")</MudTd>
                 <MudTd>@context.IsActive</MudTd>
                 <MudTd Style="text-align:right;white-space:nowrap;">
                     <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(() => EditProject(context))" />
@@ -202,12 +224,35 @@
         @if (_editProject != null)
         {
             <MudPaper Class="pa-4 mt-3 admin-form-card" Elevation="1">
+                <MudText Typo="Typo.subtitle2" Class="mb-2" Style="color:#003366;">
+                    Project — DIT capital: Maker/Checker + spillover/fresh/total allotted
+                </MudText>
                 <MudGrid>
                     <MudItem xs="12" md="6">
                         <MudTextField @bind-Value="_editProject.ProjectCode" Label="Code" Variant="Variant.Outlined" />
                     </MudItem>
                     <MudItem xs="12" md="6">
                         <MudTextField @bind-Value="_editProject.ProjectName" Label="Name" Variant="Variant.Outlined" />
+                    </MudItem>
+                    @if (_filterDeptIsDit)
+                    {
+                        <MudItem xs="12" md="6">
+                            <MudTextField @bind-Value="_editProject.MakerPf" Label="Maker PF *" Variant="Variant.Outlined" />
+                        </MudItem>
+                        <MudItem xs="12" md="6">
+                            <MudTextField @bind-Value="_editProject.CheckerPf" Label="Checker PF *" Variant="Variant.Outlined" />
+                        </MudItem>
+                    }
+                    <MudItem xs="12" md="4">
+                        <MudNumericField @bind-Value="_projectSpillover" Label="@($"Spillover Allotted (Cr) FY {_allotmentFy}")"
+                                         Variant="Variant.Outlined" Min="0" />
+                    </MudItem>
+                    <MudItem xs="12" md="4">
+                        <MudNumericField @bind-Value="_projectFresh" Label="Fresh Allotted (Cr)" Variant="Variant.Outlined" Min="0" />
+                    </MudItem>
+                    <MudItem xs="12" md="4">
+                        <MudNumericField T="decimal" Value="@(_projectSpillover + _projectFresh)" Label="Total Allotted (auto)"
+                                         Variant="Variant.Outlined" Disabled="true" />
                     </MudItem>
                 </MudGrid>
                 <MudStack Row="true" Class="mt-3" Spacing="2">
@@ -247,6 +292,15 @@
     private StaffLookupResult? _makerStaff;
     private StaffLookupResult? _checkerStaff;
     private bool _lookupBusy;
+    private decimal _sectionRevenueAllotted;
+    private decimal _projectSpillover;
+    private decimal _projectFresh;
+    private string _allotmentFy = AppConstants.CurrentFinancialYear();
+
+    private bool _filterDeptHasRevenue =>
+        _departments.FirstOrDefault(d => d.DeptId == _filterDeptId)?.HasRevenue == "Y";
+    private bool _filterDeptIsDit =>
+        AppConstants.IsDitDepartment(_departments.FirstOrDefault(d => d.DeptId == _filterDeptId)?.DeptCode);
 
     private IEnumerable<StaffPreviewRow> StaffPreviewRows
     {
@@ -340,7 +394,6 @@
         if (_editDept == null) return;
         var r = await MasterService.SaveDepartmentAsync(_editDept, AuthService.CurrentUser!.PfNo);
         Snackbar.Add(r.Message, r.Success ? Severity.Success : Severity.Error);
-        // Keep form + values on validation error so Admin does not retype everything
         if (!r.Success) return;
         CancelDept();
         await ReloadDepts();
@@ -358,19 +411,36 @@
         _sections = id.HasValue ? await MasterService.GetSectionsByDeptAsync(id.Value, false) : new();
         _projects.Clear();
         _filterSectionId = null;
+        _editSection = null;
+        _editProject = null;
     }
 
-    private void NewSection() => _editSection = new Section { DeptId = _filterDeptId!.Value, IsActive = "Y" };
-    private void EditSection(Section s) => _editSection = new Section
+    private void NewSection()
     {
-        SectionId = s.SectionId, DeptId = s.DeptId, SectionCode = s.SectionCode,
-        SectionName = s.SectionName, Description = s.Description, IsActive = s.IsActive
-    };
+        _editSection = new Section { DeptId = _filterDeptId!.Value, IsActive = "Y" };
+        _sectionRevenueAllotted = 0;
+        _allotmentFy = AppConstants.CurrentFinancialYear();
+    }
+
+    private async Task EditSection(Section s)
+    {
+        _editSection = new Section
+        {
+            SectionId = s.SectionId, DeptId = s.DeptId, SectionCode = s.SectionCode,
+            SectionName = s.SectionName, Description = s.Description, IsActive = s.IsActive,
+            MakerPf = s.MakerPf, CheckerPf = s.CheckerPf
+        };
+        _allotmentFy = AppConstants.CurrentFinancialYear();
+        var allot = await MasterService.GetSectionRevenueAllotmentAsync(s.SectionId, _allotmentFy);
+        _sectionRevenueAllotted = allot?.TotalAllotted ?? 0;
+    }
 
     private async Task SaveSection()
     {
         if (_editSection == null) return;
-        var r = await MasterService.SaveSectionAsync(_editSection, AuthService.CurrentUser!.PfNo);
+        decimal? rev = _filterDeptHasRevenue ? _sectionRevenueAllotted : null;
+        var r = await MasterService.SaveSectionAsync(
+            _editSection, AuthService.CurrentUser!.PfNo, rev, _allotmentFy);
         Snackbar.Add(r.Message, r.Success ? Severity.Success : Severity.Error);
         if (!r.Success) return;
         _editSection = null;
@@ -387,19 +457,37 @@
     {
         _filterSectionId = id;
         _projects = id.HasValue ? await MasterService.GetProjectsBySectionAsync(id.Value, false) : new();
+        _editProject = null;
     }
 
-    private void NewProject() => _editProject = new Project { SectionId = _filterSectionId!.Value, IsActive = "Y" };
-    private void EditProject(Project p) => _editProject = new Project
+    private void NewProject()
     {
-        ProjectId = p.ProjectId, SectionId = p.SectionId, ProjectCode = p.ProjectCode,
-        ProjectName = p.ProjectName, IsActive = p.IsActive
-    };
+        _editProject = new Project { SectionId = _filterSectionId!.Value, IsActive = "Y" };
+        _projectSpillover = 0;
+        _projectFresh = 0;
+        _allotmentFy = AppConstants.CurrentFinancialYear();
+    }
+
+    private async Task EditProject(Project p)
+    {
+        _editProject = new Project
+        {
+            ProjectId = p.ProjectId, SectionId = p.SectionId, ProjectCode = p.ProjectCode,
+            ProjectName = p.ProjectName, IsActive = p.IsActive,
+            MakerPf = p.MakerPf, CheckerPf = p.CheckerPf
+        };
+        _allotmentFy = AppConstants.CurrentFinancialYear();
+        var allot = await MasterService.GetProjectAllotmentAsync(p.ProjectId, _allotmentFy);
+        _projectSpillover = allot?.SpilloverAllotted ?? 0;
+        _projectFresh = allot?.FreshAllotted ?? 0;
+    }
 
     private async Task SaveProject()
     {
         if (_editProject == null) return;
-        var r = await MasterService.SaveProjectAsync(_editProject, AuthService.CurrentUser!.PfNo);
+        var r = await MasterService.SaveProjectAsync(
+            _editProject, AuthService.CurrentUser!.PfNo,
+            _projectSpillover, _projectFresh, _allotmentFy);
         Snackbar.Add(r.Message, r.Success ? Severity.Success : Severity.Error);
         if (!r.Success) return;
         _editProject = null;

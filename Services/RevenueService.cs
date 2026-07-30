@@ -230,8 +230,8 @@ public class RevenueService : IRevenueService
 
         if (!string.IsNullOrWhiteSpace(checkerPfFilter))
         {
-            var checkerDeptIds = await GetActiveDeptIdsForCheckerAsync(checkerPfFilter);
-            q = q.Where(x => checkerDeptIds.Contains(x.s.DeptId));
+            var checkerSectionIds = await ResolveRevenueSectionIdsForCheckerAsync(checkerPfFilter.Trim());
+            q = q.Where(x => checkerSectionIds.Contains(x.e.SectionId));
         }
         else if (deptIdFilter.HasValue)
         {
@@ -269,12 +269,16 @@ public class RevenueService : IRevenueService
 
     public async Task<List<RevenueSubmissionListItem>> GetPendingForCheckerAsync(string checkerPf)
     {
-        var deptIds = await GetActiveDeptIdsForCheckerAsync(checkerPf);
-        if (deptIds.Count == 0)
+        var pfNorm = (checkerPf ?? "").Trim();
+        if (string.IsNullOrEmpty(pfNorm))
+            return new List<RevenueSubmissionListItem>();
+
+        var sectionIds = await ResolveRevenueSectionIdsForCheckerAsync(pfNorm);
+        if (sectionIds.Count == 0)
         {
             _logger.LogWarning(
-                "Revenue pending empty — no active DEPARTMENT with CHECKER_PF={Pf}",
-                checkerPf);
+                "Revenue pending empty — no section/dept CHECKER_PF match for {Pf}",
+                pfNorm);
             return new List<RevenueSubmissionListItem>();
         }
 
@@ -283,7 +287,7 @@ public class RevenueService : IRevenueService
                 join d in _db.Departments.AsNoTracking() on s.DeptId equals d.DeptId
                 where e.IsActive == "Y"
                       && e.EntryStatus == AppConstants.EntryStatus.Pending
-                      && deptIds.Contains(s.DeptId)
+                      && sectionIds.Contains(e.SectionId)
                 orderby e.SubmittedAt descending
                 select new { e, s, d };
 
@@ -309,20 +313,47 @@ public class RevenueService : IRevenueService
         return result;
     }
 
+    private async Task<List<long>> ResolveRevenueSectionIdsForCheckerAsync(string checkerPf)
+    {
+        var rows = await (
+            from s in _db.Sections.AsNoTracking()
+            join d in _db.Departments.AsNoTracking() on s.DeptId equals d.DeptId
+            where s.IsActive == "Y" && d.IsActive == "Y" && d.HasRevenue == "Y"
+            select new { s.SectionId, SectionChecker = s.CheckerPf, d.DeptCode, DeptChecker = d.CheckerPf }
+        ).ToListAsync();
+
+        return rows
+            .Where(x =>
+                PfEquals(x.SectionChecker, checkerPf)
+                || PfEquals(x.DeptChecker, checkerPf))
+            .Select(x => x.SectionId)
+            .Distinct()
+            .ToList();
+    }
+
+    private static bool PfEquals(string? a, string b) =>
+        !string.IsNullOrWhiteSpace(a)
+        && string.Equals(a.Trim(), b.Trim(), StringComparison.OrdinalIgnoreCase);
+
     private async Task<List<long>> GetActiveDeptIdsForCheckerAsync(string checkerPf)
     {
         var pfNorm = (checkerPf ?? "").Trim();
         if (string.IsNullOrEmpty(pfNorm)) return new List<long>();
 
-        var rows = await _db.Departments.AsNoTracking()
+        var deptIds = await _db.Departments.AsNoTracking()
             .Where(d => d.IsActive == "Y")
             .Select(d => new { d.DeptId, d.CheckerPf })
             .ToListAsync();
 
-        return rows
-            .Where(d => !string.IsNullOrWhiteSpace(d.CheckerPf)
-                        && string.Equals(d.CheckerPf.Trim(), pfNorm, StringComparison.OrdinalIgnoreCase))
-            .Select(d => d.DeptId)
+        var fromDept = deptIds.Where(d => PfEquals(d.CheckerPf, pfNorm)).Select(d => d.DeptId);
+        var fromSection = await _db.Sections.AsNoTracking()
+            .Where(s => s.IsActive == "Y" && s.CheckerPf != null)
+            .Select(s => new { s.DeptId, s.CheckerPf })
+            .ToListAsync();
+
+        return fromDept
+            .Concat(fromSection.Where(s => PfEquals(s.CheckerPf, pfNorm)).Select(s => s.DeptId))
+            .Distinct()
             .ToList();
     }
 
@@ -333,13 +364,15 @@ public class RevenueService : IRevenueService
         if (entry.EntryStatus != AppConstants.EntryStatus.Pending)
             return ServiceResult.Fail("Only PENDING entries can be actioned.");
 
-        var section = await _db.Sections.FirstOrDefaultAsync(s => s.SectionId == entry.SectionId);
-        var dept = section == null ? null :
-            await _db.Departments.FirstOrDefaultAsync(d => d.DeptId == section.DeptId);
-        if (dept == null ||
-            string.IsNullOrWhiteSpace(dept.CheckerPf) ||
-            !string.Equals(dept.CheckerPf.Trim(), checkerPf.Trim(), StringComparison.OrdinalIgnoreCase))
-            return ServiceResult.Fail("You are not the Checker for this department.");
+        var section = await _db.Sections.Include(s => s.Department)
+            .FirstOrDefaultAsync(s => s.SectionId == entry.SectionId);
+        if (section?.Department == null)
+            return ServiceResult.Fail("You are not the Checker for this section.");
+
+        var allowed = PfEquals(section.CheckerPf, checkerPf)
+                      || PfEquals(section.Department.CheckerPf, checkerPf);
+        if (!allowed)
+            return ServiceResult.Fail("You are not the Checker for this section/department.");
 
         var normalized = action.Trim().ToUpperInvariant();
         if (normalized is not (AppConstants.EntryStatus.Approved or AppConstants.EntryStatus.Rejected or AppConstants.EntryStatus.Returned))

@@ -43,31 +43,45 @@ public static class AppConstants
     /// <summary>Capital: zero actual utilization is not allowed. Revenue may submit zeros with confirm.</summary>
     public const string CapitalZeroNotAllowedMessage =
         "Capital entry cannot be submitted with zero actual utilization. Enter spillover and/or fresh amount greater than zero.";
-    public const string MakerPfRequiredMessage = "Maker PF is required for a department.";
-    public const string CheckerPfRequiredMessage = "Checker PF is required for a department.";
+    /// <summary>Priyadarshini 30-Jul-2026: Capital must not submit when over allotted budget.</summary>
+    public const string CapitalOverBudgetBlockedTitle = "Allocated budget exceeded";
+    public const string CapitalOverBudgetBlockedMessage =
+        "You have exceeded the allocated budget. Kindly request for additional budget. Capital entry cannot be submitted.";
+    /// <summary>Priyadarshini 30-Jul-2026: Revenue over-allotment is informational; submit still allowed.</summary>
+    public const string RevenueOverBudgetInfoTitle = "Allocated budget exceeded";
+    public const string RevenueOverBudgetInfoMessage =
+        "The amount you have entered has exceeded the allocated budget of the respective section. This is for your information.";
+    public const string MakerPfRequiredMessage = "Maker PF is required.";
+    public const string CheckerPfRequiredMessage = "Checker PF is required.";
     public const string MakerNotInAppUserMessage =
-        "Maker PF '{0}' is not registered as an active Maker in APP_USER.";
+        "Maker PF '{0}' is not registered as an active Maker or Checker in APP_USER.";
     public const string CheckerNotInAppUserMessage =
-        "Checker PF '{0}' is not registered as an active Checker in APP_USER.";
+        "Checker PF '{0}' is not registered as an active Maker or Checker in APP_USER.";
     public const string AdminCannotBeMakerOrCheckerMessage =
         "PF '{0}' is ADMIN and cannot be assigned as Maker or Checker.";
     public const string StaffNotInOrganisationsMessage =
-        "PF '{0}' was not found in Organisations STAFF_DETAILS / StaffDetails. Confirm the PF with HR data before assigning.";
+        "PF '{0}' was not found in Organisations StaffDetails. Confirm the PF with HR data before assigning.";
     public const string OrganisationsNotConfiguredMessage =
-        "Organisations DB is not configured — staff name/email lookup is skipped (APP_USER validation still applies).";
-    public const string MakerAlreadyAssignedMessage =
-        "This PF is already Maker or Checker on another active department. One person can belong to only one department.";
-    public const string CheckerAlreadyAssignedMessage =
-        "This PF is already Maker or Checker on another active department. One person can belong to only one department.";
+        "Organisations DB is not configured — staff name/email/scale lookup is skipped (APP_USER validation still applies).";
+    public const string MakerScaleInvalidMessage =
+        "Maker PF '{0}' must be Scale 1 to 4 (Organisations EMP_SCALE_CODE). Found: {1}.";
+    public const string CheckerScaleInvalidMessage =
+        "Checker PF '{0}' must be Scale 4 or above (Organisations EMP_SCALE_CODE). Found: {1}.";
     public const string MakerCheckerSamePfMessage =
-        "Maker PF and Checker PF must be different.";
+        "Maker PF and Checker PF must be different for the same project/section/department.";
     public const string PfAlreadyOnOtherDeptMessage =
         "PF {0} is already assigned as {1} on department '{2}'. One person can belong to only one active department.";
     public const string ConfirmOverBudgetTitle = "Amount exceeds allotment";
     public const string ConfirmOverBudgetMessage =
-        "Entered amount exceeds remaining allotment. Do you still want to submit for checker review?";
+        "The amount you have entered has exceeded the allocated budget of the respective section. This is for your information. Do you still want to submit?";
     public const string RemarkRequiredMessage = "Remark is required for Return and Reject.";
     public const string JustificationRequiredMessage = "Justification is required.";
+
+    /// <summary>DIT uses project-level (capital) and section-level (revenue) Maker/Checker.</summary>
+    public const string DitDeptCode = "DIT";
+    public const int MakerScaleMin = 1;
+    public const int MakerScaleMax = 4;
+    public const int CheckerScaleMin = 4;
     /// <summary>Same message as Personal/SCV live when USER_TOKEN already exists.</summary>
     public const string PreviousSessionExistsMessage =
         "Please Clear previous Session then try to login again";
@@ -109,6 +123,41 @@ public static class AppConstants
         if (string.IsNullOrWhiteSpace(financialYear)) return false;
         return string.Equals(financialYear.Trim(), CurrentFinancialYear(asOf), StringComparison.OrdinalIgnoreCase);
     }
+
+    public static bool IsDitDepartment(string? deptCode) =>
+        string.Equals((deptCode ?? "").Trim(), DitDeptCode, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>Parse Organisations EMP_SCALE_CODE / description to numeric scale (1–8 typical).</summary>
+    public static int? TryParseEmployeeScale(string? scaleCode, string? scaleDescr = null)
+    {
+        foreach (var raw in new[] { scaleCode, scaleDescr })
+        {
+            if (string.IsNullOrWhiteSpace(raw)) continue;
+            var s = raw.Trim();
+            if (int.TryParse(s, out var n) && n is >= 1 and <= 20)
+                return n;
+            // e.g. "SMGS-IV", "Scale 4", "IV"
+            var digits = new string(s.Where(char.IsDigit).ToArray());
+            if (digits.Length > 0 && int.TryParse(digits, out n) && n is >= 1 and <= 20)
+                return n;
+            var roman = s.ToUpperInvariant();
+            if (roman.Contains("VIII") || roman.EndsWith("-8") || roman.Contains(" SCALE 8")) return 8;
+            if (roman.Contains("VII") || roman.EndsWith("-7")) return 7;
+            if (roman.Contains("VI") || roman.EndsWith("-6")) return 6;
+            if (roman.Contains("IV") || roman.EndsWith("-4") || roman.Contains(" SCALE 4")) return 4;
+            if (roman.Contains("V") || roman.EndsWith("-5")) return 5;
+            if (roman.Contains("III") || roman.EndsWith("-3")) return 3;
+            if (roman.Contains("II") || roman.EndsWith("-2")) return 2;
+            if (roman.Contains('I') || roman.EndsWith("-1")) return 1;
+        }
+        return null;
+    }
+
+    public static bool IsMakerScaleAllowed(int? scale) =>
+        scale is >= MakerScaleMin and <= MakerScaleMax;
+
+    public static bool IsCheckerScaleAllowed(int? scale) =>
+        scale is >= CheckerScaleMin;
 
     /// <summary>Previous Indian FY label, e.g. current 2026-27 → 2025-26.</summary>
     public static string PreviousFinancialYear(DateTime? asOf = null)

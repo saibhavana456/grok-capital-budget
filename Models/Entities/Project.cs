@@ -22,6 +22,15 @@ public class Project
     [Required, StringLength(500)]
     public string ProjectName { get; set; } = string.Empty;
 
+    /// <summary>DIT capital: Maker/Checker are project-wise (Priyadarshini 30-Jul-2026).</summary>
+    [Column("MAKER_PF")]
+    [StringLength(20)]
+    public string? MakerPf { get; set; }
+
+    [Column("CHECKER_PF")]
+    [StringLength(20)]
+    public string? CheckerPf { get; set; }
+
     [Column("IS_ACTIVE")]
     [StringLength(1)]
     public string IsActive { get; set; } = "Y";

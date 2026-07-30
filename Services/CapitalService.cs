@@ -129,6 +129,12 @@ public class CapitalService : ICapitalService
         if (actualTotal <= 0)
             return ServiceResult.Fail(AppConstants.CapitalZeroNotAllowedMessage);
 
+        // Priyadarshini: Capital must not submit when over allocated budget.
+        if (form.ActualSpillover > allotment.SpilloverAllotted
+            || form.ActualFresh > allotment.FreshAllotted
+            || actualTotal > allotment.TotalAllotted)
+            return ServiceResult.Fail(AppConstants.CapitalOverBudgetBlockedMessage);
+
         var existing = await _db.CapitalMonthlyEntries
             .FirstOrDefaultAsync(e => e.ProjectId == form.ProjectId
                                       && e.FinancialYear == form.FinancialYear
@@ -209,11 +215,11 @@ public class CapitalService : ICapitalService
         if (!string.IsNullOrWhiteSpace(makerPfFilter))
             q = q.Where(x => x.e.SubmittedByPf == makerPfFilter);
 
-        // Checker: scope by DEPARTMENT.CHECKER_PF (not APP_USER.DEPT_ID alone).
+        // Checker: scope by project/dept CHECKER_PF (not APP_USER.DEPT_ID alone).
         if (!string.IsNullOrWhiteSpace(checkerPfFilter))
         {
-            var checkerDeptIds = await GetActiveDeptIdsForCheckerAsync(checkerPfFilter);
-            q = q.Where(x => checkerDeptIds.Contains(x.s.DeptId));
+            var checkerProjectIds = await ResolveCapitalProjectIdsForCheckerAsync(checkerPfFilter.Trim());
+            q = q.Where(x => checkerProjectIds.Contains(x.e.ProjectId));
         }
         else if (deptIdFilter.HasValue)
         {
@@ -242,12 +248,16 @@ public class CapitalService : ICapitalService
 
     public async Task<List<CapitalSubmissionListItem>> GetPendingForCheckerAsync(string checkerPf)
     {
-        var deptIds = await GetActiveDeptIdsForCheckerAsync(checkerPf);
-        if (deptIds.Count == 0)
+        var pfNorm = (checkerPf ?? "").Trim();
+        if (string.IsNullOrEmpty(pfNorm))
+            return new List<CapitalSubmissionListItem>();
+
+        var projectIds = await ResolveCapitalProjectIdsForCheckerAsync(pfNorm);
+        if (projectIds.Count == 0)
         {
             _logger.LogWarning(
-                "Capital pending empty — no active DEPARTMENT with CHECKER_PF={Pf}",
-                checkerPf);
+                "Capital pending empty — no project/dept CHECKER_PF match for {Pf}",
+                pfNorm);
             return new List<CapitalSubmissionListItem>();
         }
 
@@ -257,7 +267,7 @@ public class CapitalService : ICapitalService
                 join d in _db.Departments.AsNoTracking() on s.DeptId equals d.DeptId
                 where e.IsActive == "Y"
                       && e.EntryStatus == AppConstants.EntryStatus.Pending
-                      && deptIds.Contains(s.DeptId)
+                      && projectIds.Contains(e.ProjectId)
                 orderby e.SubmittedAt descending
                 select new CapitalSubmissionListItem
                 {
@@ -275,7 +285,35 @@ public class CapitalService : ICapitalService
     }
 
     /// <summary>
+    /// DIT: project.CheckerPf. Non-DIT: all projects under dept where dept.CheckerPf matches.
+    /// Also includes project.CheckerPf anywhere (overlap allowed across projects).
+    /// </summary>
+    private async Task<List<long>> ResolveCapitalProjectIdsForCheckerAsync(string checkerPf)
+    {
+        var projects = await (
+            from p in _db.Projects.AsNoTracking()
+            join s in _db.Sections.AsNoTracking() on p.SectionId equals s.SectionId
+            join d in _db.Departments.AsNoTracking() on s.DeptId equals d.DeptId
+            where p.IsActive == "Y" && s.IsActive == "Y" && d.IsActive == "Y"
+            select new { p.ProjectId, ProjectChecker = p.CheckerPf, d.DeptCode, DeptChecker = d.CheckerPf }
+        ).ToListAsync();
+
+        return projects
+            .Where(x =>
+                PfEquals(x.ProjectChecker, checkerPf)
+                || (!AppConstants.IsDitDepartment(x.DeptCode) && PfEquals(x.DeptChecker, checkerPf)))
+            .Select(x => x.ProjectId)
+            .Distinct()
+            .ToList();
+    }
+
+    private static bool PfEquals(string? a, string b) =>
+        !string.IsNullOrWhiteSpace(a)
+        && string.Equals(a.Trim(), b.Trim(), StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
     /// Active departments where this PF is Checker (trim + case-insensitive — Oracle CHAR padding safe).
+    /// Kept for submissions dept-scope fallback for non-project-mapped checkers.
     /// </summary>
     private async Task<List<long>> GetActiveDeptIdsForCheckerAsync(string checkerPf)
     {
@@ -287,10 +325,20 @@ public class CapitalService : ICapitalService
             .Select(d => new { d.DeptId, d.CheckerPf })
             .ToListAsync();
 
-        return rows
-            .Where(d => !string.IsNullOrWhiteSpace(d.CheckerPf)
-                        && string.Equals(d.CheckerPf.Trim(), pfNorm, StringComparison.OrdinalIgnoreCase))
-            .Select(d => d.DeptId)
+        var deptFromDept = rows
+            .Where(d => PfEquals(d.CheckerPf, pfNorm))
+            .Select(d => d.DeptId);
+
+        var deptFromProjects = await (
+            from p in _db.Projects.AsNoTracking()
+            join s in _db.Sections.AsNoTracking() on p.SectionId equals s.SectionId
+            where p.IsActive == "Y" && p.CheckerPf != null
+            select new { s.DeptId, p.CheckerPf }
+        ).ToListAsync();
+
+        return deptFromDept
+            .Concat(deptFromProjects.Where(x => PfEquals(x.CheckerPf, pfNorm)).Select(x => x.DeptId))
+            .Distinct()
             .ToList();
     }
 
@@ -301,13 +349,16 @@ public class CapitalService : ICapitalService
         if (entry.EntryStatus != AppConstants.EntryStatus.Pending)
             return ServiceResult.Fail("Only PENDING entries can be actioned.");
 
-        var project = await _db.Projects.Include(p => p.Section).FirstOrDefaultAsync(p => p.ProjectId == entry.ProjectId);
-        var dept = project?.Section == null ? null :
-            await _db.Departments.FirstOrDefaultAsync(d => d.DeptId == project.Section.DeptId);
-        if (dept == null ||
-            string.IsNullOrWhiteSpace(dept.CheckerPf) ||
-            !string.Equals(dept.CheckerPf.Trim(), checkerPf.Trim(), StringComparison.OrdinalIgnoreCase))
+        var project = await _db.Projects.Include(p => p.Section)!.ThenInclude(s => s!.Department)
+            .FirstOrDefaultAsync(p => p.ProjectId == entry.ProjectId);
+        if (project?.Section?.Department == null)
             return ServiceResult.Fail("You are not the Checker for this department.");
+
+        var dept = project.Section.Department;
+        var allowed = PfEquals(project.CheckerPf, checkerPf)
+                      || (!AppConstants.IsDitDepartment(dept.DeptCode) && PfEquals(dept.CheckerPf, checkerPf));
+        if (!allowed)
+            return ServiceResult.Fail("You are not the Checker for this project/department.");
 
         var normalized = action.Trim().ToUpperInvariant();
         if (normalized is not (AppConstants.EntryStatus.Approved or AppConstants.EntryStatus.Rejected or AppConstants.EntryStatus.Returned))
