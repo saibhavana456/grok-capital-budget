@@ -1,0 +1,88 @@
+<MudDialog Class="ubi-dialog">
+    <TitleContent>
+        <div class="ubi-dialog-header">
+            <div class="ubi-dialog-icon @(_required ? "warn" : "success")">
+                <MudIcon Icon="@(_required ? Icons.Material.Filled.RateReview : Icons.Material.Filled.CheckCircleOutline)"
+                         Style="font-size:28px;" />
+            </div>
+            <div>
+                <MudText Class="ubi-dialog-title">@Title</MudText>
+                @if (!string.IsNullOrWhiteSpace(Subtitle))
+                {
+                    <MudText Class="ubi-dialog-subtitle">@Subtitle</MudText>
+                }
+            </div>
+        </div>
+    </TitleContent>
+    <DialogContent>
+        @if (!string.IsNullOrWhiteSpace(Prompt))
+        {
+            <MudText Class="ubi-dialog-message">@Prompt</MudText>
+        }
+        @if (Details is { Count: > 0 })
+        {
+            <div class="ubi-dialog-details mb-3">
+                @foreach (var row in Details)
+                {
+                    <div class="ubi-dialog-detail-row @row.RowClass">
+                        <span class="ubi-dialog-detail-label">@row.Label</span>
+                        <span class="ubi-dialog-detail-value">@row.Value</span>
+                    </div>
+                }
+            </div>
+        }
+        <MudTextField @bind-Value="_remark"
+                      Label="@(_required ? "Remark (required)" : "Remark (optional)")"
+                      Variant="Variant.Outlined"
+                      Lines="3"
+                      Required="@_required"
+                      RequiredError="Remark is required."
+                      HelperText="@(_required ? "Maker will see this remark on re-edit." : "Optional note for the maker.")" />
+        @if (_showError)
+        {
+            <MudText Typo="Typo.caption" Style="color:#c8102e;" Class="mt-2">Remark is required for this action.</MudText>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Outlined" OnClick="Cancel" Class="ubi-dialog-btn-cancel">Cancel</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Ok" Class="ubi-dialog-btn-confirm"
+                   Style="@ConfirmButtonStyle">
+            @ConfirmText
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = null!;
+    [Parameter] public string Title { get; set; } = "Remark";
+    [Parameter] public string? Subtitle { get; set; }
+    [Parameter] public string Prompt { get; set; } = "";
+    [Parameter] public string ConfirmText { get; set; } = "Confirm";
+    [Parameter] public Color ConfirmColor { get; set; } = Color.Primary;
+    [Parameter] public bool RemarkRequired { get; set; }
+    [Parameter] public List<ConfirmDialog.DialogDetailRow>? Details { get; set; }
+
+    private string _remark = "";
+    private bool _showError;
+    private bool _required => RemarkRequired;
+
+    private string ConfirmButtonStyle => ConfirmColor switch
+    {
+        Color.Success => "background:#15803d;",
+        Color.Warning => "background:#c2410c;",
+        Color.Error => "background:#c8102e;",
+        _ => "background:#003366;"
+    };
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private void Ok()
+    {
+        if (_required && string.IsNullOrWhiteSpace(_remark))
+        {
+            _showError = true;
+            return;
+        }
+        MudDialog.Close(DialogResult.Ok(_remark.Trim()));
+    }
+}

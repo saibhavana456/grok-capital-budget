@@ -1,0 +1,402 @@
+@page "/revenue/entry"
+@attribute [Authorize(Roles = "MAKER")]
+@inject IRevenueService RevenueService
+@inject IAuthService AuthService
+@inject IMasterService MasterService
+@inject NavigationManager Nav
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+
+<div class="entry-page revenue-page">
+    <MudText Typo="Typo.h5" Class="page-title">Revenue Monthly Entry</MudText>
+
+    @if (_form != null)
+    {
+        <MudText Class="page-context mb-3">
+            @_form.DeptName · @_form.SectionName · Amounts in Rs. Crore
+        </MudText>
+
+        <MudPaper Class="pa-4 mb-3 portal-card" Elevation="0">
+            <MudGrid>
+                <MudItem xs="12" md="6">
+                    <MudSelect T="string" Value="_form.FinancialYear" Label="Financial Year" Variant="Variant.Outlined"
+                               ValueChanged="OnFyChanged">
+                        @foreach (var fy in AppConstants.SelectableFinancialYears())
+                        {
+                            <MudSelectItem Value="@fy">@fy</MudSelectItem>
+                        }
+                    </MudSelect>
+                    <MudText Typo="Typo.caption" Class="mt-1" Style="color:#64748b;">
+                        @if (AppConstants.IsCurrentFinancialYear(_form.FinancialYear))
+                        {
+                            <text>Current FY — within deadline (until end of next calendar month), or Admin-unlocked months.</text>
+                        }
+                        else
+                        {
+                            <text>Previous FY — read-only. Open any month to view submitted data.</text>
+                        }
+                    </MudText>
+                </MudItem>
+                <MudItem xs="12" md="6">
+                    <MudSelect T="string" Value="_form.EntryMonth" Label="Entry Month" Variant="Variant.Outlined"
+                               ValueChanged="OnMonthChanged">
+                        @foreach (var m in AppConstants.FyMonths)
+                        {
+                            <MudSelectItem Value="@m" Disabled="@(!AppConstants.IsMonthOpenable(_form.FinancialYear, m))">@m</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+            </MudGrid>
+        </MudPaper>
+
+        @if (_isLocked && _existing != null)
+        {
+            <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Class="mb-3" Dense="true">
+                Already submitted for <b>@_form.EntryMonth</b> — status <b>@_existing.Status</b>
+                (PF @(_existing.SubmittedByPf ?? "-")).
+                Open it from Revenue Submissions, or
+                <MudLink Href="@($"/revenue/view/{_existing.EntryId}")" Class="ml-1">view detail</MudLink>
+            </MudAlert>
+        }
+        else if (!_canSubmit)
+        {
+            <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="mb-3" Dense="true">
+                @if (!AppConstants.IsCurrentFinancialYear(_form.FinancialYear))
+                {
+                    @AppConstants.PreviousFyViewOnlyMessage
+                }
+                else
+                {
+                    <text>No editable submission for <b>@_form.EntryMonth</b>. @AppConstants.EntryMonthWindowMessage</text>
+                }
+                @if (_existing != null)
+                {
+                    <span> See Revenue Submissions, or <MudLink Href="@($"/revenue/view/{_existing.EntryId}")">view detail</MudLink>.</span>
+                }
+            </MudAlert>
+        }
+        else
+        {
+            @if (_isResubmit && _existing != null)
+            {
+                <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="mb-3" Dense="true">
+                    Status <b>@_existing.Status</b> — edit and resubmit for the same month.
+                    @if (!string.IsNullOrWhiteSpace(_existing.CheckerRemark))
+                    {
+                        <div class="mt-1">Checker remark: @_existing.CheckerRemark</div>
+                    }
+                </MudAlert>
+            }
+
+            <MudPaper Class="allotted-strip pa-4 mb-3" Elevation="0">
+                <MudText Class="section-heading mb-3">Section Allotment (FY @_form.FinancialYear)</MudText>
+                <div class="metric-row"><span class="metric-row-label">Total Budget Allotted</span><span class="metric-row-value">@_form.TotalAllotted.ToString("0.00") <small>Cr</small></span></div>
+                <div class="metric-row"><span class="metric-row-label">Utilized till @PrevMonth</span><span class="metric-row-value utilized">@_form.UtilizedTillPreviousMonth.ToString("0.00") <small>Cr</small></span></div>
+                <div class="metric-row accent"><span class="metric-row-label">Remaining (before this entry)</span><span class="metric-row-value accent">@RemainingBeforeEntry.ToString("0.00") <small>Cr</small></span></div>
+            </MudPaper>
+
+            <MudGrid>
+                <MudItem xs="12" lg="4">
+                    <MudPaper Class="pa-4 panel-readonly h-100" Elevation="0">
+                        <MudText Class="section-heading mb-3">Previous Month (@PrevMonth.ToUpperInvariant())</MudText>
+                        @if (_form.PrevTotal <= 0 && _form.PrevLines.All(l => l.Amount == 0))
+                        {
+                            <MudText Typo="Typo.body2" Style="color:#64748b;">No approved submission for @PrevMonth.</MudText>
+                        }
+                        else
+                        {
+                            @foreach (var line in _form.PrevLines.Where(l => l.Amount > 0))
+                            {
+                                <div class="metric-row compact">
+                                    <span class="metric-row-label">@line.HeadName</span>
+                                    <span class="metric-row-value sm">@line.Amount.ToString("0.00")</span>
+                                </div>
+                            }
+                            <div class="metric-row accent mt-2">
+                                <span class="metric-row-label">Total</span>
+                                <span class="metric-row-value">@_form.PrevTotal.ToString("0.00")</span>
+                            </div>
+                        }
+                    </MudPaper>
+                </MudItem>
+                <MudItem xs="12" lg="8">
+                    <MudPaper Class="pa-4 panel-entry" Elevation="0">
+                        <MudText Class="section-heading mb-3">
+                            Current Month (@CurrMonth.ToUpperInvariant()) — Expenditure Heads
+                        </MudText>
+                        <MudGrid>
+                            @foreach (var line in _form.Lines)
+                            {
+                                <MudItem xs="12" sm="6" md="4">
+                                    <div class="rev-head-card">
+                                        <MudText Class="rev-head-name">@line.HeadName</MudText>
+                                        <MudNumericField T="decimal"
+                                                         Value="line.Amount"
+                                                         ValueChanged="@(v => OnHeadAmountChanged(line, v))"
+                                                         Variant="Variant.Outlined"
+                                                         Min="0"
+                                                         Format="N2"
+                                                         Margin="Margin.Dense"
+                                                         Immediate="true"
+                                                         Adornment="Adornment.End"
+                                                         AdornmentText="Cr" />
+                                    </div>
+                                </MudItem>
+                            }
+                        </MudGrid>
+                        <MudDivider Class="my-3" />
+                        <div class="metric-row accent">
+                            <span class="metric-row-label">Total for @CurrMonth (auto)</span>
+                            <span class="metric-row-value accent">@EnteredTotal.ToString("0.00") <small>Cr</small></span>
+                        </div>
+                    </MudPaper>
+                </MudItem>
+            </MudGrid>
+
+            <MudPaper Class="pa-4 mt-3 portal-card" Elevation="0">
+                <MudText Class="justification-title mb-2">Justification</MudText>
+                <MudTextField @bind-Value="_form.JustificationText"
+                              Variant="Variant.Outlined"
+                              Lines="4"
+                              Required="true"
+                              RequiredError="@AppConstants.JustificationRequiredMessage"
+                              MaxLength="AppConstants.JustificationMaxLength"
+                              HelperText="@($"{(_form.JustificationText?.Length ?? 0)} / {AppConstants.JustificationMaxLength}")" />
+            </MudPaper>
+
+            <MudStack Row="true" Class="mt-4" Spacing="2">
+                <MudButton Variant="Variant.Filled" Color="Color.Secondary" Disabled="_busy" OnClick="Submit"
+                           Style="background:#c8102e;">
+                    @(_busy ? "Submitting..." : (_isResubmit ? "Resubmit for Approval" : "Submit for Approval"))
+                </MudButton>
+                <MudButton Variant="Variant.Outlined" Color="Color.Primary" Href="/portal">Back to Portal</MudButton>
+            </MudStack>
+        }
+    }
+</div>
+
+@code {
+    [SupplyParameterFromQuery] public long? SectionId { get; set; }
+    [SupplyParameterFromQuery] public string? Month { get; set; }
+    [SupplyParameterFromQuery] public string? Fy { get; set; }
+
+    private RevenueEntryFormDto? _form;
+    private ExistingEntryInfo? _existing;
+    private bool _busy;
+    private bool _canSubmit;
+    private bool _isLocked;
+    private bool _isResubmit;
+
+    private string CurrMonth => _form?.EntryMonth ?? "";
+    private string PrevMonth => string.IsNullOrEmpty(CurrMonth) ? "" : AppConstants.PreviousMonth(CurrMonth);
+    private decimal EnteredTotal => _form?.Lines.Sum(l => l.Amount) ?? 0;
+    /// <summary>Allotment remaining before current-month amounts (does not change while typing heads).</summary>
+    private decimal RemainingBeforeEntry =>
+        (_form?.TotalAllotted ?? 0) - (_form?.UtilizedTillPreviousMonth ?? 0);
+
+    private void OnHeadAmountChanged(RevenueLineDto line, decimal value)
+    {
+        // Amounts in Rs. Cr — keep 2 decimal places (display/total consistency)
+        line.Amount = value < 0 ? 0 : Math.Round(value, 2, MidpointRounding.AwayFromZero);
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!SectionId.HasValue)
+        {
+            Snackbar.Add("Section is required for Revenue.", Severity.Warning);
+            Nav.NavigateTo("/portal");
+            return;
+        }
+
+        var fy = !string.IsNullOrWhiteSpace(Fy)
+                 && AppConstants.SelectableFinancialYears().Any(y =>
+                     string.Equals(y, Fy, StringComparison.OrdinalIgnoreCase))
+            ? Fy!
+            : AppConstants.CurrentFinancialYear();
+
+        string month;
+        if (!string.IsNullOrWhiteSpace(Month) && AppConstants.IsMonthOpenable(fy, Month))
+            month = Month!;
+        else if (AppConstants.IsCurrentFinancialYear(fy))
+            month = AppConstants.DefaultEntryMonth();
+        else
+            month = "April";
+
+        await Load(fy, month);
+    }
+
+    private async Task Load(string fy, string month)
+    {
+        if (!AppConstants.SelectableFinancialYears().Any(y =>
+                string.Equals(y, fy, StringComparison.OrdinalIgnoreCase)))
+            fy = AppConstants.CurrentFinancialYear();
+
+        if (!AppConstants.IsMonthOpenable(fy, month))
+            month = AppConstants.IsCurrentFinancialYear(fy)
+                ? AppConstants.DefaultEntryMonth()
+                : "April";
+
+        _form = await RevenueService.BuildFormAsync(SectionId!.Value, fy, month);
+        if (_form == null)
+        {
+            Snackbar.Add("Revenue entry is not available for this section.", Severity.Error);
+            _existing = null;
+            _canSubmit = false;
+            _isLocked = false;
+            _isResubmit = false;
+            return;
+        }
+
+        _existing = await RevenueService.FindActiveEntryAsync(SectionId.Value, fy, month);
+        _isLocked = _existing != null && AppConstants.IsLockedStatus(_existing.Status);
+        var monthOpen = AppConstants.IsMonthWithinDeadline(month)
+                        || await MasterService.IsMonthUnlockedAsync(null, SectionId.Value, fy, month);
+        _isResubmit = _existing != null && AppConstants.IsEditableStatus(_existing.Status)
+                      && AppConstants.IsCurrentFinancialYear(fy)
+                      && monthOpen;
+        _canSubmit = !_isLocked && (
+            _isResubmit ||
+            (_existing == null && AppConstants.IsCurrentFinancialYear(fy) && monthOpen));
+    }
+
+    private async Task OnFyChanged(string fy)
+    {
+        if (_form == null || !SectionId.HasValue) return;
+        var month = AppConstants.IsCurrentFinancialYear(fy)
+            ? AppConstants.DefaultEntryMonth()
+            : "April";
+        await Load(fy, month);
+    }
+
+    private async Task OnMonthChanged(string month)
+    {
+        if (_form == null || !SectionId.HasValue || !AppConstants.IsMonthOpenable(_form.FinancialYear, month)) return;
+        await Load(_form.FinancialYear, month);
+    }
+
+    private async Task Submit()
+    {
+        if (_form == null || !_canSubmit) return;
+        if (!await AuthService.IsCurrentSessionValidAsync())
+        {
+            Nav.NavigateTo("/account/expire-cookie", forceLoad: true);
+            return;
+        }
+        var user = AuthService.CurrentUser;
+        if (user == null) { Nav.NavigateTo("/account/expire-cookie", forceLoad: true); return; }
+
+        if (string.IsNullOrWhiteSpace(_form.JustificationText))
+        {
+            Snackbar.Add(AppConstants.JustificationRequiredMessage, Severity.Warning);
+            return;
+        }
+
+        var total = EnteredTotal;
+        var allZero = _form.Lines.All(l => l.Amount == 0);
+        var overBudget = total > _form.TotalAllotted;
+
+        var contextSubtitle = $"{_form.DeptName} · {_form.SectionName}";
+        var baseDetails = BuildBaseDetails(total);
+
+        if (allZero && !await ConfirmAsync(
+                AppConstants.ConfirmZeroTitle,
+                AppConstants.ConfirmZeroMessage,
+                "Submit",
+                Color.Warning,
+                contextSubtitle,
+                baseDetails,
+                Icons.Material.Filled.MoneyOff))
+            return;
+
+        if (overBudget)
+        {
+            var overDetails = new List<ConfirmDialog.DialogDetailRow>(baseDetails)
+            {
+                new("Total allotted", $"{_form.TotalAllotted:0.00} Cr", "warn"),
+                new("Utilized till " + PrevMonth, $"{_form.UtilizedTillPreviousMonth:0.00} Cr"),
+                new("Remaining before entry", $"{RemainingBeforeEntry:0.00} Cr"),
+                new("Entered exceeds by", $"{(total - _form.TotalAllotted):0.00} Cr", "warn")
+            };
+            // Priyadarshini: Revenue — informational popup for Maker; still allow submit.
+            if (!await ConfirmAsync(
+                    AppConstants.RevenueOverBudgetInfoTitle,
+                    AppConstants.RevenueOverBudgetInfoMessage + " Do you still want to submit?",
+                    "Submit anyway",
+                    Color.Warning,
+                    contextSubtitle,
+                    overDetails,
+                    Icons.Material.Filled.Info))
+                return;
+        }
+
+        if (!await ConfirmAsync(
+                AppConstants.ConfirmSubmitTitle,
+                AppConstants.ConfirmSubmitMessage,
+                "Submit",
+                Color.Primary,
+                contextSubtitle,
+                baseDetails,
+                Icons.Material.Filled.Send))
+            return;
+
+        _busy = true;
+        try
+        {
+            var result = await RevenueService.SubmitAsync(_form, user.PfNo);
+            if (!result.Success) { Snackbar.Add(result.Message, Severity.Error); return; }
+            Snackbar.Add(result.Message, Severity.Success);
+            Nav.NavigateTo("/revenue/submissions");
+        }
+        finally { _busy = false; }
+    }
+
+    private List<ConfirmDialog.DialogDetailRow> BuildBaseDetails(decimal total)
+    {
+        var rows = new List<ConfirmDialog.DialogDetailRow>
+        {
+            new("Section", _form!.SectionName),
+            new("Financial year", _form.FinancialYear),
+            new("Entry month", _form.EntryMonth)
+        };
+        foreach (var line in _form.Lines.Where(l => l.Amount != 0).Take(8))
+            rows.Add(new(line.HeadName, $"{line.Amount:0.00} Cr"));
+        if (_form.Lines.Count(l => l.Amount != 0) > 8)
+            rows.Add(new("Other heads", $"{_form.Lines.Count(l => l.Amount != 0) - 8} more"));
+        rows.Add(new("Total to submit", $"{total:0.00} Cr", "accent"));
+        rows.Add(new("Submitted by PF", AuthService.CurrentUser?.PfNo ?? "-"));
+        return rows;
+    }
+
+    private async Task<bool> ConfirmAsync(
+        string title,
+        string message,
+        string confirmText,
+        Color color,
+        string? subtitle,
+        List<ConfirmDialog.DialogDetailRow>? details,
+        string? icon = null)
+    {
+        var parameters = new DialogParameters<ConfirmDialog>
+        {
+            { x => x.Title, title },
+            { x => x.Subtitle, subtitle },
+            { x => x.Message, message },
+            { x => x.Details, details },
+            { x => x.ConfirmText, confirmText },
+            { x => x.CancelText, "Cancel" },
+            { x => x.ConfirmColor, color },
+            { x => x.Icon, icon }
+        };
+        var options = new DialogOptions
+        {
+            CloseOnEscapeKey = true,
+            MaxWidth = MaxWidth.Small,
+            FullWidth = true,
+            BackdropClick = false
+        };
+        var dialog = await DialogService.ShowAsync<ConfirmDialog>(title, parameters, options);
+        var result = await dialog.Result;
+        return result is { Canceled: false };
+    }
+}

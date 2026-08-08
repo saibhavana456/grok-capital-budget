@@ -1,0 +1,34 @@
+@inherits LayoutComponentBase
+
+<MudThemeProvider Theme="_theme" />
+<MudPopoverProvider />
+<MudDialogProvider />
+<MudSnackbarProvider />
+
+<header class="ubi-header">
+    <div class="ubi-header-grid">
+        <div class="ubi-header-side"></div>
+        <div class="ubi-header-center">
+            <span class="ubi-brand">Union Bank of India | IT Budget</span>
+        </div>
+        <div class="ubi-header-side"></div>
+    </div>
+</header>
+
+<main class="login-shell">
+    @Body
+</main>
+
+@code {
+    private readonly MudTheme _theme = new()
+    {
+        PaletteLight = new PaletteLight
+        {
+            Primary = "#003366",
+            Secondary = "#c8102e",
+            AppbarBackground = "#002147",
+            Background = "#eef1f5",
+            Surface = "#ffffff"
+        }
+    };
+}

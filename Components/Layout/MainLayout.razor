@@ -1,23 +1,177 @@
 ﻿@inherits LayoutComponentBase
+@implements IDisposable
+@inject AuthenticationStateProvider AuthStateProvider
+@inject NavigationManager Nav
+@inject IAuthService AuthService
+@inject ILogger<MainLayout> Logger
 
-<div class="page">
-    <div class="sidebar">
-        <NavMenu />
-    </div>
+<MudThemeProvider Theme="_theme" />
+<MudPopoverProvider />
+<MudDialogProvider />
+<MudSnackbarProvider />
 
-    <main>
-        <div class="top-row px-4">
-            <a href="https://learn.microsoft.com/aspnet/core/" target="_blank">About</a>
+<header class="ubi-header">
+    <div class="ubi-header-grid">
+        <div class="ubi-header-side"></div>
+        <div class="ubi-header-center">
+            <span class="ubi-brand">Union Bank of India | IT Budget</span>
         </div>
+        <div class="ubi-header-side ubi-header-right">
+            @if (_user != null && _bodyReady)
+            {
+                <span class="ubi-user">PF @_user.PfNo · @_user.RoleCode</span>
+                <button type="button" class="ubi-logout" @onclick="Logout">Logout</button>
+            }
+        </div>
+    </div>
+</header>
 
-        <article class="content px-4">
-            @Body
-        </article>
-    </main>
-</div>
+@if (_user != null && _bodyReady)
+{
+    <div class="nav-tabs-ubi px-4">
+        @if (_user.RoleCode == AppConstants.Roles.Maker)
+        {
+            <NavLink href="/portal" Match="NavLinkMatch.Prefix">IT Budget</NavLink>
+        }
+        @if (_user.RoleCode == AppConstants.Roles.Checker)
+        {
+            <NavLink href="/checker" Match="NavLinkMatch.Prefix">Checker Review</NavLink>
+        }
+        @if (_user.RoleCode == AppConstants.Roles.Admin)
+        {
+            <NavLink href="/admin/masters" Match="NavLinkMatch.Prefix">Admin Masters</NavLink>
+        }
+        <NavLink href="/capital/submissions">Capital Submissions</NavLink>
+        <NavLink href="/revenue/submissions">Revenue Submissions</NavLink>
+    </div>
+}
 
-<div id="blazor-error-ui">
-    An unhandled error has occurred.
-    <a href="" class="reload">Reload</a>
-    <a class="dismiss">🗙</a>
-</div>
+<main class="pa-4" style="min-height:calc(100vh - 110px);">
+    @if (!_bodyReady)
+    {
+        <MudProgressLinear Indeterminate="true" Color="Color.Primary" Class="mb-3" />
+        <MudText Style="color:#64748b;">Checking session…</MudText>
+    }
+    else
+    {
+        @Body
+    }
+</main>
+
+@code {
+    private LoggedInUserDto? _user;
+    private bool _bodyReady;
+    private int _checkVersion;
+    private System.Threading.Timer? _heartbeat;
+    private bool _redirecting;
+    private readonly SemaphoreSlim _checkLock = new(1, 1);
+
+    private readonly MudTheme _theme = new()
+    {
+        PaletteLight = new PaletteLight
+        {
+            Primary = "#003366",
+            Secondary = "#c8102e",
+            AppbarBackground = "#002147",
+            Background = "#eef1f5",
+            Surface = "#ffffff"
+        }
+    };
+
+    protected override void OnInitialized()
+    {
+        Nav.LocationChanged += OnLocationChanged;
+        // Heartbeat uses AuthService factory-backed DB calls — does not share page DbContext
+        _heartbeat = new System.Threading.Timer(async _ =>
+        {
+            try { await InvokeAsync(() => CheckSessionAsync(isNavigation: false)); }
+            catch { /* circuit disposed */ }
+        }, null, TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(5));
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        await CheckSessionAsync(isNavigation: true);
+    }
+
+    private async void OnLocationChanged(object? sender, LocationChangedEventArgs e)
+    {
+        // Do NOT hide @Body on every nav — that remounted pages mid-load and raced the heartbeat.
+        await CheckSessionAsync(isNavigation: false);
+    }
+
+    private async Task CheckSessionAsync(bool isNavigation)
+    {
+        if (_redirecting) return;
+
+        var version = Interlocked.Increment(ref _checkVersion);
+        await _checkLock.WaitAsync();
+        try
+        {
+            // Superseded while waiting for the lock
+            if (version != _checkVersion && _bodyReady)
+                return;
+
+            bool stillValid;
+            if (AuthStateProvider is CustomAuthStateProvider custom)
+                stillValid = await custom.EnsureSessionStillValidAsync();
+            else
+            {
+                await AuthStateProvider.GetAuthenticationStateAsync();
+                stillValid = AuthService.CurrentUser != null
+                             && await AuthService.IsCurrentSessionValidAsync();
+            }
+
+            if (version != _checkVersion && _bodyReady)
+                return;
+
+            if (!stillValid)
+            {
+                // Only kick out when we previously had a session (or first paint with bad cookie)
+                if (_bodyReady || AuthService.CurrentUser != null || isNavigation)
+                {
+                    _redirecting = true;
+                    _user = null;
+                    _bodyReady = false;
+                    Nav.NavigateTo("/account/expire-cookie", forceLoad: true);
+                }
+                return;
+            }
+
+            _user = AuthService.CurrentUser;
+            _bodyReady = true;
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (Exception ex)
+        {
+            // Never treat DbContext/transient errors as logout — that left Checker stuck
+            // on "Checking session…" or bounced users to login incorrectly.
+            Logger.LogWarning(ex, "Session check failed (non-fatal)");
+            if (!_bodyReady && AuthService.CurrentUser != null)
+            {
+                _user = AuthService.CurrentUser;
+                _bodyReady = true;
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+        finally
+        {
+            _checkLock.Release();
+        }
+    }
+
+    private void Logout()
+    {
+        _heartbeat?.Change(Timeout.Infinite, Timeout.Infinite);
+        Nav.NavigateTo("/account/logout", forceLoad: true);
+    }
+
+    public void Dispose()
+    {
+        Nav.LocationChanged -= OnLocationChanged;
+        _heartbeat?.Dispose();
+        _heartbeat = null;
+        _checkLock.Dispose();
+    }
+}

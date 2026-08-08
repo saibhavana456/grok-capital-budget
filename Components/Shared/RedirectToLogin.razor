@@ -1,0 +1,11 @@
+@namespace IT_BUDGET_MONITORING_PORTAL.Components.Shared
+@inject NavigationManager Nav
+
+@code {
+    protected override void OnInitialized()
+    {
+        // forceLoad clears any stale circuit; expire-cookie signs out local cookie only
+        // without deleting USER_TOKEN owned by another browser.
+        Nav.NavigateTo("/account/expire-cookie", forceLoad: true);
+    }
+}

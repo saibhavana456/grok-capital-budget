@@ -1,0 +1,290 @@
+@page "/"
+@page "/portal"
+@attribute [Authorize]
+@inject IMasterService MasterService
+@inject IAuthService AuthService
+@inject NavigationManager Nav
+@inject ISnackbar Snackbar
+@inject IDbContextFactory<AppDbContext> DbFactory
+
+<div class="entry-page">
+    @if (_loading)
+    {
+        <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+    }
+    else if (_isChecker || _isAdmin)
+    {
+        <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+        <MudText Class="mt-3" Style="color:#64748b;">Redirecting…</MudText>
+    }
+    else
+    {
+        <MudText Typo="Typo.h5" Class="page-title">IT Budget Portal</MudText>
+        <MudPaper Class="pa-4 mb-4 portal-card" Elevation="0">
+            <MudText Class="section-heading mb-3">Select details to continue</MudText>
+
+            <MudSelect T="long?" Label="Department" Variant="Variant.Outlined" Class="mb-3"
+                       Value="_deptId" ValueChanged="OnDeptChanged"
+                       Disabled="_departments.Count <= 1"
+                       AnchorOrigin="Origin.BottomLeft" TransformOrigin="Origin.TopLeft"
+                       RelativeWidth="DropdownWidth.Relative">
+                @foreach (var d in _departments)
+                {
+                    <MudSelectItem T="long?" Value="@((long?)d.DeptId)">@d.DeptName</MudSelectItem>
+                }
+            </MudSelect>
+
+            @if (_showBudgetType)
+            {
+                <MudSelect T="string" Label="Budget Type" Variant="Variant.Outlined" Class="mb-3"
+                           Value="_budgetType" ValueChanged="OnBudgetTypeChanged"
+                           Disabled="!_deptId.HasValue"
+                           AnchorOrigin="Origin.BottomLeft" TransformOrigin="Origin.TopLeft"
+                           RelativeWidth="DropdownWidth.Relative">
+                    <MudSelectItem Value="@("CAPITAL")">Capital</MudSelectItem>
+                    <MudSelectItem Value="@("REVENUE")">Revenue</MudSelectItem>
+                </MudSelect>
+            }
+
+            <MudSelect T="long?" Label="Section" Variant="Variant.Outlined" Class="mb-3"
+                       Value="_sectionId" ValueChanged="OnSectionChanged"
+                       Disabled="!CanSelectSection"
+                       AnchorOrigin="Origin.BottomLeft" TransformOrigin="Origin.TopLeft"
+                       RelativeWidth="DropdownWidth.Relative">
+                @foreach (var s in _sections)
+                {
+                    <MudSelectItem T="long?" Value="@((long?)s.SectionId)">@s.SectionName</MudSelectItem>
+                }
+            </MudSelect>
+
+            @if (IsCapitalPath)
+            {
+                <MudSelect T="long?" Label="Project" Variant="Variant.Outlined" Class="mb-3"
+                           Value="_projectId" ValueChanged="OnProjectChanged"
+                           Disabled="_projects.Count==0 || !_sectionId.HasValue"
+                           AnchorOrigin="Origin.BottomLeft" TransformOrigin="Origin.TopLeft"
+                           RelativeWidth="DropdownWidth.Relative">
+                    @foreach (var p in _projects)
+                    {
+                        <MudSelectItem T="long?" Value="@((long?)p.ProjectId)">@p.ProjectName</MudSelectItem>
+                    }
+                </MudSelect>
+            }
+
+            <MudSelect T="string" Label="Entry Month" Variant="Variant.Outlined" Class="mb-3"
+                       Value="_month" ValueChanged="OnMonthChanged"
+                       AnchorOrigin="Origin.BottomLeft" TransformOrigin="Origin.TopLeft"
+                       RelativeWidth="DropdownWidth.Relative"
+                       HelperText="Grey months: deadline passed. Admin can unlock them on Admin Masters → Month Unlock for this project/section.">
+                @foreach (var m in AppConstants.FyMonths)
+                {
+                    <MudSelectItem Value="@m" Disabled="@(!IsMonthSelectable(m))">@m</MudSelectItem>
+                }
+            </MudSelect>
+
+            <MudStack Row="true" Class="mt-2" Spacing="2">
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="!CanContinue" OnClick="Continue">
+                    Continue to Entry
+                </MudButton>
+            </MudStack>
+        </MudPaper>
+    }
+</div>
+
+@code {
+    private bool _loading = true;
+    private List<Department> _departments = new();
+    private List<Section> _sections = new();
+    private List<Project> _projects = new();
+    private long? _deptId;
+    private long? _sectionId;
+    private long? _projectId;
+    private string _budgetType = "CAPITAL";
+    private string _month = AppConstants.DefaultEntryMonth();
+    private bool _showBudgetType;
+    private bool _isChecker;
+    private bool _isAdmin;
+    private HashSet<string> _unlockedMonths = new(StringComparer.OrdinalIgnoreCase);
+
+    private bool IsCapitalPath => !_showBudgetType || _budgetType == "CAPITAL";
+
+    private bool CanSelectSection =>
+        _deptId.HasValue && (!_showBudgetType || !string.IsNullOrWhiteSpace(_budgetType));
+
+    private bool CanContinue =>
+        !_isChecker && !_isAdmin &&
+        _deptId.HasValue &&
+        _sectionId.HasValue &&
+        !string.IsNullOrWhiteSpace(_month) &&
+        IsMonthSelectable(_month) &&
+        (IsCapitalPath ? _projectId.HasValue : _showBudgetType && _budgetType == "REVENUE");
+
+    private bool IsMonthSelectable(string? month) =>
+        AppConstants.IsMonthWithinDeadline(month)
+        || (!string.IsNullOrWhiteSpace(month) && _unlockedMonths.Contains(month));
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var user = AuthService.CurrentUser;
+            _isChecker = user?.RoleCode == AppConstants.Roles.Checker;
+            _isAdmin = user?.RoleCode == AppConstants.Roles.Admin;
+
+            // Admin / Checker never use Maker entry portal — go straight to their home
+            if (_isAdmin)
+            {
+                Nav.NavigateTo("/admin/masters", replace: true);
+                return;
+            }
+            if (_isChecker)
+            {
+                Nav.NavigateTo("/checker", replace: true);
+                return;
+            }
+
+            // Maker sees only department(s) where they are Maker PF — not all departments
+            _departments = await MasterService.GetDepartmentsForMakerAsync(user?.PfNo ?? "");
+            if (_departments.Count == 0)
+            {
+                Snackbar.Add("No department is assigned to your Maker PF. Contact Admin.", Severity.Warning);
+                return;
+            }
+
+            if (_departments.Count == 1)
+            {
+                _deptId = _departments[0].DeptId;
+                await OnDeptChanged(_deptId);
+            }
+            else if (user?.DeptId != null && _departments.Any(d => d.DeptId == user.DeptId))
+            {
+                _deptId = user.DeptId;
+                await OnDeptChanged(_deptId);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task OnDeptChanged(long? deptId)
+    {
+        _deptId = deptId;
+        _sectionId = null;
+        _projectId = null;
+        _sections.Clear();
+        _projects.Clear();
+        _showBudgetType = false;
+        _budgetType = "CAPITAL";
+
+        if (!deptId.HasValue) return;
+        var dept = _departments.FirstOrDefault(d => d.DeptId == deptId.Value);
+        _showBudgetType = dept?.HasRevenue == "Y";
+        var pf = AuthService.CurrentUser?.PfNo ?? "";
+        _sections = await MasterService.GetSectionsForMakerAsync(deptId.Value, pf, capitalPath: true);
+    }
+
+    private async Task OnBudgetTypeChanged(string type)
+    {
+        _budgetType = type;
+        _sectionId = null;
+        _projectId = null;
+        _projects.Clear();
+        if (_deptId.HasValue)
+        {
+            var pf = AuthService.CurrentUser?.PfNo ?? "";
+            _sections = await MasterService.GetSectionsForMakerAsync(
+                _deptId.Value, pf, capitalPath: type == "CAPITAL");
+        }
+    }
+
+    private async Task OnSectionChanged(long? sectionId)
+    {
+        _sectionId = sectionId;
+        _projectId = null;
+        _projects.Clear();
+        _unlockedMonths.Clear();
+        if (!sectionId.HasValue) return;
+        if (IsCapitalPath)
+        {
+            var pf = AuthService.CurrentUser?.PfNo ?? "";
+            _projects = await MasterService.GetProjectsForMakerAsync(sectionId.Value, pf);
+        }
+        else
+        {
+            await LoadUnlockedMonthsAsync();
+        }
+    }
+
+    private async Task OnProjectChanged(long? projectId)
+    {
+        _projectId = projectId;
+        _unlockedMonths.Clear();
+        if (projectId.HasValue)
+            await LoadUnlockedMonthsAsync();
+    }
+
+    private Task OnMonthChanged(string month)
+    {
+        if (!IsMonthSelectable(month)) return Task.CompletedTask;
+        _month = month;
+        return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Months Admin enabled after deadline for this project (capital) or section (revenue).
+    /// Without this, grey portal months stay locked even after Month Unlock.
+    /// </summary>
+    private async Task LoadUnlockedMonthsAsync()
+    {
+        _unlockedMonths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        try
+        {
+            var fy = AppConstants.CurrentFinancialYear();
+            await using var db = await DbFactory.CreateDbContextAsync();
+            List<string> months;
+            if (IsCapitalPath && _projectId.HasValue)
+            {
+                months = await db.EntryMonthUnlocks.AsNoTracking()
+                    .Where(u => u.ProjectId == _projectId.Value
+                                && u.FinancialYear == fy
+                                && u.IsEnabled == "Y")
+                    .Select(u => u.EntryMonth)
+                    .ToListAsync();
+            }
+            else if (!IsCapitalPath && _sectionId.HasValue)
+            {
+                months = await db.EntryMonthUnlocks.AsNoTracking()
+                    .Where(u => u.SectionId == _sectionId.Value
+                                && u.FinancialYear == fy
+                                && u.IsEnabled == "Y")
+                    .Select(u => u.EntryMonth)
+                    .ToListAsync();
+            }
+            else return;
+
+            _unlockedMonths = months.ToHashSet(StringComparer.OrdinalIgnoreCase);
+            if (!IsMonthSelectable(_month))
+                _month = AppConstants.DefaultEntryMonth();
+        }
+        catch
+        {
+            // ENTRY_MONTH_UNLOCK may not exist yet — portal still uses deadline-only months.
+        }
+    }
+
+    private void Continue()
+    {
+        if (_isChecker || _isAdmin || !CanContinue) return;
+
+        if (!IsCapitalPath)
+            Nav.NavigateTo($"/revenue/entry?sectionId={_sectionId}&month={Uri.EscapeDataString(_month)}");
+        else
+            Nav.NavigateTo($"/capital/entry?projectId={_projectId}&month={Uri.EscapeDataString(_month)}");
+    }
+}

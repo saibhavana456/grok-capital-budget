@@ -1,0 +1,230 @@
+@page "/capital/view/{EntryId:long}"
+@attribute [Authorize]
+@inject ICapitalService CapitalService
+@inject IAuthService AuthService
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+@inject NavigationManager Nav
+
+<div class="entry-page">
+    <MudText Typo="Typo.h5" Class="page-title">Capital Entry Detail</MudText>
+
+    @if (_loading)
+    {
+        <MudProgressLinear Indeterminate="true" Class="mt-3" />
+    }
+    else if (_entry == null)
+    {
+        <MudAlert Severity="Severity.Warning" Class="mt-3">Entry not found.</MudAlert>
+    }
+    else
+    {
+        <MudText Class="page-context mb-3">
+            @(_context?.DeptName) · @(_context?.SectionName) · @(_context?.ProjectName) · Amounts in Rs. Crore
+        </MudText>
+
+        <MudPaper Class="pa-4 mb-3 portal-card" Elevation="0">
+            <MudGrid>
+                <MudItem xs="6" sm="4" md="2">
+                    <div class="metric-cell">
+                        <span class="meta-label">Financial Year</span>
+                        <span class="meta-value">@_entry.FinancialYear</span>
+                    </div>
+                </MudItem>
+                <MudItem xs="6" sm="4" md="2">
+                    <div class="metric-cell">
+                        <span class="meta-label">Entry Month</span>
+                        <span class="meta-value">@_entry.EntryMonth</span>
+                    </div>
+                </MudItem>
+                <MudItem xs="6" sm="4" md="2">
+                    <div class="metric-cell">
+                        <span class="meta-label">Status</span>
+                        <StatusChip Status="@_entry.EntryStatus" />
+                    </div>
+                </MudItem>
+                <MudItem xs="6" sm="4" md="3">
+                    <div class="metric-cell">
+                        <span class="meta-label">Submitted by</span>
+                        <span class="meta-value">@(_entry.SubmittedByPf ?? "-")</span>
+                    </div>
+                </MudItem>
+                <MudItem xs="6" sm="4" md="3">
+                    <div class="metric-cell">
+                        <span class="meta-label">Checked by</span>
+                        <span class="meta-value">@(_entry.CheckedByPf ?? "-")</span>
+                    </div>
+                </MudItem>
+            </MudGrid>
+        </MudPaper>
+
+        <MudPaper Class="allotted-strip pa-4 mb-3" Elevation="0">
+            <MudText Class="section-heading mb-3">Allotted Budget (FY @_entry.FinancialYear)</MudText>
+            <div class="metric-row"><span class="metric-row-label">Spillover Allotted</span><span class="metric-row-value">@(_context?.SpilloverAllotted.ToString("0.00") ?? "0.00") <small>Cr</small></span></div>
+            <div class="metric-row"><span class="metric-row-label">Fresh Allotted</span><span class="metric-row-value">@(_context?.FreshAllotted.ToString("0.00") ?? "0.00") <small>Cr</small></span></div>
+            <div class="metric-row accent"><span class="metric-row-label">Total Allotted</span><span class="metric-row-value accent">@(_context?.TotalAllotted.ToString("0.00") ?? "0.00") <small>Cr</small></span></div>
+        </MudPaper>
+
+        <MudGrid>
+            <MudItem xs="12" md="5">
+                <MudPaper Class="pa-4 panel-readonly h-100" Elevation="0">
+                    <MudText Class="section-heading mb-3">Previous Month (@PrevMonth.ToUpperInvariant())</MudText>
+                    <MudText Typo="Typo.caption" Class="mb-2" Style="color:#64748b;">Approved utilization</MudText>
+                    <div class="metric-row"><span class="metric-row-label">Spillover Utilized</span><span class="metric-row-value">@(_context?.PrevSpillover.ToString("0.00") ?? "0.00")</span></div>
+                    <div class="metric-row"><span class="metric-row-label">Fresh Utilized</span><span class="metric-row-value">@(_context?.PrevFresh.ToString("0.00") ?? "0.00")</span></div>
+                    <div class="metric-row accent"><span class="metric-row-label">Total Utilized</span><span class="metric-row-value">@(_context?.PrevTotal.ToString("0.00") ?? "0.00")</span></div>
+                    <MudDivider Class="my-3" />
+                    <MudText Typo="Typo.caption" Class="mb-2" Style="color:#64748b;">
+                        Estimates for @CurrMonth (from @PrevMonth submission)
+                    </MudText>
+                    <div class="metric-row"><span class="metric-row-label">Est. Spillover (@CurrMonth)</span><span class="metric-row-value">@(_context?.PrevEstSpilloverForCurrent.ToString("0.00") ?? "0.00")</span></div>
+                    <div class="metric-row"><span class="metric-row-label">Est. Fresh (@CurrMonth)</span><span class="metric-row-value">@(_context?.PrevEstFreshForCurrent.ToString("0.00") ?? "0.00")</span></div>
+                    <div class="metric-row accent"><span class="metric-row-label">Est. Total (@CurrMonth)</span><span class="metric-row-value">@(_context?.PrevEstTotalForCurrent.ToString("0.00") ?? "0.00")</span></div>
+                </MudPaper>
+            </MudItem>
+            <MudItem xs="12" md="7">
+                <MudPaper Class="pa-4 panel-entry h-100" Elevation="0">
+                    <MudText Class="section-heading mb-3">Current Month (@CurrMonth.ToUpperInvariant())</MudText>
+                    <div class="metric-row"><span class="metric-row-label">Actual Spillover</span><span class="metric-row-value">@_entry.ActualSpillover.ToString("0.00")</span></div>
+                    <div class="metric-row"><span class="metric-row-label">Actual Fresh</span><span class="metric-row-value">@_entry.ActualFresh.ToString("0.00")</span></div>
+                    <div class="metric-row accent"><span class="metric-row-label">Actual Total</span><span class="metric-row-value">@_entry.ActualTotal.ToString("0.00")</span></div>
+
+                    <MudDivider Class="my-3" />
+
+                    <MudText Class="section-heading mb-3">Estimates for @NextMon.ToUpperInvariant()</MudText>
+                    <div class="metric-row"><span class="metric-row-label">Est. Spillover</span><span class="metric-row-value">@_entry.EstSpilloverNext.ToString("0.00")</span></div>
+                    <div class="metric-row"><span class="metric-row-label">Est. Fresh</span><span class="metric-row-value">@_entry.EstFreshNext.ToString("0.00")</span></div>
+                    <div class="metric-row accent"><span class="metric-row-label">Est. Total</span><span class="metric-row-value">@_entry.EstTotalNext.ToString("0.00")</span></div>
+                </MudPaper>
+            </MudItem>
+        </MudGrid>
+
+        <MudPaper Class="pa-4 mt-3 portal-card" Elevation="0">
+            <MudText Class="justification-title mb-2">Justifications (PO details, Invoice details, etc.)</MudText>
+            <MudPaper Class="pa-3 justification-body">@(_entry.JustificationText ?? "-")</MudPaper>
+            @if (!string.IsNullOrWhiteSpace(_entry.CheckerRemark))
+            {
+                <MudText Class="justification-title mt-3 mb-2">Checker Remark</MudText>
+                <MudPaper Class="pa-3" Style="background:#fff7ed;white-space:pre-wrap;border-radius:10px;">@_entry.CheckerRemark</MudPaper>
+            }
+        </MudPaper>
+
+        @if (_canCheckerAct)
+        {
+            <MudPaper Class="pa-4 mt-3 portal-card" Elevation="0">
+                <MudText Class="section-heading mb-3">Checker action</MudText>
+                <MudText Typo="Typo.caption" Class="mb-2" Style="color:#64748b;">
+                    Approve locks the entry. Reject sends it back to the Maker with a required remark so they can correct and resubmit the same month.
+                </MudText>
+                <MudStack Row="true" Spacing="2">
+                    <MudButton Variant="Variant.Filled" Color="Color.Success" Disabled="_busy"
+                               OnClick="@(() => Act("APPROVED"))">Approve</MudButton>
+                    <MudButton Variant="Variant.Outlined" Color="Color.Error" Disabled="_busy"
+                               OnClick="@(() => Act("REJECTED"))">Reject</MudButton>
+                </MudStack>
+            </MudPaper>
+        }
+
+        <MudStack Row="true" Class="mt-4" Spacing="2">
+            <MudButton Variant="Variant.Outlined" Color="Color.Primary"
+                       Href="@(_isChecker ? "/checker" : "/capital/submissions")">
+                Back to list
+            </MudButton>
+        </MudStack>
+    }
+</div>
+
+@code {
+    [Parameter] public long EntryId { get; set; }
+
+    private bool _loading = true;
+    private bool _busy;
+    private bool _isChecker;
+    private bool _canCheckerAct;
+    private CapitalMonthlyEntry? _entry;
+    private CapitalEntryFormDto? _context;
+
+    private string CurrMonth => _entry?.EntryMonth ?? "";
+    private string PrevMonth => string.IsNullOrEmpty(CurrMonth) ? "" : AppConstants.PreviousMonth(CurrMonth);
+    private string NextMon => string.IsNullOrEmpty(CurrMonth) ? "" : AppConstants.NextMonth(CurrMonth);
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var user = AuthService.CurrentUser;
+            _isChecker = user?.RoleCode == AppConstants.Roles.Checker;
+            _entry = await CapitalService.GetEntryAsync(EntryId);
+            if (_entry != null)
+            {
+                _context = await CapitalService.BuildFormAsync(
+                    _entry.ProjectId, _entry.FinancialYear, _entry.EntryMonth);
+                _canCheckerAct = _isChecker
+                    && string.Equals(_entry.EntryStatus, AppConstants.EntryStatus.Pending, StringComparison.OrdinalIgnoreCase);
+            }
+            else Snackbar.Add("Entry not found.", Severity.Warning);
+        }
+        finally { _loading = false; }
+    }
+
+    private async Task Act(string action)
+    {
+        if (_entry == null || !_canCheckerAct) return;
+        var details = new List<ConfirmDialog.DialogDetailRow>
+        {
+            new("Budget type", "Capital"),
+            new("Financial year", _entry.FinancialYear),
+            new("Month", _entry.EntryMonth),
+            new("Project", _context?.ProjectName ?? "-"),
+            new("Actual total", $"{_entry.ActualTotal:0.00} Cr", "accent"),
+            new("Maker PF", _entry.SubmittedByPf ?? "-")
+        };
+        var (confirmed, remark) = await PromptRemark(action, details);
+        if (!confirmed) return;
+
+        _busy = true;
+        try
+        {
+            var result = await CapitalService.CheckerActionAsync(
+                EntryId, action, AuthService.CurrentUser!.PfNo, remark);
+            Snackbar.Add(result.Message, result.Success ? Severity.Success : Severity.Error);
+            if (result.Success)
+                Nav.NavigateTo("/checker");
+        }
+        finally { _busy = false; }
+    }
+
+    private async Task<(bool Confirmed, string? Remark)> PromptRemark(string action, List<ConfirmDialog.DialogDetailRow> details)
+    {
+        var required = action is "REJECTED";
+        var (title, confirmText, color) = action switch
+        {
+            "APPROVED" => ("Approve submission", "Approve", Color.Success),
+            "REJECTED" => ("Reject submission", "Reject", Color.Error),
+            _ => ("Remark", "Confirm", Color.Primary)
+        };
+        var parameters = new DialogParameters<RemarkDialog>
+        {
+            { x => x.Title, title },
+            { x => x.Subtitle, "Checker review action" },
+            { x => x.Prompt, required
+                ? "Enter a remark for the maker. This is required for Reject."
+                : "Optional remark for the maker." },
+            { x => x.RemarkRequired, required },
+            { x => x.Details, details },
+            { x => x.ConfirmText, confirmText },
+            { x => x.ConfirmColor, color }
+        };
+        var options = new DialogOptions
+        {
+            CloseOnEscapeKey = true,
+            MaxWidth = MaxWidth.Small,
+            FullWidth = true,
+            BackdropClick = false
+        };
+        var dialog = await DialogService.ShowAsync<RemarkDialog>(title, parameters, options);
+        var result = await dialog.Result;
+        if (result == null || result.Canceled) return (false, null);
+        return (true, result.Data as string);
+    }
+}

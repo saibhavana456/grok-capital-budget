@@ -1,0 +1,193 @@
+@page "/revenue/submissions"
+@attribute [Authorize]
+@inject IRevenueService RevenueService
+@inject IAuthService AuthService
+@inject ISnackbar Snackbar
+
+<div class="entry-page">
+<MudText Typo="Typo.h5" Class="page-title">Revenue Submissions</MudText>
+
+<MudPaper Class="pa-3 mb-3 mt-3 portal-card" Elevation="0">
+    <MudGrid>
+        <MudItem xs="12" sm="6" md="2">
+            <MudSelect T="string" Label="Financial Year" Variant="Variant.Outlined" Dense="true"
+                       Value="_fy" ValueChanged="OnFy" Clearable="true">
+                @foreach (var v in FyOptions)
+                {
+                    <MudSelectItem Value="@v">@v</MudSelectItem>
+                }
+            </MudSelect>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="2">
+            <MudSelect T="string" Label="Month" Variant="Variant.Outlined" Dense="true"
+                       Value="_month" ValueChanged="OnMonth" Clearable="true">
+                @foreach (var v in MonthOptions)
+                {
+                    <MudSelectItem Value="@v">@v</MudSelectItem>
+                }
+            </MudSelect>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <MudSelect T="string" Label="Section" Variant="Variant.Outlined" Dense="true"
+                       Value="_section" ValueChanged="OnSection" Clearable="true">
+                @foreach (var v in SectionOptions)
+                {
+                    <MudSelectItem Value="@v">@v</MudSelectItem>
+                }
+            </MudSelect>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="2">
+            <MudSelect T="string" Label="Status" Variant="Variant.Outlined" Dense="true"
+                       Value="_status" ValueChanged="OnStatus" Clearable="true">
+                @foreach (var v in StatusOptions)
+                {
+                    <MudSelectItem Value="@v">@v</MudSelectItem>
+                }
+            </MudSelect>
+        </MudItem>
+        @if (_showMakerFilter)
+        {
+            <MudItem xs="12" sm="6" md="3">
+                <MudSelect T="string" Label="Maker PF" Variant="Variant.Outlined" Dense="true"
+                           Value="_makerPf" ValueChanged="OnMaker" Clearable="true">
+                    @foreach (var v in MakerOptions)
+                    {
+                        <MudSelectItem Value="@v">@v</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+        }
+    </MudGrid>
+    <MudStack Row="true" Class="mt-2" Spacing="2" AlignItems="AlignItems.Center">
+        <MudButton Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Small" OnClick="ClearFilters">
+            Clear filters
+        </MudButton>
+        <MudText Typo="Typo.caption" Style="color:#64748b;">
+            Showing @_filtered.Count of @_all.Count
+        </MudText>
+    </MudStack>
+</MudPaper>
+
+<MudTable Items="_filtered" Hover="true" Dense="true" Elevation="1" Loading="_loading">
+    <HeaderContent>
+        <MudTh>Financial Year</MudTh>
+        <MudTh>Month</MudTh>
+        <MudTh>Department</MudTh>
+        <MudTh>Section</MudTh>
+        <MudTh>Total (Cr)</MudTh>
+        @if (_showMakerFilter)
+        {
+            <MudTh>Maker</MudTh>
+        }
+        <MudTh>Status</MudTh>
+        <MudTh>Action</MudTh>
+    </HeaderContent>
+    <RowTemplate>
+        <MudTd>@context.FinancialYear</MudTd>
+        <MudTd>@context.Month</MudTd>
+        <MudTd>@(string.IsNullOrWhiteSpace(context.DeptName) ? "-" : context.DeptName)</MudTd>
+        <MudTd>@context.SectionName</MudTd>
+        <MudTd>@context.TotalAmount.ToString("0.00")</MudTd>
+        @if (_showMakerFilter)
+        {
+            <MudTd>@(context.SubmittedByPf ?? "-")</MudTd>
+        }
+        <MudTd><StatusChip Status="@context.Status" /></MudTd>
+        <MudTd>
+            <MudStack Row="true" Spacing="2">
+                <MudLink Href="@($"/revenue/view/{context.EntryId}")">View</MudLink>
+                @if (_isMaker && AppConstants.IsEditableStatus(context.Status))
+                {
+                    <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Secondary"
+                               Style="background:#c8102e;"
+                               Href="@($"/revenue/entry?sectionId={context.SectionId}&month={Uri.EscapeDataString(context.Month)}&fy={Uri.EscapeDataString(context.FinancialYear)}")">
+                        Resubmit
+                    </MudButton>
+                }
+            </MudStack>
+        </MudTd>
+    </RowTemplate>
+    <PagerContent>
+        <MudTablePager PageSizeOptions="new int[] { 5, 10, 25 }" />
+    </PagerContent>
+</MudTable>
+</div>
+
+@code {
+    private List<RevenueSubmissionListItem> _all = new();
+    private List<RevenueSubmissionListItem> _filtered = new();
+    private bool _loading = true;
+    private bool _showMakerFilter;
+    private bool _isMaker;
+
+    private string? _fy;
+    private string? _month;
+    private string? _section;
+    private string? _status;
+    private string? _makerPf;
+
+    private IEnumerable<string> FyOptions =>
+        _all.Select(x => x.FinancialYear).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct().OrderByDescending(x => x);
+    private IEnumerable<string> MonthOptions =>
+        AppConstants.FyMonths.Where(m => _all.Any(x => string.Equals(x.Month, m, StringComparison.OrdinalIgnoreCase)));
+    private IEnumerable<string> SectionOptions =>
+        _all.Select(x => x.SectionName).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct().OrderBy(x => x);
+    private IEnumerable<string> StatusOptions =>
+        new[]
+        {
+            AppConstants.EntryStatus.Pending,
+            AppConstants.EntryStatus.Approved,
+            AppConstants.EntryStatus.Rejected,
+            AppConstants.EntryStatus.Returned
+        }.Where(s => _all.Any(x => string.Equals(x.Status, s, StringComparison.OrdinalIgnoreCase)));
+    private IEnumerable<string> MakerOptions =>
+        _all.Select(x => x.SubmittedByPf).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct().OrderBy(x => x)!;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var user = AuthService.CurrentUser;
+            _isMaker = user?.RoleCode == AppConstants.Roles.Maker;
+            _showMakerFilter = user?.RoleCode == AppConstants.Roles.Admin
+                               || user?.RoleCode == AppConstants.Roles.Checker;
+            string? makerFilter = user?.RoleCode == AppConstants.Roles.Maker ? user.PfNo : null;
+            string? checkerFilter = user?.RoleCode == AppConstants.Roles.Checker ? user.PfNo : null;
+            long? deptFilter = user?.RoleCode == AppConstants.Roles.Admin || checkerFilter != null
+                ? null
+                : user?.DeptId;
+            _all = await RevenueService.GetSubmissionsAsync(makerFilter, deptFilter, checkerFilter);
+            ApplyFilters();
+        }
+        catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }
+        finally { _loading = false; }
+    }
+
+    private Task OnFy(string? v) { _fy = v; ApplyFilters(); return Task.CompletedTask; }
+    private Task OnMonth(string? v) { _month = v; ApplyFilters(); return Task.CompletedTask; }
+    private Task OnSection(string? v) { _section = v; ApplyFilters(); return Task.CompletedTask; }
+    private Task OnStatus(string? v) { _status = v; ApplyFilters(); return Task.CompletedTask; }
+    private Task OnMaker(string? v) { _makerPf = v; ApplyFilters(); return Task.CompletedTask; }
+
+    private void ClearFilters()
+    {
+        _fy = _month = _section = _status = _makerPf = null;
+        ApplyFilters();
+    }
+
+    private void ApplyFilters()
+    {
+        IEnumerable<RevenueSubmissionListItem> q = _all;
+        if (!string.IsNullOrWhiteSpace(_fy))
+            q = q.Where(x => string.Equals(x.FinancialYear, _fy, StringComparison.OrdinalIgnoreCase));
+        if (!string.IsNullOrWhiteSpace(_month))
+            q = q.Where(x => string.Equals(x.Month, _month, StringComparison.OrdinalIgnoreCase));
+        if (!string.IsNullOrWhiteSpace(_section))
+            q = q.Where(x => string.Equals(x.SectionName, _section, StringComparison.OrdinalIgnoreCase));
+        if (!string.IsNullOrWhiteSpace(_status))
+            q = q.Where(x => string.Equals(x.Status, _status, StringComparison.OrdinalIgnoreCase));
+        if (_showMakerFilter && !string.IsNullOrWhiteSpace(_makerPf))
+            q = q.Where(x => string.Equals(x.SubmittedByPf, _makerPf, StringComparison.OrdinalIgnoreCase));
+        _filtered = q.ToList();
+    }
+}

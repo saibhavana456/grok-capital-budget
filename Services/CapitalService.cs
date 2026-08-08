@@ -1,0 +1,443 @@
+using IT_BUDGET_MONITORING_PORTAL.Data;
+using IT_BUDGET_MONITORING_PORTAL.Helpers;
+using IT_BUDGET_MONITORING_PORTAL.Interfaces;
+using IT_BUDGET_MONITORING_PORTAL.Models.DTOs;
+using IT_BUDGET_MONITORING_PORTAL.Models.Entities;
+using Microsoft.EntityFrameworkCore;
+
+namespace IT_BUDGET_MONITORING_PORTAL.Services;
+
+public class CapitalService : ICapitalService
+{
+    private readonly AppDbContext _db;
+    private readonly ILogger<CapitalService> _logger;
+
+    public CapitalService(AppDbContext db, ILogger<CapitalService> logger)
+    {
+        _db = db;
+        _logger = logger;
+    }
+
+    public async Task<CapitalEntryFormDto?> BuildFormAsync(long projectId, string financialYear, string entryMonth)
+    {
+        var project = await _db.Projects
+            .Include(p => p.Section)!.ThenInclude(s => s!.Department)
+            .AsNoTracking()
+            .FirstOrDefaultAsync(p => p.ProjectId == projectId && p.IsActive == "Y");
+        if (project?.Section == null) return null;
+
+        var allotment = await _db.ProjectFyAllotments.AsNoTracking()
+            .FirstOrDefaultAsync(a => a.ProjectId == projectId && a.FinancialYear == financialYear && a.IsActive == "Y");
+
+        var prevMonth = AppConstants.PreviousMonth(entryMonth);
+        // Previous-month panel: approved actuals for utilization; any active prior submission
+        // also carries Est*Next = estimates already submitted for the current entry month.
+        var prevRows = await _db.CapitalMonthlyEntries.AsNoTracking()
+            .Where(e => e.ProjectId == projectId
+                        && e.FinancialYear == financialYear
+                        && e.EntryMonth == prevMonth
+                        && e.IsActive == "Y")
+            .ToListAsync();
+        var prevApproved = prevRows.FirstOrDefault(e =>
+            string.Equals(e.EntryStatus, AppConstants.EntryStatus.Approved, StringComparison.OrdinalIgnoreCase));
+        var prevSubmitted = prevApproved
+            ?? prevRows.OrderByDescending(e => e.SubmittedAt).FirstOrDefault();
+
+        var utilizedTillPrev = await SumApprovedUtilizedThroughAsync(projectId, financialYear, prevMonth);
+
+        var form = new CapitalEntryFormDto
+        {
+            ProjectId = projectId,
+            FinancialYear = financialYear,
+            EntryMonth = entryMonth,
+            ProjectName = project.ProjectName,
+            SectionName = project.Section.SectionName,
+            DeptName = project.Section.Department?.DeptName ?? "",
+            SpilloverAllotted = allotment?.SpilloverAllotted ?? 0,
+            FreshAllotted = allotment?.FreshAllotted ?? 0,
+            TotalAllotted = allotment?.TotalAllotted ?? 0,
+            UtilizedTillPreviousMonth = utilizedTillPrev,
+            PrevSpillover = prevApproved?.ActualSpillover ?? 0,
+            PrevFresh = prevApproved?.ActualFresh ?? 0,
+            PrevTotal = prevApproved?.ActualTotal ?? 0,
+            PrevEstSpilloverForCurrent = prevSubmitted?.EstSpilloverNext ?? 0,
+            PrevEstFreshForCurrent = prevSubmitted?.EstFreshNext ?? 0,
+            PrevEstTotalForCurrent = prevSubmitted?.EstTotalNext
+                ?? ((prevSubmitted?.EstSpilloverNext ?? 0) + (prevSubmitted?.EstFreshNext ?? 0))
+        };
+
+        // Load amounts for edit (RETURNED/REJECTED) or read-only display (any active entry).
+        var existingMonth = await _db.CapitalMonthlyEntries.AsNoTracking()
+            .FirstOrDefaultAsync(e => e.ProjectId == projectId
+                                      && e.FinancialYear == financialYear
+                                      && e.EntryMonth == entryMonth
+                                      && e.IsActive == "Y");
+        if (existingMonth != null)
+        {
+            form.ActualSpillover = existingMonth.ActualSpillover;
+            form.ActualFresh = existingMonth.ActualFresh;
+            form.EstSpilloverNext = existingMonth.EstSpilloverNext;
+            form.EstFreshNext = existingMonth.EstFreshNext;
+            form.JustificationText = existingMonth.JustificationText ?? "";
+        }
+
+        return form;
+    }
+
+    public async Task<ExistingEntryInfo?> FindActiveEntryAsync(long projectId, string financialYear, string entryMonth)
+    {
+        return await _db.CapitalMonthlyEntries.AsNoTracking()
+            .Where(e => e.ProjectId == projectId
+                        && e.FinancialYear == financialYear
+                        && e.EntryMonth == entryMonth
+                        && e.IsActive == "Y")
+            .Select(e => new ExistingEntryInfo
+            {
+                EntryId = e.EntryId,
+                Status = e.EntryStatus,
+                SubmittedByPf = e.SubmittedByPf,
+                CheckerRemark = e.CheckerRemark
+            })
+            .FirstOrDefaultAsync();
+    }
+
+    public async Task<ServiceResult> SubmitAsync(CapitalEntryFormDto form, string makerPf)
+    {
+        if (form.ProjectId <= 0) return ServiceResult.Fail("Project is required.");
+        if (string.IsNullOrWhiteSpace(form.EntryMonth)) return ServiceResult.Fail("Month is required.");
+        if (!AppConstants.IsCurrentFinancialYear(form.FinancialYear))
+            return ServiceResult.Fail(AppConstants.PreviousFyViewOnlyMessage);
+        if (AppConstants.IsFutureMonth(form.EntryMonth))
+            return ServiceResult.Fail("Future month entry is not allowed.");
+        if (string.IsNullOrWhiteSpace(form.JustificationText))
+            return ServiceResult.Fail(AppConstants.JustificationRequiredMessage);
+        if (form.JustificationText.Length > AppConstants.JustificationMaxLength)
+            return ServiceResult.Fail($"Justification cannot exceed {AppConstants.JustificationMaxLength} characters.");
+
+        var allotment = await _db.ProjectFyAllotments.AsNoTracking()
+            .FirstOrDefaultAsync(a => a.ProjectId == form.ProjectId && a.FinancialYear == form.FinancialYear && a.IsActive == "Y");
+        if (allotment == null)
+            return ServiceResult.Fail("FY allotment not found for this project.");
+
+        // Normalize negatives; blank numeric fields bind as 0.
+        form.ActualSpillover = Math.Max(0, form.ActualSpillover);
+        form.ActualFresh = Math.Max(0, form.ActualFresh);
+        form.EstSpilloverNext = Math.Max(0, form.EstSpilloverNext);
+        form.EstFreshNext = Math.Max(0, form.EstFreshNext);
+
+        var actualTotal = form.ActualSpillover + form.ActualFresh;
+        if (actualTotal <= 0)
+            return ServiceResult.Fail(AppConstants.CapitalZeroNotAllowedMessage);
+
+        // Priyadarshini: Capital must not submit when over allocated budget.
+        if (form.ActualSpillover > allotment.SpilloverAllotted
+            || form.ActualFresh > allotment.FreshAllotted
+            || actualTotal > allotment.TotalAllotted)
+            return ServiceResult.Fail(AppConstants.CapitalOverBudgetBlockedMessage);
+
+        var existing = await _db.CapitalMonthlyEntries
+            .FirstOrDefaultAsync(e => e.ProjectId == form.ProjectId
+                                      && e.FinancialYear == form.FinancialYear
+                                      && e.EntryMonth == form.EntryMonth
+                                      && e.IsActive == "Y");
+
+        if (existing != null)
+        {
+            if (AppConstants.IsLockedStatus(existing.EntryStatus))
+                return ServiceResult.Fail("An entry already exists for this project, FY and month.");
+
+            if (!AppConstants.IsEditableStatus(existing.EntryStatus))
+                return ServiceResult.Fail("This entry cannot be resubmitted.");
+
+            var reopenOk = await CanOpenMonthForCapitalAsync(form.ProjectId, form.FinancialYear, form.EntryMonth);
+            if (!reopenOk.Success) return reopenOk;
+
+            var gap = await FindEarliestMissingCapitalMonthAsync(form.ProjectId, form.FinancialYear, form.EntryMonth);
+            if (gap != null)
+                return ServiceResult.Fail(string.Format(AppConstants.PreviousMonthsRequiredMessage, gap));
+
+            existing.ActualSpillover = form.ActualSpillover;
+            existing.ActualFresh = form.ActualFresh;
+            existing.ActualTotal = actualTotal;
+            existing.EstSpilloverNext = form.EstSpilloverNext;
+            existing.EstFreshNext = form.EstFreshNext;
+            existing.EstTotalNext = form.EstSpilloverNext + form.EstFreshNext;
+            existing.JustificationText = form.JustificationText.Trim();
+            existing.EntryStatus = AppConstants.EntryStatus.Pending;
+            existing.SubmittedAt = DateTime.Now;
+            existing.SubmittedByPf = makerPf;
+            existing.CheckedAt = null;
+            existing.CheckedByPf = null;
+            existing.CheckerRemark = null;
+            existing.UpdatedAt = DateTime.Now;
+            existing.UpdatedBy = makerPf;
+            await _db.SaveChangesAsync();
+            _logger.LogInformation("Capital resubmit EntryId={EntryId} ProjectId={ProjectId} Month={Month} PF={Pf} Total={Total}",
+                existing.EntryId, form.ProjectId, form.EntryMonth, makerPf, actualTotal);
+            return ServiceResult.Ok(AppConstants.SuccessResubmit);
+        }
+
+        var monthOpen = await CanOpenMonthForCapitalAsync(form.ProjectId, form.FinancialYear, form.EntryMonth);
+        if (!monthOpen.Success) return monthOpen;
+
+        var missing = await FindEarliestMissingCapitalMonthAsync(form.ProjectId, form.FinancialYear, form.EntryMonth);
+        if (missing != null)
+            return ServiceResult.Fail(string.Format(AppConstants.PreviousMonthsRequiredMessage, missing));
+
+        var entry = new CapitalMonthlyEntry
+        {
+            ProjectId = form.ProjectId,
+            FinancialYear = form.FinancialYear,
+            EntryMonth = form.EntryMonth,
+            ActualSpillover = form.ActualSpillover,
+            ActualFresh = form.ActualFresh,
+            ActualTotal = actualTotal,
+            EstSpilloverNext = form.EstSpilloverNext,
+            EstFreshNext = form.EstFreshNext,
+            EstTotalNext = form.EstSpilloverNext + form.EstFreshNext,
+            JustificationText = form.JustificationText.Trim(),
+            EntryStatus = AppConstants.EntryStatus.Pending,
+            SubmittedAt = DateTime.Now,
+            SubmittedByPf = makerPf,
+            IsActive = "Y",
+            CreatedAt = DateTime.Now,
+            CreatedBy = makerPf
+        };
+        _db.CapitalMonthlyEntries.Add(entry);
+        await _db.SaveChangesAsync();
+        _logger.LogInformation("Capital submit EntryId={EntryId} ProjectId={ProjectId} Month={Month} PF={Pf} Total={Total}",
+            entry.EntryId, form.ProjectId, form.EntryMonth, makerPf, actualTotal);
+        return ServiceResult.Ok(AppConstants.SuccessSubmit);
+    }
+
+    public async Task<List<CapitalSubmissionListItem>> GetSubmissionsAsync(
+        string? makerPfFilter, long? deptIdFilter, string? checkerPfFilter = null)
+    {
+        var q = from e in _db.CapitalMonthlyEntries.AsNoTracking()
+                join p in _db.Projects.AsNoTracking() on e.ProjectId equals p.ProjectId
+                join s in _db.Sections.AsNoTracking() on p.SectionId equals s.SectionId
+                join d in _db.Departments.AsNoTracking() on s.DeptId equals d.DeptId
+                where e.IsActive == "Y"
+                select new { e, p, s, d };
+
+        if (!string.IsNullOrWhiteSpace(makerPfFilter))
+            q = q.Where(x => x.e.SubmittedByPf == makerPfFilter);
+
+        // Checker: scope by project/dept CHECKER_PF (not APP_USER.DEPT_ID alone).
+        if (!string.IsNullOrWhiteSpace(checkerPfFilter))
+        {
+            var checkerProjectIds = await ResolveCapitalProjectIdsForCheckerAsync(checkerPfFilter.Trim());
+            q = q.Where(x => checkerProjectIds.Contains(x.e.ProjectId));
+        }
+        else if (deptIdFilter.HasValue)
+        {
+            q = q.Where(x => x.s.DeptId == deptIdFilter.Value);
+        }
+
+        return await q.OrderByDescending(x => x.e.SubmittedAt)
+            .Select(x => new CapitalSubmissionListItem
+            {
+                EntryId = x.e.EntryId,
+                ProjectId = x.e.ProjectId,
+                FinancialYear = x.e.FinancialYear,
+                Month = x.e.EntryMonth,
+                DeptName = x.d.DeptName,
+                SectionName = x.s.SectionName,
+                ProjectName = x.p.ProjectName,
+                Status = x.e.EntryStatus,
+                SubmittedByPf = x.e.SubmittedByPf
+            }).ToListAsync();
+    }
+
+    public Task<CapitalMonthlyEntry?> GetEntryAsync(long entryId) =>
+        _db.CapitalMonthlyEntries
+            .Include(e => e.Project)!.ThenInclude(p => p!.Section)
+            .AsNoTracking()
+            .FirstOrDefaultAsync(e => e.EntryId == entryId);
+
+    public async Task<List<CapitalSubmissionListItem>> GetPendingForCheckerAsync(string checkerPf)
+    {
+        var pfNorm = (checkerPf ?? "").Trim();
+        if (string.IsNullOrEmpty(pfNorm))
+            return new List<CapitalSubmissionListItem>();
+
+        var projectIds = await ResolveCapitalProjectIdsForCheckerAsync(pfNorm);
+        if (projectIds.Count == 0)
+        {
+            _logger.LogWarning(
+                "Capital pending empty — no project/dept CHECKER_PF match for {Pf}",
+                pfNorm);
+            return new List<CapitalSubmissionListItem>();
+        }
+
+        var q = from e in _db.CapitalMonthlyEntries.AsNoTracking()
+                join p in _db.Projects.AsNoTracking() on e.ProjectId equals p.ProjectId
+                join s in _db.Sections.AsNoTracking() on p.SectionId equals s.SectionId
+                join d in _db.Departments.AsNoTracking() on s.DeptId equals d.DeptId
+                where e.IsActive == "Y"
+                      && e.EntryStatus == AppConstants.EntryStatus.Pending
+                      && projectIds.Contains(e.ProjectId)
+                orderby e.SubmittedAt descending
+                select new CapitalSubmissionListItem
+                {
+                    EntryId = e.EntryId,
+                    ProjectId = e.ProjectId,
+                    FinancialYear = e.FinancialYear,
+                    Month = e.EntryMonth,
+                    DeptName = d.DeptName,
+                    SectionName = s.SectionName,
+                    ProjectName = p.ProjectName,
+                    Status = e.EntryStatus,
+                    SubmittedByPf = e.SubmittedByPf
+                };
+
+        return await q.ToListAsync();
+    }
+
+    /// <summary>
+    /// DIT: project.CheckerPf. Non-DIT: all projects under dept where dept.CheckerPf matches.
+    /// Also includes project.CheckerPf anywhere (overlap allowed across projects).
+    /// </summary>
+    private async Task<List<long>> ResolveCapitalProjectIdsForCheckerAsync(string checkerPf)
+    {
+        var projects = await (
+            from p in _db.Projects.AsNoTracking()
+            join s in _db.Sections.AsNoTracking() on p.SectionId equals s.SectionId
+            join d in _db.Departments.AsNoTracking() on s.DeptId equals d.DeptId
+            where p.IsActive == "Y" && s.IsActive == "Y" && d.IsActive == "Y"
+            select new { p.ProjectId, ProjectChecker = p.CheckerPf, d.DeptCode, DeptChecker = d.CheckerPf }
+        ).ToListAsync();
+
+        return projects
+            .Where(x =>
+                PfEquals(x.ProjectChecker, checkerPf)
+                || (!AppConstants.IsDitDepartment(x.DeptCode) && PfEquals(x.DeptChecker, checkerPf)))
+            .Select(x => x.ProjectId)
+            .Distinct()
+            .ToList();
+    }
+
+    private static bool PfEquals(string? a, string b) =>
+        !string.IsNullOrWhiteSpace(a)
+        && string.Equals(a.Trim(), b.Trim(), StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Active departments where this PF is Checker (trim + case-insensitive — Oracle CHAR padding safe).
+    /// Kept for submissions dept-scope fallback for non-project-mapped checkers.
+    /// </summary>
+    private async Task<List<long>> GetActiveDeptIdsForCheckerAsync(string checkerPf)
+    {
+        var pfNorm = (checkerPf ?? "").Trim();
+        if (string.IsNullOrEmpty(pfNorm)) return new List<long>();
+
+        var rows = await _db.Departments.AsNoTracking()
+            .Where(d => d.IsActive == "Y")
+            .Select(d => new { d.DeptId, d.CheckerPf })
+            .ToListAsync();
+
+        var deptFromDept = rows
+            .Where(d => PfEquals(d.CheckerPf, pfNorm))
+            .Select(d => d.DeptId);
+
+        var deptFromProjects = await (
+            from p in _db.Projects.AsNoTracking()
+            join s in _db.Sections.AsNoTracking() on p.SectionId equals s.SectionId
+            where p.IsActive == "Y" && p.CheckerPf != null
+            select new { s.DeptId, p.CheckerPf }
+        ).ToListAsync();
+
+        return deptFromDept
+            .Concat(deptFromProjects.Where(x => PfEquals(x.CheckerPf, pfNorm)).Select(x => x.DeptId))
+            .Distinct()
+            .ToList();
+    }
+
+    public async Task<ServiceResult> CheckerActionAsync(long entryId, string action, string checkerPf, string? remark)
+    {
+        var entry = await _db.CapitalMonthlyEntries.FirstOrDefaultAsync(e => e.EntryId == entryId && e.IsActive == "Y");
+        if (entry == null) return ServiceResult.Fail("Entry not found.");
+        if (entry.EntryStatus != AppConstants.EntryStatus.Pending)
+            return ServiceResult.Fail("Only PENDING entries can be actioned.");
+
+        var project = await _db.Projects.Include(p => p.Section)!.ThenInclude(s => s!.Department)
+            .FirstOrDefaultAsync(p => p.ProjectId == entry.ProjectId);
+        if (project?.Section?.Department == null)
+            return ServiceResult.Fail("You are not the Checker for this department.");
+
+        var dept = project.Section.Department;
+        var allowed = PfEquals(project.CheckerPf, checkerPf)
+                      || (!AppConstants.IsDitDepartment(dept.DeptCode) && PfEquals(dept.CheckerPf, checkerPf));
+        if (!allowed)
+            return ServiceResult.Fail("You are not the Checker for this project/department.");
+
+        var normalized = action.Trim().ToUpperInvariant();
+        if (normalized is not (AppConstants.EntryStatus.Approved or AppConstants.EntryStatus.Rejected))
+            return ServiceResult.Fail("Invalid checker action. Use Approve or Reject only.");
+
+        if (normalized == AppConstants.EntryStatus.Rejected && string.IsNullOrWhiteSpace(remark))
+            return ServiceResult.Fail(AppConstants.RemarkRequiredMessage);
+
+        entry.EntryStatus = normalized;
+        entry.CheckedAt = DateTime.Now;
+        entry.CheckedByPf = checkerPf;
+        entry.CheckerRemark = string.IsNullOrWhiteSpace(remark) ? null : remark.Trim();
+        entry.UpdatedAt = DateTime.Now;
+        entry.UpdatedBy = checkerPf;
+        await _db.SaveChangesAsync();
+
+        _logger.LogInformation("Capital checker action EntryId={EntryId} Action={Action} CheckerPf={Pf}",
+            entryId, normalized, checkerPf);
+
+        return ServiceResult.Ok(normalized == AppConstants.EntryStatus.Approved
+            ? AppConstants.SuccessApprove
+            : AppConstants.SuccessReject);
+    }
+
+    private async Task<ServiceResult> CanOpenMonthForCapitalAsync(long projectId, string fy, string month)
+    {
+        if (AppConstants.IsMonthWithinDeadline(month))
+            return ServiceResult.Ok("ok");
+
+        var unlocked = await _db.EntryMonthUnlocks.AsNoTracking()
+            .AnyAsync(u => u.ProjectId == projectId
+                           && u.FinancialYear == fy
+                           && u.EntryMonth == month
+                           && u.IsEnabled == "Y");
+        if (unlocked) return ServiceResult.Ok("ok");
+        return ServiceResult.Fail(string.Format(AppConstants.MonthDeadlineClosedMessage, month));
+    }
+
+    /// <summary>Returns earliest prior FY month without PENDING/APPROVED submission, or null.</summary>
+    private async Task<string?> FindEarliestMissingCapitalMonthAsync(long projectId, string fy, string entryMonth)
+    {
+        var prior = AppConstants.PriorFyMonthsRequired(entryMonth);
+        if (prior.Count == 0) return null;
+
+        var done = await _db.CapitalMonthlyEntries.AsNoTracking()
+            .Where(e => e.ProjectId == projectId
+                        && e.FinancialYear == fy
+                        && e.IsActive == "Y"
+                        && (e.EntryStatus == AppConstants.EntryStatus.Pending
+                            || e.EntryStatus == AppConstants.EntryStatus.Approved)
+                        && prior.Contains(e.EntryMonth))
+            .Select(e => e.EntryMonth)
+            .ToListAsync();
+
+        return prior.FirstOrDefault(m =>
+            !done.Any(d => string.Equals(d, m, StringComparison.OrdinalIgnoreCase)));
+    }
+
+    private async Task<decimal> SumApprovedUtilizedThroughAsync(long projectId, string financialYear, string throughMonth)
+    {
+        var months = AppConstants.MonthsFromAprilThrough(throughMonth).ToList();
+        if (months.Count == 0) return 0;
+
+        return await _db.CapitalMonthlyEntries.AsNoTracking()
+            .Where(e => e.ProjectId == projectId
+                        && e.FinancialYear == financialYear
+                        && e.IsActive == "Y"
+                        && e.EntryStatus == AppConstants.EntryStatus.Approved
+                        && months.Contains(e.EntryMonth))
+            .SumAsync(e => (decimal?)e.ActualTotal) ?? 0;
+    }
+}
