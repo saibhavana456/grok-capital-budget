@@ -5,28 +5,31 @@ Union Bank of India — Phase 1 (MudBlazor + .NET 8 + Oracle)
 ## Stack
 - Blazor Interactive Server (.NET 8) + MudBlazor 8.15
 - Oracle EF Core (17 tables)
-- Optional SQL Server `STAFF_DETAILS`
+- Organisations `StaffDetails` (EMPLID) when `Auth:UseOrganisationsDb=true`; else Oracle `STAFF_DETAILS` (same EMPLID columns)
 - AD `validateDomainUser` + JWT + `USER_TOKEN` (Personal/SCV pattern)
+- SCV-style admin: `ApiKey:ADMIN_USER_ID` / `PWD` → **AdminApp** / **Ubi#8790**
 - Cookie authentication (required for `[Authorize]` / DefaultChallengeScheme)
 
 ---
 
-## Auth:BypassAd — what you need to do
+## Auth:BypassAd + UseOrganisationsDb
 
-| Value | Behaviour |
-|-------|-----------|
-| **`true`** (laptop now) | Captcha checked. PF must exist in Oracle `APP_USER`. **AD is not called.** Password = any non-empty text. |
-| **`false`** (bank UAT/prod) | Captcha checked. PF in `APP_USER`. **Password validated by bank AD API** `validateDomainUser`. |
+| Setting | Local now | Prod |
+|-------|-----------|------|
+| `Auth:BypassAd` | `true` (password any non-empty for Maker/Checker) | `false` (real AD) |
+| `Auth:UseOrganisationsDb` | `false` (Oracle STAFF_DETAILS) | `true` (Organisations StaffDetails) |
+| Admin | **AdminApp** / **Ubi#8790** | same config pair (encrypted in appsettings) |
 
-### Keep for local laptop (your screenshot is correct)
+See `Docs/STAFF_ADMIN_PROD_SWITCH.md` and `Docs/TESTING_GUIDE.md` for scripts and prod flip steps.
+
+### Keep for local laptop
 ```json
-"Auth": { "BypassAd": true }
+"Auth": { "BypassAd": true, "UseOrganisationsDb": false }
 ```
-No other BypassAd change needed for local.
 
 ### Change only when using real AD on bank network
 ```json
-"Auth": { "BypassAd": false },
+"Auth": { "BypassAd": false, "UseOrganisationsDb": true },
 "ApiKey": {
   "AD_API_URL": "http://app2.unionbankofindia.co.in:8222/MicroService/MicroService.svc",
   "M_service_Name": "microservice",

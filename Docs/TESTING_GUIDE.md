@@ -1,26 +1,31 @@
 # How to test (IT Budget Portal) — after latest fixes
 
+See also `Docs/STAFF_ADMIN_PROD_SWITCH.md` (Organisations `StaffDetails` vs Oracle, AdminApp, prod flags).
+
 ## SQL scripts to run (order)
 
 In SQL Developer, connected as the app Oracle user (`SET DEFINE OFF`):
 
 1. `Scripts/ALTER_PROJECT_SECTION_MAKER_CHECKER.sql` — if not already run  
 2. `Scripts/CREATE_ENTRY_MONTH_UNLOCK.sql` — Admin month unlock table  
-3. `Scripts/SEED_MAKER_CHECKER_ASSIGNMENTS.sql` — APP_USER + Maker/Checker on DIT projects/sections + non-DIT depts  
-4. Optional: `Scripts/FIX_CHECKER_PENDING_600221.sql` — if Checker still sees 0 pending  
+3. `Scripts/CREATE_ORACLE_STAFF_DETAILS.sql` — align Oracle STAFF_DETAILS (EMPLID = Organisations StaffDetails)  
+4. `Scripts/SEED_STAFF_DETAILS_MAKER_CHECKER.sql` — staff rows + scales for Maker/Checker login  
+5. `Scripts/SEED_MAKER_CHECKER_ASSIGNMENTS.sql` — APP_USER Maker/Checker + project/section assignments  
+6. `Scripts/ENSURE_SINGLE_ADMIN.sql` — deactivate APP_USER ADMIN (Admin = config login)  
+7. Optional: `Scripts/FIX_CHECKER_PENDING_600221.sql` — if Checker still sees 0 pending  
 
 Restart the app after scripts.
 
-### Sample logins (from seed)
-| PF | Role | Use |
+### Sample logins
+| User | Role | Password |
 |---|---|---|
-| 600110 | MAKER | DIT capital projects + revenue sections |
-| 600221 | CHECKER | DIT capital + revenue |
-| 600310 | MAKER | DIGIT (non-DIT dept-level) |
+| **AdminApp** | ADMIN | **Ubi#8790** (SCV config — not AD) |
+| 600110 | MAKER | any when `Auth:BypassAd=true` |
+| 600221 | CHECKER | any when BypassAd |
+| 600310 | MAKER | DIGIT (non-DIT) |
 | 600321 | CHECKER | DIGIT |
-| 100001 | ADMIN | Admin Masters |
 
-Password: use your `appsettings.Development.json` / AD bypass password.
+`Auth:UseOrganisationsDb` stays **`false`** for local Oracle staff testing.
 
 ---
 

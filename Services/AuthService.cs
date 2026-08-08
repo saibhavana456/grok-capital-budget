@@ -14,9 +14,8 @@ using Microsoft.IdentityModel.Tokens;
 namespace IT_BUDGET_MONITORING_PORTAL.Services;
 
 /// <summary>
-/// Login: PF + AD password + captcha → JWT → USER_TOKEN (Personal/SCV pattern).
-/// Uses <see cref="IDbContextFactory{AppDbContext}"/> so session checks never share the
-/// circuit-scoped DbContext used by Capital/Revenue/Checker page loads (avoids EF concurrency errors).
+/// Login: SCV-style admin config credentials OR PF + AD + captcha → JWT → USER_TOKEN.
+/// Maker/Checker must exist in APP_USER and staff master (Oracle STAFF_DETAILS / Organisations StaffDetails).
 /// </summary>
 public class AuthService : IAuthService
 {
@@ -84,6 +83,12 @@ public class AuthService : IAuthService
             return Fail("Invalid captcha answer.");
 
         var pf = request.PfNumber.Trim();
+        var password = request.Password;
+
+        // SCV pattern: single admin userid + password from ApiKey (not AD, not APP_USER)
+        if (IsConfiguredAdminCredentials(pf, password))
+            return await CompleteAdminLoginAsync(pf);
+
         await using var db = await _dbFactory.CreateDbContextAsync();
 
         var appUser = await db.AppUsers
@@ -97,14 +102,102 @@ public class AuthService : IAuthService
             return Fail("User is not registered in APP_USER for this application.");
         }
 
+        // Admin role only via config credentials (SCV). Block APP_USER ADMIN rows.
+        if (string.Equals(appUser.RoleCode, AppConstants.Roles.Admin, StringComparison.OrdinalIgnoreCase))
+        {
+            _logger.LogWarning("Login blocked — APP_USER ADMIN {Pf}; use configured admin login", pf);
+            return Fail("Admin must sign in with the configured admin userid and password.");
+        }
+
         var bypassAd = _config.GetValue("Auth:BypassAd", false);
-        var adOk = bypassAd || await ValidateAgainstAdAsync(pf, request.Password);
+        var adOk = bypassAd || await ValidateAgainstAdAsync(pf, password);
         if (!adOk)
         {
             _logger.LogWarning("Login failed — AD auth rejected for PF {Pf}", pf);
             return Fail("AD authentication failed. Invalid PF or password.");
         }
 
+        var staff = await _staffLookup.LookupByPfAsync(pf);
+        if (staff == null)
+        {
+            _logger.LogWarning("Login failed — PF {Pf} not in staff master (EMPLID)", pf);
+            return Fail(string.Format(AppConstants.StaffRequiredForLoginMessage, pf));
+        }
+
+        var displayName = staff.EmpName;
+        var designation = staff.Designation ?? appUser.Designation;
+
+        return await CompleteUserLoginAsync(db, appUser, pf, displayName, designation,
+            appUser.Department?.DeptName, appUser.Department?.HasRevenue == "Y");
+    }
+
+    private async Task<LoginResultDto> CompleteAdminLoginAsync(string adminUserId)
+    {
+        await using var db = await _dbFactory.CreateDbContextAsync();
+        var encryptedUserId = EncryptoData.EncryptString(adminUserId);
+        var existing = await db.UserTokens.AsNoTracking()
+            .FirstOrDefaultAsync(t => t.UserId == encryptedUserId);
+        if (existing != null)
+        {
+            _logger.LogWarning("Login blocked — previous session for admin {User}", adminUserId);
+            return Fail(AppConstants.PreviousSessionExistsMessage);
+        }
+
+        const string displayName = "Administrator";
+        var token = CreateJwt(adminUserId, AppConstants.Roles.Admin, displayName);
+        var hash = EncryptoData.Sha256Base64(token);
+
+        try
+        {
+            db.UserTokens.Add(new UserToken
+            {
+                UserId = encryptedUserId,
+                UserName = displayName,
+                LastToken = token,
+                HashToken = hash,
+                CreatedAt = DateTime.Now
+            });
+            await db.SaveChangesAsync();
+        }
+        catch (DbUpdateException ex)
+        {
+            _logger.LogWarning(ex, "Login blocked — concurrent USER_TOKEN for admin {User}", adminUserId);
+            return Fail(AppConstants.PreviousSessionExistsMessage);
+        }
+
+        var user = new LoggedInUserDto
+        {
+            UserId = 0,
+            PfNo = adminUserId,
+            UserName = displayName,
+            RoleCode = AppConstants.Roles.Admin,
+            DeptId = null,
+            DeptName = null,
+            Designation = "Admin",
+            HasRevenueDept = true,
+            Token = token,
+            TokenHash = hash
+        };
+        _currentUser = user;
+        _logger.LogInformation("Admin login success User={User}", adminUserId);
+        return new LoginResultDto
+        {
+            Success = true,
+            Message = "Login successful",
+            Token = token,
+            User = user
+        };
+    }
+
+    private async Task<LoginResultDto> CompleteUserLoginAsync(
+        AppDbContext db,
+        AppUser appUser,
+        string pf,
+        string displayName,
+        string? designation,
+        string? deptName,
+        bool hasRevenue)
+    {
         var encryptedUserId = EncryptoData.EncryptString(pf);
         var existing = await db.UserTokens.AsNoTracking()
             .FirstOrDefaultAsync(t => t.UserId == encryptedUserId);
@@ -115,10 +208,6 @@ public class AuthService : IAuthService
                 pf, existing.RefNo);
             return Fail(AppConstants.PreviousSessionExistsMessage);
         }
-
-        var staff = await _staffLookup.LookupByPfAsync(pf);
-        var displayName = staff?.EmpName ?? appUser.UserName ?? pf;
-        var designation = staff?.Designation ?? appUser.Designation;
 
         var token = CreateJwt(pf, appUser.RoleCode, displayName);
         var hash = EncryptoData.Sha256Base64(token);
@@ -141,6 +230,7 @@ public class AuthService : IAuthService
             return Fail(AppConstants.PreviousSessionExistsMessage);
         }
 
+        var bypassAd = _config.GetValue("Auth:BypassAd", false);
         var user = new LoggedInUserDto
         {
             UserId = appUser.UserId,
@@ -148,9 +238,9 @@ public class AuthService : IAuthService
             UserName = displayName,
             RoleCode = appUser.RoleCode,
             DeptId = appUser.DeptId,
-            DeptName = appUser.Department?.DeptName,
+            DeptName = deptName,
             Designation = designation,
-            HasRevenueDept = appUser.Department?.HasRevenue == "Y",
+            HasRevenueDept = hasRevenue,
             Token = token,
             TokenHash = hash
         };
@@ -192,7 +282,6 @@ public class AuthService : IAuthService
         var pf = pfNo.Trim();
         var encryptedUserId = EncryptoData.EncryptString(pf);
 
-        // Own short-lived context — safe alongside Capital/Revenue page queries
         await using var db = await _dbFactory.CreateDbContextAsync();
         var tokenRow = await db.UserTokens.AsNoTracking()
             .FirstOrDefaultAsync(t => t.UserId == encryptedUserId);
@@ -209,11 +298,31 @@ public class AuthService : IAuthService
             return null;
         }
 
+        if (IsConfiguredAdminUserId(pf))
+        {
+            return new LoggedInUserDto
+            {
+                UserId = 0,
+                PfNo = pf,
+                UserName = tokenRow.UserName ?? "Administrator",
+                RoleCode = AppConstants.Roles.Admin,
+                DeptId = null,
+                DeptName = null,
+                Designation = "Admin",
+                HasRevenueDept = true,
+                Token = tokenRow.LastToken,
+                TokenHash = tokenRow.HashToken
+            };
+        }
+
         var appUser = await db.AppUsers
             .Include(u => u.Department)
             .AsNoTracking()
             .FirstOrDefaultAsync(u => u.PfNo == pf && u.IsActive == "Y");
         if (appUser == null) return null;
+
+        if (string.Equals(appUser.RoleCode, AppConstants.Roles.Admin, StringComparison.OrdinalIgnoreCase))
+            return null;
 
         var staff = await _staffLookup.LookupByPfAsync(pf);
         var displayName = staff?.EmpName ?? appUser.UserName ?? pf;
@@ -252,6 +361,53 @@ public class AuthService : IAuthService
 
     public Task<LoggedInUserDto?> GetLoggedInUserByPfAsync(string pfNo) =>
         ValidateSessionAsync(pfNo, _currentUser?.TokenHash);
+
+    private bool IsConfiguredAdminCredentials(string userId, string password)
+    {
+        try
+        {
+            var adminId = DecryptConfigValue(_config["ApiKey:ADMIN_USER_ID"]);
+            var adminPwd = DecryptConfigValue(_config["ApiKey:PWD"]);
+            if (string.IsNullOrWhiteSpace(adminId) || string.IsNullOrWhiteSpace(adminPwd))
+                return false;
+            return string.Equals(userId.Trim(), adminId.Trim(), StringComparison.Ordinal)
+                   && string.Equals(password, adminPwd, StringComparison.Ordinal);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to decrypt ApiKey ADMIN credentials");
+            return false;
+        }
+    }
+
+    private bool IsConfiguredAdminUserId(string userId)
+    {
+        try
+        {
+            var adminId = DecryptConfigValue(_config["ApiKey:ADMIN_USER_ID"]);
+            return !string.IsNullOrWhiteSpace(adminId)
+                   && string.Equals(userId.Trim(), adminId.Trim(), StringComparison.Ordinal);
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static string? DecryptConfigValue(string? configured)
+    {
+        if (string.IsNullOrWhiteSpace(configured))
+            return null;
+        var raw = configured.Trim().Replace(" ", "+");
+        if (raw.StartsWith("U2FsdGVk", StringComparison.Ordinal) ||
+            raw.StartsWith("ENC:", StringComparison.OrdinalIgnoreCase))
+        {
+            if (raw.StartsWith("ENC:", StringComparison.OrdinalIgnoreCase))
+                raw = raw["ENC:".Length..];
+            return EncryptoData.DecryptAes(raw);
+        }
+        return configured.Trim();
+    }
 
     private async Task<bool> ValidateAgainstAdAsync(string pf, string password)
     {

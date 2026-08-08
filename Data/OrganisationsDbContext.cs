@@ -4,10 +4,10 @@ using Microsoft.EntityFrameworkCore;
 namespace IT_BUDGET_MONITORING_PORTAL.Data;
 
 /// <summary>
-/// SQL Server Organisations DB connection (set OrganisationsDb in appsettings).
-/// Maps the staff master table the bank created as <c>STAFF_DETAILS</c> with
-/// EMPLID / NAME / EMP_SCALE_CODE / EMAIL / PHONE (same shape as former StaffDetails).
-/// Empty OrganisationsDb connection string → lookup skipped (not an empty-data error).
+/// SQL Server Organisations DB (SCV <c>ConnStrOrganisations</c>).
+/// Maps Organisations <c>StaffDetails</c> (EMPLID) — the latest staff master used for scale/email/phone.
+/// Do not alter Organisations tables; read existing columns only.
+/// Local testing uses Oracle app-schema <c>STAFF_DETAILS</c> with the same EMPLID column shape.
 /// </summary>
 public class OrganisationsDbContext : DbContext
 {
@@ -19,9 +19,10 @@ public class OrganisationsDbContext : DbContext
 }
 
 /// <summary>
-/// Bank staff master — table name STAFF_DETAILS, key EMPLID (as created in SQL Developer).
+/// Organisations dbo.StaffDetails (and Oracle STAFF_DETAILS mirror) — EMPLID key.
+/// Column list matches Personal/SCV Organisations StaffDetails DDL (script.sql).
 /// </summary>
-[Table("STAFF_DETAILS")]
+[Table("StaffDetails")]
 [Keyless]
 public class OrgStaffDetail
 {
@@ -42,6 +43,18 @@ public class OrgStaffDetail
 
     [Column("DESCR1")]
     public string? DeptDesc { get; set; }
+
+    [Column("REGION_CODE")]
+    public string? RegionCode { get; set; }
+
+    [Column("REGION_NAME")]
+    public string? RegionName { get; set; }
+
+    [Column("DIVISION_CODE")]
+    public string? DivisionCode { get; set; }
+
+    [Column("DIVISION_NAME")]
+    public string? DivisionName { get; set; }
 
     [Column("EMP_DESGN")]
     public string? EmpDesgn { get; set; }

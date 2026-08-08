@@ -28,13 +28,14 @@ public class AppDbContext : DbContext
     public DbSet<LoginCaptchaQuestion> LoginCaptchaQuestions => Set<LoginCaptchaQuestion>();
     public DbSet<EntryMonthUnlock> EntryMonthUnlocks => Set<EntryMonthUnlock>();
 
-    /// <summary>Optional Oracle STAFF_DETAILS (EMPLID) — same shape as Organisations staff master.</summary>
+    /// <summary>Oracle STAFF_DETAILS (EMPLID) — same columns as Organisations dbo.StaffDetails.</summary>
     public DbSet<OrgStaffDetail> OracleStaffDetails => Set<OrgStaffDetail>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
 
+        // Oracle table name STAFF_DETAILS; Organisations uses StaffDetails (see OrganisationsDbContext).
         modelBuilder.Entity<OrgStaffDetail>().HasNoKey().ToTable("STAFF_DETAILS");
 
         modelBuilder.Entity<EntryMonthUnlock>()

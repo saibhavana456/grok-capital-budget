@@ -60,8 +60,8 @@ public interface IRevenueService
 public interface IStaffLookupService
 {
     /// <summary>
-    /// STAFF_DETAILS lookup by EMPLID (Oracle app schema, or SQL Server OrganisationsDb when set).
-    /// Returns null when PF not found (including empty sample data).
+    /// Staff by EMPLID: Oracle STAFF_DETAILS (test) or Organisations StaffDetails (prod when UseOrganisationsDb).
+    /// Returns null when PF not found.
     /// </summary>
     Task<StaffLookupResult?> LookupByPfAsync(string pfNo);
     bool IsOrganisationsConfigured { get; }

@@ -6,10 +6,10 @@ using Microsoft.EntityFrameworkCore;
 namespace IT_BUDGET_MONITORING_PORTAL.Services;
 
 /// <summary>
-/// Staff lookup for Admin Maker/Checker View:
-/// 1) SQL Server OrganisationsDb when configured (optional)
-/// 2) Else Oracle app schema STAFF_DETAILS (EMPLID) — table created in SQL Developer
-/// Empty sample data → null ("PF not found"). That is not a connection-config error.
+/// Staff lookup by EMPLID:
+/// 1) When Auth:UseOrganisationsDb=true → SQL Server Organisations <c>StaffDetails</c> (SCV ConnStrOrganisations)
+/// 2) Else → Oracle app schema <c>STAFF_DETAILS</c> (same EMPLID columns for local testing)
+/// Organisations tables are read-only — no DDL against org DB.
 /// </summary>
 public class StaffLookupService : IStaffLookupService
 {
@@ -27,8 +27,10 @@ public class StaffLookupService : IStaffLookupService
         _logger = logger;
     }
 
-    /// <summary>True when SQL Server Orgs is set, or when we can try Oracle STAFF_DETAILS.</summary>
+    /// <summary>Staff source is always available (Oracle mirror and/or Organisations).</summary>
     public bool IsOrganisationsConfigured => true;
+
+    public bool UseOrganisationsDb => _config.GetValue("Auth:UseOrganisationsDb", false);
 
     public async Task<StaffLookupResult?> LookupByPfAsync(string pfNo)
     {
@@ -36,35 +38,44 @@ public class StaffLookupService : IStaffLookupService
         if (string.IsNullOrEmpty(pf))
             return null;
 
-        var fromOrgs = await TryLookupSqlServerAsync(pf);
-        if (fromOrgs != null) return fromOrgs;
+        if (UseOrganisationsDb)
+        {
+            var fromOrgs = await TryLookupSqlServerStaffDetailsAsync(pf);
+            if (fromOrgs != null) return fromOrgs;
+            _logger.LogInformation(
+                "UseOrganisationsDb=true but no StaffDetails row for EMPLID {Pf}", pf);
+            return null;
+        }
 
         return await TryLookupOracleAsync(pf);
     }
 
-    private async Task<StaffLookupResult?> TryLookupSqlServerAsync(string pf)
+    private async Task<StaffLookupResult?> TryLookupSqlServerStaffDetailsAsync(string pf)
     {
-        var conn = _config.GetConnectionString("OrganisationsDb");
+        var raw = _config.GetConnectionString("OrganisationsDb");
+        var conn = ConnectionStringHelper.Resolve(raw);
         if (string.IsNullOrWhiteSpace(conn))
+        {
+            _logger.LogWarning(
+                "Auth:UseOrganisationsDb=true but ConnectionStrings:OrganisationsDb is empty.");
             return null;
+        }
 
         try
         {
-            if (conn.StartsWith("ENC:", StringComparison.OrdinalIgnoreCase))
-                conn = EncryptoData.DecryptAes(conn["ENC:".Length..]);
-
             var options = new DbContextOptionsBuilder<OrganisationsDbContext>()
                 .UseSqlServer(conn)
                 .Options;
 
             await using var orgDb = new OrganisationsDbContext(options);
+            // Organisations dbo.StaffDetails — EMPLID (same shape as Oracle STAFF_DETAILS mirror)
             var staff = await orgDb.StaffDetails.AsNoTracking()
                 .FirstOrDefaultAsync(s => s.EmplId == pf);
             return staff == null ? null : Map(staff, pf);
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "SQL Server STAFF_DETAILS lookup failed for {Pf}", pf);
+            _logger.LogWarning(ex, "SQL Server StaffDetails lookup failed for {Pf}", pf);
             return null;
         }
     }
@@ -74,11 +85,12 @@ public class StaffLookupService : IStaffLookupService
         try
         {
             await using var db = await _dbFactory.CreateDbContextAsync();
-            // Table created in Oracle as STAFF_DETAILS with EMPLID (bank screenshot).
+            // Oracle STAFF_DETAILS — EMPLID columns matching Organisations StaffDetails
             var rows = await db.Set<OrgStaffDetail>()
                 .FromSqlRaw(
                     """
                     SELECT EMPLID, NAME, LOCATION, DESCR, DEPTID, DESCR1,
+                           REGION_CODE, REGION_NAME, DIVISION_CODE, DIVISION_NAME,
                            EMP_DESGN, EMP_DESGN_DESC, EMP_SCALE_CODE, EMP_SCALE_DESCR,
                            PHONE, EMAIL
                     FROM STAFF_DETAILS
@@ -90,7 +102,7 @@ public class StaffLookupService : IStaffLookupService
             var staff = rows.FirstOrDefault();
             if (staff == null)
             {
-                _logger.LogInformation("No Oracle STAFF_DETAILS row for PF {Pf}", pf);
+                _logger.LogInformation("No Oracle STAFF_DETAILS row for EMPLID {Pf}", pf);
                 return null;
             }
 
@@ -99,7 +111,7 @@ public class StaffLookupService : IStaffLookupService
         catch (Exception ex)
         {
             _logger.LogWarning(ex,
-                "Oracle STAFF_DETAILS lookup failed for {Pf}. Ensure table exists and sample data is loaded.",
+                "Oracle STAFF_DETAILS lookup failed for {Pf}. Run Scripts/CREATE_ORACLE_STAFF_DETAILS.sql then SEED_STAFF_DETAILS_MAKER_CHECKER.sql.",
                 pf);
             return null;
         }

@@ -73,8 +73,15 @@ builder.Services.AddPooledDbContextFactory<AppDbContext>(options =>
 builder.Services.AddScoped(sp =>
     sp.GetRequiredService<IDbContextFactory<AppDbContext>>().CreateDbContext());
 
-// SQL Server Organisations — STAFF_DETAILS + StaffDetails (email/phone). Leave empty to skip.
-// Same pattern as Personal/SCV ConnStrOrganisations (optional ENC: prefix).
+// Organisations SQL Server — SCV ConnStrOrganisations (AES). Used when Auth:UseOrganisationsDb=true.
+// Local test: UseOrganisationsDb=false → Oracle STAFF_DETAILS (EMPLID, same columns as Organisations StaffDetails).
+{
+    var useOrgs = builder.Configuration.GetValue("Auth:UseOrganisationsDb", false);
+    var orgRaw = builder.Configuration.GetConnectionString("OrganisationsDb");
+    Log.Information(
+        "Staff source: UseOrganisationsDb={UseOrgs} OrganisationsDbConfigured={HasConn}",
+        useOrgs, !string.IsNullOrWhiteSpace(orgRaw));
+}
 
 builder.Services.AddHttpClient("AdApi");
 builder.Services.AddHttpContextAccessor();

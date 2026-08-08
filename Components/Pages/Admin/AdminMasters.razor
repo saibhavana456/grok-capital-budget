@@ -17,7 +17,7 @@
     <b>DIT Revenue</b> = Maker/Checker on each <b>Section</b> (Revenue is section-wise, not project).<br />
     <b>Other departments</b> = one Maker + one Checker on the <b>Department</b> only (capital). New Department cannot create DIT.<br />
     <b>Non-DIT projects</b> use an auto <b>General</b> section — use the Projects tab (Sections tab is optional).<br />
-    <b>Staff lookup (View)</b> — Oracle <code>STAFF_DETAILS</code> (EMPLID). Empty table / missing PF → “not found” (not a connection error).
+    <b>Staff lookup (View)</b> — Local: Oracle <code>STAFF_DETAILS</code> (EMPLID). Prod: Organisations <code>StaffDetails</code> when <code>Auth:UseOrganisationsDb=true</code>. Missing PF → “not found”.
 </MudAlert>
 
 <MudTabs Elevation="1" Rounded="true" PanelClass="pa-4">
@@ -135,8 +135,8 @@
                 }
 
                 <MudText Typo="Typo.caption" Class="mt-3 mb-2" Style="color:#64748b;">
-                    View Maker/Checker reads <code>STAFF_DETAILS</code> by EMPLID (scale, email, phone). Empty sample data → PF not found.
-                    APP_USER must also exist (Maker/Checker role, not ADMIN). Scale: Maker 1–4, Checker 4+.
+                    View Maker/Checker reads staff by EMPLID (scale, email, phone). Oracle STAFF_DETAILS locally; Organisations StaffDetails in prod.
+                    APP_USER must exist (Maker/Checker). Admin is config login only (SCV AdminApp). Scale: Maker 1–4, Checker 4+.
                 </MudText>
                 <MudStack Row="true" Spacing="2">
                     <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveDept">Save</MudButton>
