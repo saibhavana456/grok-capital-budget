@@ -125,7 +125,7 @@
                     {
                         <MudTable Items="StaffPreviewRows" Dense="true" Hover="true" Class="mt-3" Elevation="0">
                             <HeaderContent>
-                                <MudTh>Role</MudTh><MudTh>PF</MudTh><MudTh>Name</MudTh><MudTh>Designation</MudTh>
+                                <MudTh>Viewed as</MudTh><MudTh>PF</MudTh><MudTh>Name</MudTh><MudTh>Designation</MudTh>
                                 <MudTh>Scale</MudTh><MudTh>Email</MudTh><MudTh>Phone</MudTh>
                             </HeaderContent>
                             <RowTemplate>
@@ -138,6 +138,10 @@
                                 <MudTd>@(context.Phone ?? "—")</MudTd>
                             </RowTemplate>
                         </MudTable>
+                        <MudText Typo="Typo.caption" Class="mt-1" Style="color:#64748b;">
+                            “Viewed as” is which button you clicked (Maker field vs Checker field) — not APP_USER role.
+                            Designation/Scale come from staff master. Save still blocks Maker PF = Checker PF.
+                        </MudText>
                     }
                 }
 
@@ -673,9 +677,9 @@
         get
         {
             if (_makerStaff != null)
-                yield return ToPreview("Maker", _editDept?.MakerPf, _makerStaff);
+                yield return ToPreview("Maker field", _editDept?.MakerPf, _makerStaff);
             if (_checkerStaff != null)
-                yield return ToPreview("Checker", _editDept?.CheckerPf, _checkerStaff);
+                yield return ToPreview("Checker field", _editDept?.CheckerPf, _checkerStaff);
         }
     }
 
@@ -734,24 +738,47 @@
         _lookupBusy = true;
         try
         {
-            var staff = await StaffLookup.LookupByPfAsync(pf.Trim());
+            var pfNorm = pf.Trim();
+            var staff = await StaffLookup.LookupByPfAsync(pfNorm);
             if (staff == null)
             {
                 if (isMaker) _makerStaff = null; else _checkerStaff = null;
-                Snackbar.Add(string.Format(AppConstants.StaffNotInOrganisationsMessage, pf.Trim()), Severity.Warning);
+                Snackbar.Add(string.Format(AppConstants.StaffNotInOrganisationsMessage, pfNorm), Severity.Warning);
                 return;
             }
 
             if (isMaker) _makerStaff = staff; else _checkerStaff = staff;
             var scaleText = staff.ScaleNumber.HasValue ? $" · Scale {staff.ScaleNumber}" : "";
             Snackbar.Add($"Found {staff.EmpName} ({staff.EmpId}){scaleText}", Severity.Success);
+
+            // Preview only — Save still enforces rules. Warn early when slot vs scale / same PF.
+            if (_editDept != null)
+            {
+                var otherPf = isMaker ? _editDept.CheckerPf : _editDept.MakerPf;
+                if (!string.IsNullOrWhiteSpace(otherPf)
+                    && string.Equals(otherPf.Trim(), pfNorm, StringComparison.OrdinalIgnoreCase))
+                {
+                    Snackbar.Add(AppConstants.MakerCheckerSamePfMessage, Severity.Warning);
+                }
+            }
+
+            if (isMaker && !AppConstants.IsMakerScaleAllowed(staff.ScaleNumber))
+            {
+                Snackbar.Add(string.Format(AppConstants.MakerScaleInvalidMessage, pfNorm,
+                    staff.ScaleNumber?.ToString() ?? staff.ScaleCode ?? staff.ScaleDescr ?? "unknown"), Severity.Warning);
+            }
+            else if (!isMaker && !AppConstants.IsCheckerScaleAllowed(staff.ScaleNumber))
+            {
+                Snackbar.Add(string.Format(AppConstants.CheckerScaleInvalidMessage, pfNorm,
+                    staff.ScaleNumber?.ToString() ?? staff.ScaleCode ?? staff.ScaleDescr ?? "unknown"), Severity.Warning);
+            }
         }
         finally { _lookupBusy = false; }
     }
 
-    private static StaffPreviewRow ToPreview(string role, string? pf, StaffLookupResult s) => new()
+    private static StaffPreviewRow ToPreview(string viewedAsSlot, string? pf, StaffLookupResult s) => new()
     {
-        Role = role,
+        Role = viewedAsSlot,
         Pf = pf ?? s.EmpId,
         Name = s.EmpName,
         Designation = s.Designation ?? "—",
