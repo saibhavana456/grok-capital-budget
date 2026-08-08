@@ -445,7 +445,8 @@
     <MudTabPanel Text="Month Unlock">
         <MudText Typo="Typo.caption" Class="mb-3" Style="color:#64748b;">
             After a month’s deadline (end of next calendar month), Admin can enable entry for months with no PENDING/APPROVED submission.
-            Capital unlocks are project-wise; Revenue unlocks are section-wise (DIT).
+            <b>Capital</b> unlock → select project (writes PROJECT_ID). <b>Revenue</b> unlock → Unlock type = Revenue + section (writes SECTION_ID).
+            After Enable, refresh SQL Developer Data tab — a row must appear in ENTRY_MONTH_UNLOCK. Then Maker opens that month on Portal/Entry.
         </MudText>
 
         <MudGrid Class="admin-filter-row mb-3" Spacing="2">
@@ -1089,66 +1090,19 @@
         _unlockBusy = true;
         try
         {
-            await using var db = await DbFactory.CreateDbContextAsync();
             var fy = AppConstants.CurrentFinancialYear();
             var actor = AuthService.CurrentUser!.PfNo;
-            var now = DateTime.Now;
 
+            ServiceResult result;
             if (_unlockMode == "CAPITAL" && _unlockProjectId.HasValue)
             {
-                var projectId = _unlockProjectId.Value;
-                var existing = await db.EntryMonthUnlocks
-                    .FirstOrDefaultAsync(u => u.ProjectId == projectId
-                                              && u.FinancialYear == fy
-                                              && u.EntryMonth == month);
-                if (existing != null)
-                {
-                    existing.IsEnabled = "Y";
-                    existing.EnabledBy = actor;
-                    existing.EnabledAt = now;
-                    existing.UpdatedAt = now;
-                }
-                else
-                {
-                    db.EntryMonthUnlocks.Add(new EntryMonthUnlock
-                    {
-                        ProjectId = projectId,
-                        SectionId = null,
-                        FinancialYear = fy,
-                        EntryMonth = month,
-                        IsEnabled = "Y",
-                        EnabledBy = actor,
-                        EnabledAt = now
-                    });
-                }
+                result = await MasterService.EnableMonthUnlockAsync(
+                    _unlockProjectId.Value, null, fy, month, actor);
             }
             else if (_unlockMode == "REVENUE" && _unlockSectionId.HasValue)
             {
-                var sectionId = _unlockSectionId.Value;
-                var existing = await db.EntryMonthUnlocks
-                    .FirstOrDefaultAsync(u => u.SectionId == sectionId
-                                              && u.FinancialYear == fy
-                                              && u.EntryMonth == month);
-                if (existing != null)
-                {
-                    existing.IsEnabled = "Y";
-                    existing.EnabledBy = actor;
-                    existing.EnabledAt = now;
-                    existing.UpdatedAt = now;
-                }
-                else
-                {
-                    db.EntryMonthUnlocks.Add(new EntryMonthUnlock
-                    {
-                        ProjectId = null,
-                        SectionId = sectionId,
-                        FinancialYear = fy,
-                        EntryMonth = month,
-                        IsEnabled = "Y",
-                        EnabledBy = actor,
-                        EnabledAt = now
-                    });
-                }
+                result = await MasterService.EnableMonthUnlockAsync(
+                    null, _unlockSectionId.Value, fy, month, actor);
             }
             else
             {
@@ -1156,9 +1110,9 @@
                 return;
             }
 
-            await db.SaveChangesAsync();
-            Snackbar.Add($"Enabled {month} for FY {fy}.", Severity.Success);
-            await LoadUnlockableMonthsAsync();
+            Snackbar.Add(result.Message, result.Success ? Severity.Success : Severity.Error);
+            if (result.Success)
+                await LoadUnlockableMonthsAsync();
         }
         catch (Exception ex)
         {

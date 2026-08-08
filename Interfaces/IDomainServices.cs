@@ -29,6 +29,10 @@ public interface IMasterService
     Task SoftDeleteDepartmentAsync(long deptId, string actorPf);
     Task SoftDeleteSectionAsync(long sectionId, string actorPf);
     Task SoftDeleteProjectAsync(long projectId, string actorPf);
+
+    /// <summary>True when Admin enabled this month after deadline (capital project or revenue section).</summary>
+    Task<bool> IsMonthUnlockedAsync(long? projectId, long? sectionId, string financialYear, string entryMonth);
+    Task<ServiceResult> EnableMonthUnlockAsync(long? projectId, long? sectionId, string financialYear, string entryMonth, string actorPf);
 }
 
 public interface ICapitalService

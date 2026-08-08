@@ -2,6 +2,7 @@
 @attribute [Authorize(Roles = "MAKER")]
 @inject ICapitalService CapitalService
 @inject IAuthService AuthService
+@inject IMasterService MasterService
 @inject NavigationManager Nav
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
@@ -28,7 +29,7 @@
                     <MudText Typo="Typo.caption" Class="mt-1" Style="color:#64748b;">
                         @if (AppConstants.IsCurrentFinancialYear(_form.FinancialYear))
                         {
-                            <text>Current FY — entry allowed for current and previous calendar month.</text>
+                            <text>Current FY — within deadline (until end of next calendar month), or Admin-unlocked months.</text>
                         }
                         else
                         {
@@ -227,12 +228,14 @@
 
         _existing = await CapitalService.FindActiveEntryAsync(ProjectId.Value, fy, month);
         _isLocked = _existing != null && AppConstants.IsLockedStatus(_existing.Status);
+        var monthOpen = AppConstants.IsMonthWithinDeadline(month)
+                        || await MasterService.IsMonthUnlockedAsync(ProjectId.Value, null, fy, month);
         _isResubmit = _existing != null && AppConstants.IsEditableStatus(_existing.Status)
                       && AppConstants.IsCurrentFinancialYear(fy)
-                      && AppConstants.IsAllowedEntryMonth(month);
+                      && monthOpen;
         _canSubmit = !_isLocked && (
             _isResubmit ||
-            (_existing == null && AppConstants.CanSubmitNewEntry(fy, month)));
+            (_existing == null && AppConstants.IsCurrentFinancialYear(fy) && monthOpen));
     }
 
     private async Task OnFyChanged(string fy)

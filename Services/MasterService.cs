@@ -568,4 +568,108 @@ public class MasterService : IMasterService
         p.UpdatedBy = actorPf;
         await _db.SaveChangesAsync();
     }
+
+    public async Task<bool> IsMonthUnlockedAsync(
+        long? projectId, long? sectionId, string financialYear, string entryMonth)
+    {
+        var fy = (financialYear ?? "").Trim();
+        var month = (entryMonth ?? "").Trim();
+        if (string.IsNullOrEmpty(fy) || string.IsNullOrEmpty(month)) return false;
+
+        try
+        {
+            if (projectId.HasValue && projectId.Value > 0)
+            {
+                return await _db.EntryMonthUnlocks.AsNoTracking()
+                    .AnyAsync(u => u.ProjectId == projectId.Value
+                                   && u.FinancialYear == fy
+                                   && u.EntryMonth == month
+                                   && u.IsEnabled == "Y");
+            }
+
+            if (sectionId.HasValue && sectionId.Value > 0)
+            {
+                return await _db.EntryMonthUnlocks.AsNoTracking()
+                    .AnyAsync(u => u.SectionId == sectionId.Value
+                                   && u.FinancialYear == fy
+                                   && u.EntryMonth == month
+                                   && u.IsEnabled == "Y");
+            }
+        }
+        catch
+        {
+            return false;
+        }
+
+        return false;
+    }
+
+    public async Task<ServiceResult> EnableMonthUnlockAsync(
+        long? projectId, long? sectionId, string financialYear, string entryMonth, string actorPf)
+    {
+        var fy = (financialYear ?? "").Trim();
+        var month = (entryMonth ?? "").Trim();
+        if (string.IsNullOrEmpty(fy) || string.IsNullOrEmpty(month))
+            return ServiceResult.Fail("Financial year and month are required.");
+
+        var isCapital = projectId.HasValue && projectId.Value > 0;
+        var isRevenue = sectionId.HasValue && sectionId.Value > 0;
+        if (isCapital == isRevenue)
+            return ServiceResult.Fail("Provide either ProjectId (capital) or SectionId (revenue), not both/neither.");
+
+        try
+        {
+            // Raw SQL avoids Oracle IDENTITY insert issues with EF tracked entities.
+            if (isCapital)
+            {
+                var updated = await _db.Database.ExecuteSqlInterpolatedAsync($@"
+UPDATE ENTRY_MONTH_UNLOCK
+SET IS_ENABLED = 'Y', ENABLED_BY = {actorPf}, ENABLED_AT = SYSTIMESTAMP, UPDATED_AT = SYSTIMESTAMP
+WHERE PROJECT_ID = {projectId!.Value}
+  AND FINANCIAL_YEAR = {fy}
+  AND ENTRY_MONTH = {month}");
+
+                if (updated == 0)
+                {
+                    await _db.Database.ExecuteSqlInterpolatedAsync($@"
+INSERT INTO ENTRY_MONTH_UNLOCK
+  (PROJECT_ID, SECTION_ID, FINANCIAL_YEAR, ENTRY_MONTH, IS_ENABLED, ENABLED_BY, ENABLED_AT)
+VALUES
+  ({projectId.Value}, NULL, {fy}, {month}, 'Y', {actorPf}, SYSTIMESTAMP)");
+                }
+            }
+            else
+            {
+                var updated = await _db.Database.ExecuteSqlInterpolatedAsync($@"
+UPDATE ENTRY_MONTH_UNLOCK
+SET IS_ENABLED = 'Y', ENABLED_BY = {actorPf}, ENABLED_AT = SYSTIMESTAMP, UPDATED_AT = SYSTIMESTAMP
+WHERE SECTION_ID = {sectionId!.Value}
+  AND FINANCIAL_YEAR = {fy}
+  AND ENTRY_MONTH = {month}");
+
+                if (updated == 0)
+                {
+                    await _db.Database.ExecuteSqlInterpolatedAsync($@"
+INSERT INTO ENTRY_MONTH_UNLOCK
+  (PROJECT_ID, SECTION_ID, FINANCIAL_YEAR, ENTRY_MONTH, IS_ENABLED, ENABLED_BY, ENABLED_AT)
+VALUES
+  (NULL, {sectionId.Value}, {fy}, {month}, 'Y', {actorPf}, SYSTIMESTAMP)");
+                }
+            }
+
+            var ok = await IsMonthUnlockedAsync(projectId, sectionId, fy, month);
+            if (!ok)
+                return ServiceResult.Fail(
+                    "Unlock insert did not persist. Confirm ENTRY_MONTH_UNLOCK exists and app Oracle user can INSERT.");
+
+            return ServiceResult.Ok(
+                isCapital
+                    ? $"Enabled {month} for capital project {projectId} (FY {fy})."
+                    : $"Enabled {month} for revenue section {sectionId} (FY {fy}).");
+        }
+        catch (Exception ex)
+        {
+            return ServiceResult.Fail($"Unlock failed: {ex.Message}");
+        }
+    }
 }
