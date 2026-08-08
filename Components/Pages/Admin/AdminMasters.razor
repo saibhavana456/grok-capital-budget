@@ -492,12 +492,16 @@
 
         <MudText Typo="Typo.subtitle2" Class="mb-2" Style="color:#003366;">
             Unlockable months — FY @_unlockFy
+            <MudText Typo="Typo.caption" Style="color:#64748b;">
+                Today: @DateTime.Now.ToString("dd-MMM-yyyy"). Deadline for a month = last day of the next calendar month.
+                Example on 08-Aug-2026: April–June need unlock if not submitted; July still open until 31-Aug; August open until 30-Sep.
+            </MudText>
         </MudText>
-        <MudTable Items="_unlockableMonths" Dense="true" Hover="true" Class="admin-masters-table">
+        <MudTable Items="_unlockableMonths" Dense="true" Hover="true" Class="admin-masters-table mb-4">
             <HeaderContent>
                 <MudTh>Month</MudTh>
                 <MudTh>Deadline ended</MudTh>
-                <MudTh>Prior months still open</MudTh>
+                <MudTh>Prior months still missing</MudTh>
                 <MudTh Style="text-align:right;">Action</MudTh>
             </HeaderContent>
             <RowTemplate>
@@ -518,6 +522,25 @@
                 </MudText>
             </NoRecordsContent>
         </MudTable>
+
+        @if (_unlockStatusRows.Count > 0)
+        {
+            <MudText Typo="Typo.subtitle2" Class="mb-2" Style="color:#003366;">
+                Month status (why grey on Maker portal)
+            </MudText>
+            <MudTable Items="_unlockStatusRows" Dense="true" Hover="true" Class="admin-masters-table">
+                <HeaderContent>
+                    <MudTh>Month</MudTh>
+                    <MudTh>Deadline</MudTh>
+                    <MudTh>Status</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd>@context.Month</MudTd>
+                    <MudTd>@context.DeadlineEnd.ToString("dd-MMM-yyyy")</MudTd>
+                    <MudTd>@context.Status</MudTd>
+                </RowTemplate>
+            </MudTable>
+        }
     </MudTabPanel>
 
     <MudTabPanel Text="Revenue Heads">
@@ -568,6 +591,7 @@
     private List<Section> _unlockSections = new();
     private List<Project> _unlockProjects = new();
     private List<UnlockMonthRow> _unlockableMonths = new();
+    private List<UnlockStatusRow> _unlockStatusRows = new();
     private string _unlockFy = AppConstants.CurrentFinancialYear();
     private bool _unlockBusy;
 
@@ -595,7 +619,7 @@
                 return "Select department → section → project to list unlockable months.";
             if (_unlockMode == "REVENUE" && !_unlockSectionId.HasValue)
                 return "Select DIT department → section to list unlockable months.";
-            return "No months need unlock (deadline not passed, already submitted, or already enabled).";
+            return "No months need Enable: either deadline not passed yet, already PENDING/APPROVED, or already unlocked. See status table below.";
         }
     }
 
@@ -1019,17 +1043,37 @@
         else
         {
             _unlockableMonths = new();
+            _unlockStatusRows = new();
             return;
         }
 
         // Expired months with no PENDING/APPROVED entry and not already unlocked.
         _unlockableMonths = new();
+        _unlockStatusRows = new();
         foreach (var m in AppConstants.FyMonths)
         {
+            if (AppConstants.IsFutureMonth(m, now)) continue;
+
             var deadline = AppConstants.GetMonthDeadlineEnd(m, now);
-            if (now <= deadline) continue;
-            if (submitted.Contains(m) || unlocked.Contains(m)) continue;
-            // PriorFyMonthsRequired: makers must still gap-fill April…prior(M) before submitting M.
+            var withinDeadline = now <= deadline;
+            var isSubmitted = submitted.Contains(m);
+            var isUnlocked = unlocked.Contains(m);
+
+            string status;
+            if (isSubmitted) status = "Already submitted (PENDING/APPROVED) — no unlock needed";
+            else if (isUnlocked) status = "Already unlocked by Admin — Maker can select on Portal";
+            else if (withinDeadline) status = "Within deadline — Maker can select without unlock";
+            else status = "Deadline passed — needs Enable below";
+
+            _unlockStatusRows.Add(new UnlockStatusRow
+            {
+                Month = m,
+                DeadlineEnd = deadline,
+                Status = status
+            });
+
+            if (withinDeadline) continue;
+            if (isSubmitted || isUnlocked) continue;
             var priors = AppConstants.PriorFyMonthsRequired(m);
             _unlockableMonths.Add(new UnlockMonthRow
             {
@@ -1131,6 +1175,13 @@
         public string Month { get; set; } = "";
         public DateTime DeadlineEnd { get; set; }
         public int PriorGaps { get; set; }
+    }
+
+    private sealed class UnlockStatusRow
+    {
+        public string Month { get; set; } = "";
+        public DateTime DeadlineEnd { get; set; }
+        public string Status { get; set; } = "";
     }
 
     private sealed class StaffPreviewRow

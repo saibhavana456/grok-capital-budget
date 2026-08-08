@@ -5,6 +5,7 @@
 @inject IAuthService AuthService
 @inject NavigationManager Nav
 @inject ISnackbar Snackbar
+@inject IDbContextFactory<AppDbContext> DbFactory
 
 <div class="entry-page">
     @if (_loading)
@@ -73,10 +74,11 @@
             <MudSelect T="string" Label="Entry Month" Variant="Variant.Outlined" Class="mb-3"
                        Value="_month" ValueChanged="OnMonthChanged"
                        AnchorOrigin="Origin.BottomLeft" TransformOrigin="Origin.TopLeft"
-                       RelativeWidth="DropdownWidth.Relative">
+                       RelativeWidth="DropdownWidth.Relative"
+                       HelperText="Grey months: deadline passed. Admin can unlock them on Admin Masters → Month Unlock for this project/section.">
                 @foreach (var m in AppConstants.FyMonths)
                 {
-                    <MudSelectItem Value="@m" Disabled="@(!AppConstants.IsEntryMonthSelectable(m))">@m</MudSelectItem>
+                    <MudSelectItem Value="@m" Disabled="@(!IsMonthSelectable(m))">@m</MudSelectItem>
                 }
             </MudSelect>
 
@@ -102,6 +104,7 @@
     private bool _showBudgetType;
     private bool _isChecker;
     private bool _isAdmin;
+    private HashSet<string> _unlockedMonths = new(StringComparer.OrdinalIgnoreCase);
 
     private bool IsCapitalPath => !_showBudgetType || _budgetType == "CAPITAL";
 
@@ -113,8 +116,12 @@
         _deptId.HasValue &&
         _sectionId.HasValue &&
         !string.IsNullOrWhiteSpace(_month) &&
-        AppConstants.IsEntryMonthSelectable(_month) &&
+        IsMonthSelectable(_month) &&
         (IsCapitalPath ? _projectId.HasValue : _showBudgetType && _budgetType == "REVENUE");
+
+    private bool IsMonthSelectable(string? month) =>
+        AppConstants.IsMonthWithinDeadline(month)
+        || (!string.IsNullOrWhiteSpace(month) && _unlockedMonths.Contains(month));
 
     protected override async Task OnInitializedAsync()
     {
@@ -201,25 +208,74 @@
         _sectionId = sectionId;
         _projectId = null;
         _projects.Clear();
+        _unlockedMonths.Clear();
         if (!sectionId.HasValue) return;
         if (IsCapitalPath)
         {
             var pf = AuthService.CurrentUser?.PfNo ?? "";
             _projects = await MasterService.GetProjectsForMakerAsync(sectionId.Value, pf);
         }
+        else
+        {
+            await LoadUnlockedMonthsAsync();
+        }
     }
 
-    private Task OnProjectChanged(long? projectId)
+    private async Task OnProjectChanged(long? projectId)
     {
         _projectId = projectId;
-        return Task.CompletedTask;
+        _unlockedMonths.Clear();
+        if (projectId.HasValue)
+            await LoadUnlockedMonthsAsync();
     }
 
     private Task OnMonthChanged(string month)
     {
-        if (!AppConstants.IsEntryMonthSelectable(month)) return Task.CompletedTask;
+        if (!IsMonthSelectable(month)) return Task.CompletedTask;
         _month = month;
         return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Months Admin enabled after deadline for this project (capital) or section (revenue).
+    /// Without this, grey portal months stay locked even after Month Unlock.
+    /// </summary>
+    private async Task LoadUnlockedMonthsAsync()
+    {
+        _unlockedMonths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        try
+        {
+            var fy = AppConstants.CurrentFinancialYear();
+            await using var db = await DbFactory.CreateDbContextAsync();
+            List<string> months;
+            if (IsCapitalPath && _projectId.HasValue)
+            {
+                months = await db.EntryMonthUnlocks.AsNoTracking()
+                    .Where(u => u.ProjectId == _projectId.Value
+                                && u.FinancialYear == fy
+                                && u.IsEnabled == "Y")
+                    .Select(u => u.EntryMonth)
+                    .ToListAsync();
+            }
+            else if (!IsCapitalPath && _sectionId.HasValue)
+            {
+                months = await db.EntryMonthUnlocks.AsNoTracking()
+                    .Where(u => u.SectionId == _sectionId.Value
+                                && u.FinancialYear == fy
+                                && u.IsEnabled == "Y")
+                    .Select(u => u.EntryMonth)
+                    .ToListAsync();
+            }
+            else return;
+
+            _unlockedMonths = months.ToHashSet(StringComparer.OrdinalIgnoreCase);
+            if (!IsMonthSelectable(_month))
+                _month = AppConstants.DefaultEntryMonth();
+        }
+        catch
+        {
+            // ENTRY_MONTH_UNLOCK may not exist yet — portal still uses deadline-only months.
+        }
     }
 
     private void Continue()
