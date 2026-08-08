@@ -1,135 +1,105 @@
-# Priyadarshini / Union Bank — locked decisions (IT Budget Portal)
+# Priyadarshini / Union Bank — FINAL plan (IT Budget Portal)
 
-Last updated: 2026-08-08 (from full call transcript + Admin screenshots).
+Last updated: 2026-08-08 (full call + Admin screenshots, including New Department DIT behaviour).
 
-Use this file as agent memory across chats. Prefer this over assumptions.
+Use this file as agent memory. Prefer this over assumptions.
 
 ---
 
-## Confirmed product rules
+## Correction from latest images (point 2)
+
+| Observation | Verdict |
+|---|---|
+| New Department + Code typed as exact `DIT` → Maker/Checker **hidden** | **Already correct** — you were right to correct yourself |
+| New Department with empty/other code → Maker/Checker shown | Correct for non-DIT |
+| Same **name** as existing DIT accepted | **Wrong** — must block duplicate department **name** (and **code**) |
+| Typing Code `DIT` again while DIT already exists | **Wrong** — client: only **one** DIT; block second DIT entirely |
+| Has Revenue dropdown on New Department | **Confusing** — remove for new depts (always capital-only / N). Existing DIT is special-cased, not re-created |
+
+**Best approach (client: only one DIT, no other DIT-type dept):**
+- **Do not** allow creating another DIT via Admin.
+- New Department form = **other departments only**: Code, Name, Maker PF, Checker PF (no Has Revenue, no DIT path).
+- Existing DIT row: Edit = Name (optional) only; Code read-only `DIT`; no Maker/Checker; Has Revenue fixed Y (read-only or hidden).
+- Unique checks: department **Code** unique; department **Name** unique (trim, case-insensitive).
+
+---
+
+## Locked product rules
 
 ### Roles & login
-- Roles: **MAKER**, **CHECKER**, **ADMIN** only.
-- Login: PF + password + captcha.
+- MAKER / CHECKER / ADMIN; PF + password + captcha.
 
-### Maker / Checker assignment
+### Maker / Checker
 | Scope | Rule |
 |---|---|
-| **DIT Capital** | **Project-wise** Maker + Checker |
-| **DIT Revenue** | **Section-wise** Maker + Checker (no projects on revenue) |
-| **Other departments** | **Capital only** — **department-wise** Maker + Checker. **No revenue.** |
+| DIT Capital | Project-wise |
+| DIT Revenue | Section-wise (no projects) |
+| Other departments | Department-wise Capital only — **no revenue** |
 | Same project/section | Maker ≠ Checker |
-| Overlap | Same PF may be Maker on one project and Checker on another |
-| Scale (STAFF_DETAILS) | Maker 1–4, Checker 4+ |
+| Scale | Maker 1–4, Checker 4+ (STAFF_DETAILS) |
 
-### Only one DIT
-- Only **one** department is DIT (code `DIT`): has Capital **and** Revenue.
-- Do **not** allow creating another DIT / another department with Has Revenue = Y.
-- Other departments: capital only; never show/set Has Revenue as editable Y.
+### Checker actions
+- **Approve** + **Reject** only — **remove Return**.
+- Reject → Maker Resubmit on Submissions.
 
-### Budget entry rules (already implemented unless noted)
-- Capital over allotment → **block** submit.
-- Revenue over allotment → **info**; allow submit.
-- Checker: **Approve** and **Reject** only — **remove Return** (client confirmed Reject covers it).
-- After Reject → Maker can resubmit (Resubmit on Submissions page).
+### Over allotment
+- Capital → block; Revenue → info, allow.
 
-### Month / deadline rules (NOW decided — was deferred)
-1. **Deadline for entry month M** = last day of the **next** calendar month.  
-   Example: July → deadline **31 Aug**; August → deadline **30 Sep**.
-2. Maker may open/submit months that are still **within deadline** (typically current + previous while previous deadline not crossed).
-3. **Sequential gap fill (mandatory):** cannot submit month M until **all earlier FY months** (April → month before M) have a submission.  
-   Example: trying August with July missing → must do July first; if May/June missing → those first, in order.
-4. **Admin enable (expired months):** if deadline for a month has passed and that month is still not submitted, Admin can **enable** that month so Maker can submit.  
-   - Capital → enable **project-wise**  
-   - Revenue → enable **section-wise**  
-   - Show only months whose **deadline already expired** (and not yet submitted).  
-   - Direct Admin action — **no** extra approval workflow.
+### Month / deadline (decided on call)
+1. Deadline for month M = last day of **next** calendar month (July → 31 Aug).
+2. Sequential: cannot submit M until April…Previous(M) each have a submission (PENDING or APPROVED).
+3. After deadline, month closed unless Admin enables:
+   - Capital → **project-wise**
+   - Revenue → **section-wise**
+   - Only expired, not-yet-submitted months; no extra approval.
 
-### Admin masters UX (from call + images)
-1. **DIT department edit:** do **not** show department Maker/Checker (Capital on Projects, Revenue on Sections).  
-   Bug seen: editing with code like `DIT 01` still showed Maker/Checker because DIT check is exact code `DIT`.
-2. **Has Revenue:** do not let other departments flip Has Revenue to Y in Edit (mistake risk).
-3. **DIT add section:** after selecting DIT, Admin must first choose **Capital** or **Revenue**:  
-   - **Revenue** → create/edit **section** with Revenue Maker/Checker + allotment (no projects).  
-   - **Capital** → create/edit **section** (folder), then **Projects** under it with Capital Maker/Checker + allotment.
-4. Layout: use full width; Department / Capital|Revenue / actions aligned in one filter row.
-5. New mid-year project allowed; utilized-till starts at 0 on entry page (not on Admin create).
-6. Changing Maker/Checker after submissions exist is sensitive — lock or warn (see plan).
-
-### Staff lookup
-- Oracle `STAFF_DETAILS` by `EMPLID` (optional SQL Server OrganisationsDb).
-- Empty table → “PF not found” — **not** a connection error.
+### Staff
+- Oracle `STAFF_DETAILS` / EMPLID; empty data ≠ connection error.
 
 ---
 
-## Implementation plan (ordered)
+## FINAL implementation plan (ordered)
 
-### P0 — Safe / clear (do first)
-1. **Remove Return**
-   - Hide Return on Capital/Revenue View (Checker).
-   - Checker services: accept only APPROVED / REJECTED.
-   - Keep `RETURNED` in DB/status chips for old rows; treat as editable like Rejected for Maker resubmit.
-2. **Fix DIT department edit (image 1)**
-   - Treat department as DIT if `DeptCode == DIT` (case-insensitive) **or** existing HasRevenue=Y singleton.
-   - On DIT edit: hide Maker/Checker fields; clear them on save; lock Code to `DIT` (or read-only).
-   - Hide/disable **Has Revenue** for non-DIT (force N). For DIT force Y read-only.
-3. **Enforce only one DIT / no revenue elsewhere**
-   - New department: no Has Revenue control (always N); block code `DIT` if DIT already exists.
-   - SaveDepartment: reject HasRevenue=Y unless code is DIT; reject second DIT.
+### P0 — Checker + Department masters (do first)
+1. Remove Return (UI + service); keep old RETURNED rows editable like Rejected.
+2. **New Department** = non-DIT only:
+   - Fields: Code*, Name*, Maker*, Checker* (+ View).
+   - Remove Has Revenue from this form (always save `N`).
+   - Remove DIT special banners / “type DIT to hide M/C” path.
+   - If user types code `DIT` → error: “DIT already exists; use the existing DIT row.”
+3. **Uniqueness:** reject duplicate Code or Name (active rows, case-insensitive).
+4. **Edit existing DIT:** no Maker/Checker; Code read-only; Has Revenue not editable (Y).
+5. **Edit other dept:** Maker/Checker editable with care; no Has Revenue control (stay N).
 
-### P1 — Admin Capital vs Revenue section flow (image 2)
-4. When filter department is DIT, require **Budget type** = Capital | Revenue before Add Section.
-5. Revenue mode: section form shows Rev Maker/Checker + revenue allotment; list Rev columns.
-6. Capital mode: section form is Code/Name only; Cap Maker/Checker only on Projects tab under that section.
-7. Relax save rule: do not require Rev M/C when creating a capital-folder section; require Rev M/C when saving in Revenue mode.
-8. Widen forms to full content width; filter row alignment (already partially done — complete for DIT budget-type).
+### P1 — DIT Sections / Projects Admin
+6. After selecting DIT → choose **Capital** or **Revenue** first.
+7. Revenue → Add/Edit Section with Rev Maker/Checker + allotment.
+8. Capital → Add/Edit Section (code/name) → Projects with Cap Maker/Checker + allotment.
+9. Full-width aligned filters/forms.
 
-### P2 — Month deadline + sequential submit + Admin enable (largest)
-9. Replace “current + previous calendar month only” with:
-   - `DeadlineEnd(month)` = last day of next calendar month.
-   - `IsMonthOpenForSubmit` = within deadline **or** Admin-enabled for that project/section.
-10. Before submit of month M: ensure April…Previous(M) each have an active entry (PENDING or APPROVED — confirm PENDING counts; recommend **PENDING or APPROVED**, not missing/REJECTED-only).
-11. Portal/entry UX: if gap, message + navigate Maker to earliest missing month.
-12. New Admin UI tab or panel: **Month unlock**
-    - Capital: pick Project → list expired unsubmitted months → Enable / Disable.
-    - Revenue: pick Section → same.
-13. New table e.g. `ENTRY_MONTH_UNLOCK` (ProjectId nullable, SectionId nullable, FinancialYear, EntryMonth, IsEnabled, EnabledBy, EnabledAt).
-14. Scripts + no break to existing APPROVED/PENDING data.
+### P2 — Month window + Admin unlock
+10. Deadline helper + open-if-within-deadline-or-unlocked.
+11. Gap-fill before submit; redirect/message to earliest missing month.
+12. Admin Month Unlock (project / section) + `ENTRY_MONTH_UNLOCK` table + script.
 
-### P3 — Maker/Checker edit safety (after P0–P2)
-15. If project/section has PENDING/APPROVED entries: allow edit name/code/allotment; **block or strong-confirm** Maker/Checker PF change.
-16. New project mid-year: allowed; allotment fields on project; utilized shown only on entry.
-
-### Explicitly out of scope until client confirms
-- Separate physical “capital-only section” vs “revenue-only section” tables (prefer one Section table + Capital/Revenue admin mode).
-- Duration of Admin enable auto-expiry (propose: stays until submit or Admin disables).
-- Email/daily follow-up for late sections (ops process, not portal).
+### P3 — Safety
+13. Block/warn Maker/Checker PF change when PENDING/APPROVED entries exist.
+14. Mid-year new project allowed; utilized on entry page only.
 
 ---
 
-## How month logic works (examples)
-
-| Today | July | August | June (deadline 31 Jul) |
-|---|---|---|---|
-| 4 Aug | Open (deadline 31 Aug) | Open (deadline 30 Sep) | Closed unless Admin enable |
-| Submit Aug | Blocked if Jul (and earlier gaps) missing | — | Must fill earliest gap first |
+## Out of scope until client confirms
+- Auto-expiry duration of Admin unlock (propose: until submit or Admin disables).
+- Separate DB tables for capital-only vs revenue-only sections (one Section table + Capital/Revenue mode).
 
 ---
 
-## Image findings (no assumptions)
-
-1. **Edit DIT shows Maker/Checker** — wrong. Form code `DIT 01` ≠ `DIT` so UI thought non-DIT. Fix DIT detection + hide fields.
-2. **New Section under DIT jumps straight to Revenue M/C** — wrong per call. Need Capital | Revenue choice first.
-3. Empty right-side space — widen Admin forms / filter row.
-
----
-
-## Test checklist (after implementation)
-- [ ] Checker: only Approve / Reject; no Return button
-- [ ] Edit DIT: no Maker/Checker; Has Revenue locked Y; code stable
-- [ ] New non-DIT dept: no Has Revenue; Maker/Checker required
-- [ ] Cannot create second DIT
-- [ ] DIT → Revenue → Add Section with Rev M/C
-- [ ] DIT → Capital → Add Section (no Rev M/C) → Add Project with Cap M/C
-- [ ] Aug blocked if Jul missing; unlock path via Admin after deadline
-- [ ] Rejected → Resubmit still works
+## Test checklist
+- [ ] Cannot create second DIT (code DIT blocked)
+- [ ] Cannot save duplicate department name or code
+- [ ] New Department: no Has Revenue; Maker/Checker always shown
+- [ ] Edit DIT: no Maker/Checker
+- [ ] Checker: Approve/Reject only
+- [ ] DIT Capital vs Revenue section flow
+- [ ] Month deadline + gap fill + Admin unlock
+- [ ] Rejected → Resubmit
