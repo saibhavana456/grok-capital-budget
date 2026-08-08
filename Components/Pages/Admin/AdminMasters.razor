@@ -6,6 +6,7 @@
 @inject IAuthService AuthService
 @inject IStaffLookupService StaffLookup
 @inject ISnackbar Snackbar
+@inject IDialogService DialogService
 @inject IDbContextFactory<AppDbContext> DbFactory
 
 <div class="admin-page">
@@ -41,9 +42,15 @@
                 </MudTd>
                 <MudTd DataLabel="Active">@context.IsActive</MudTd>
                 <MudTd DataLabel="Actions" Style="text-align:right;white-space:nowrap;">
-                    <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(() => EditDept(context))" />
-                    <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error"
-                                   OnClick="@(() => SoftDeleteDept(context.DeptId))" />
+                    <MudTooltip Text="Edit">
+                        <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
+                                       OnClick="@(() => EditDept(context))" />
+                    </MudTooltip>
+                    <MudTooltip Text="@(context.IsActive == "Y" ? "Set inactive" : "Already inactive — use Edit to set Active = Y")">
+                        <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error"
+                                       Disabled="@(context.IsActive != "Y")"
+                                       OnClick="@(() => SoftDeleteDept(context))" />
+                    </MudTooltip>
                 </MudTd>
             </RowTemplate>
         </MudTable>
@@ -138,6 +145,14 @@
                     View Maker/Checker reads staff by EMPLID (scale, email, phone). Oracle STAFF_DETAILS locally; Organisations StaffDetails in prod.
                     APP_USER must exist (Maker/Checker). Admin is config login only (SCV AdminApp). Scale: Maker 1–4, Checker 4+.
                 </MudText>
+                @if (_editDept.DeptId != 0)
+                {
+                    <MudSelect T="string" @bind-Value="_editDept.IsActive" Label="Active *" Variant="Variant.Outlined"
+                               Class="mt-2 mb-2" Style="max-width:220px;">
+                        <MudSelectItem T="string" Value="@("Y")">Y — Active</MudSelectItem>
+                        <MudSelectItem T="string" Value="@("N")">N — Inactive</MudSelectItem>
+                    </MudSelect>
+                }
                 <MudStack Row="true" Spacing="2">
                     <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveDept">Save</MudButton>
                     <MudButton Variant="Variant.Outlined" OnClick="CancelDept">Cancel</MudButton>
@@ -221,11 +236,16 @@
                 }
                 <MudTd>@context.IsActive</MudTd>
                 <MudTd Style="text-align:right;white-space:nowrap;">
-                    <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
-                                   Disabled="@(_filterDeptIsDit && string.IsNullOrEmpty(_ditBudgetType))"
-                                   OnClick="@(() => EditSection(context))" />
-                    <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error"
-                                   OnClick="@(() => SoftDeleteSection(context.SectionId))" />
+                    <MudTooltip Text="Edit">
+                        <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
+                                       Disabled="@(_filterDeptIsDit && string.IsNullOrEmpty(_ditBudgetType))"
+                                       OnClick="@(() => EditSection(context))" />
+                    </MudTooltip>
+                    <MudTooltip Text="@(context.IsActive == "Y" ? "Set inactive" : "Already inactive — use Edit to set Active = Y")">
+                        <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error"
+                                       Disabled="@(context.IsActive != "Y")"
+                                       OnClick="@(() => SoftDeleteSection(context))" />
+                    </MudTooltip>
                 </MudTd>
             </RowTemplate>
             <NoRecordsContent>
@@ -278,6 +298,15 @@
                                              Variant="Variant.Outlined" Min="0" />
                         </MudItem>
                     </MudGrid>
+                }
+
+                @if (_editSection.SectionId != 0)
+                {
+                    <MudSelect T="string" @bind-Value="_editSection.IsActive" Label="Active *" Variant="Variant.Outlined"
+                               Class="mt-3 mb-1" Style="max-width:220px;">
+                        <MudSelectItem T="string" Value="@("Y")">Y — Active</MudSelectItem>
+                        <MudSelectItem T="string" Value="@("N")">N — Inactive</MudSelectItem>
+                    </MudSelect>
                 }
 
                 <MudStack Row="true" Class="mt-3" Spacing="2">
@@ -373,9 +402,15 @@
                 }
                 <MudTd>@context.IsActive</MudTd>
                 <MudTd Style="text-align:right;white-space:nowrap;">
-                    <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(() => EditProject(context))" />
-                    <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error"
-                                   OnClick="@(() => SoftDeleteProject(context.ProjectId))" />
+                    <MudTooltip Text="Edit">
+                        <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
+                                       OnClick="@(() => EditProject(context))" />
+                    </MudTooltip>
+                    <MudTooltip Text="@(context.IsActive == "Y" ? "Set inactive" : "Already inactive — use Edit to set Active = Y")">
+                        <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error"
+                                       Disabled="@(context.IsActive != "Y")"
+                                       OnClick="@(() => SoftDeleteProject(context))" />
+                    </MudTooltip>
                 </MudTd>
             </RowTemplate>
             <NoRecordsContent>
@@ -432,6 +467,15 @@
                             </MudButton>
                         </MudItem>
                     </MudGrid>
+                }
+
+                @if (_editProject.ProjectId != 0)
+                {
+                    <MudSelect T="string" @bind-Value="_editProject.IsActive" Label="Active *" Variant="Variant.Outlined"
+                               Class="mt-3 mb-1" Style="max-width:220px;">
+                        <MudSelectItem T="string" Value="@("Y")">Y — Active</MudSelectItem>
+                        <MudSelectItem T="string" Value="@("N")">N — Inactive</MudSelectItem>
+                    </MudSelect>
                 }
 
                 <MudStack Row="true" Class="mt-3" Spacing="2">
@@ -730,6 +774,7 @@
                 return;
             }
             _editDept.HasRevenue = "N";
+            _editDept.IsActive = "Y";
         }
         else if (AppConstants.IsDitDepartment(_editDept.DeptCode))
         {
@@ -742,6 +787,22 @@
             _editDept.HasRevenue = "N";
         }
 
+        var isNew = _editDept.DeptId == 0;
+        var ok = await ConfirmAsync(
+            isNew ? "Confirm add department" : "Confirm save department",
+            isNew
+                ? "Create this department as Active (Y)?"
+                : $"Save department changes? Active will be {_editDept.IsActive}.",
+            isNew ? "Add department" : "Save changes",
+            Color.Primary,
+            _editDept.DeptCode,
+            [
+                new("Code", _editDept.DeptCode ?? ""),
+                new("Name", _editDept.DeptName ?? ""),
+                new("Active", isNew ? "Y" : (_editDept.IsActive ?? "Y"), "accent")
+            ]);
+        if (!ok) return;
+
         var r = await MasterService.SaveDepartmentAsync(_editDept, AuthService.CurrentUser!.PfNo);
         Snackbar.Add(r.Message, r.Success ? Severity.Success : Severity.Error);
         if (!r.Success) return;
@@ -749,9 +810,31 @@
         await ReloadDepts();
     }
 
-    private async Task SoftDeleteDept(long id)
+    private async Task SoftDeleteDept(Department d)
     {
-        await MasterService.SoftDeleteDepartmentAsync(id, AuthService.CurrentUser!.PfNo);
+        if (d.IsActive != "Y")
+        {
+            Snackbar.Add("Already inactive. Open Edit and set Active = Y to reactivate.", Severity.Info);
+            return;
+        }
+
+        var ok = await ConfirmAsync(
+            "Set department inactive?",
+            "This sets Active = N (soft delete). You can reactivate later from Edit → Active = Y.",
+            "Set inactive",
+            Color.Warning,
+            d.DeptCode,
+            [
+                new("Code", d.DeptCode ?? ""),
+                new("Name", d.DeptName ?? ""),
+                new("Current Active", d.IsActive ?? "N", "accent")
+            ],
+            Icons.Material.Filled.DeleteOutline);
+        if (!ok) return;
+
+        await MasterService.SoftDeleteDepartmentAsync(d.DeptId, AuthService.CurrentUser!.PfNo);
+        Snackbar.Add($"Department '{d.DeptCode}' set inactive (Active = N).", Severity.Success);
+        if (_editDept?.DeptId == d.DeptId) CancelDept();
         await ReloadDepts();
     }
 
@@ -862,6 +945,26 @@
             _editSection.CheckerPf = null;
         }
 
+        if (_editSection.SectionId == 0)
+            _editSection.IsActive = "Y";
+
+        var isNew = _editSection.SectionId == 0;
+        var ok = await ConfirmAsync(
+            isNew ? "Confirm add section" : "Confirm save section",
+            isNew
+                ? "Create this section as Active (Y)?"
+                : $"Save section changes? Active will be {_editSection.IsActive}.",
+            isNew ? "Add section" : "Save changes",
+            Color.Primary,
+            _editSection.SectionCode,
+            [
+                new("Code", _editSection.SectionCode ?? ""),
+                new("Name", _editSection.SectionName ?? ""),
+                new("Mode", forRevenue ? "Revenue" : "Capital"),
+                new("Active", isNew ? "Y" : (_editSection.IsActive ?? "Y"), "accent")
+            ]);
+        if (!ok) return;
+
         decimal? rev = forRevenue ? _sectionRevenueAllotted : null;
         var r = await MasterService.SaveSectionAsync(
             _editSection, AuthService.CurrentUser!.PfNo, rev, _allotmentFy, forRevenue: forRevenue);
@@ -873,10 +976,32 @@
         _ditBudgetType = savedType;
     }
 
-    private async Task SoftDeleteSection(long id)
+    private async Task SoftDeleteSection(Section s)
     {
+        if (s.IsActive != "Y")
+        {
+            Snackbar.Add("Already inactive. Open Edit and set Active = Y to reactivate.", Severity.Info);
+            return;
+        }
+
+        var ok = await ConfirmAsync(
+            "Set section inactive?",
+            "This sets Active = N (soft delete). You can reactivate later from Edit → Active = Y.",
+            "Set inactive",
+            Color.Warning,
+            s.SectionCode,
+            [
+                new("Code", s.SectionCode ?? ""),
+                new("Name", s.SectionName),
+                new("Current Active", s.IsActive, "accent")
+            ],
+            Icons.Material.Filled.DeleteOutline);
+        if (!ok) return;
+
         var savedType = _ditBudgetType;
-        await MasterService.SoftDeleteSectionAsync(id, AuthService.CurrentUser!.PfNo);
+        await MasterService.SoftDeleteSectionAsync(s.SectionId, AuthService.CurrentUser!.PfNo);
+        Snackbar.Add($"Section '{s.SectionName}' set inactive (Active = N).", Severity.Success);
+        if (_editSection?.SectionId == s.SectionId) _editSection = null;
         await OnFilterDept(_filterDeptId);
         _ditBudgetType = savedType;
     }
@@ -924,6 +1049,26 @@
             _editProject.MakerPf = null;
             _editProject.CheckerPf = null;
         }
+
+        if (_editProject.ProjectId == 0)
+            _editProject.IsActive = "Y";
+
+        var isNew = _editProject.ProjectId == 0;
+        var ok = await ConfirmAsync(
+            isNew ? "Confirm add project" : "Confirm save project",
+            isNew
+                ? "Create this project as Active (Y)?"
+                : $"Save project changes? Active will be {_editProject.IsActive}.",
+            isNew ? "Add project" : "Save changes",
+            Color.Primary,
+            _editProject.ProjectCode,
+            [
+                new("Code", _editProject.ProjectCode ?? ""),
+                new("Name", _editProject.ProjectName ?? ""),
+                new("Active", isNew ? "Y" : (_editProject.IsActive ?? "Y"), "accent")
+            ]);
+        if (!ok) return;
+
         var r = await MasterService.SaveProjectAsync(
             _editProject, AuthService.CurrentUser!.PfNo,
             _projectSpillover, _projectFresh, _allotmentFy);
@@ -933,9 +1078,31 @@
         await OnFilterSection(_filterSectionId);
     }
 
-    private async Task SoftDeleteProject(long id)
+    private async Task SoftDeleteProject(Project p)
     {
-        await MasterService.SoftDeleteProjectAsync(id, AuthService.CurrentUser!.PfNo);
+        if (p.IsActive != "Y")
+        {
+            Snackbar.Add("Already inactive. Open Edit and set Active = Y to reactivate.", Severity.Info);
+            return;
+        }
+
+        var ok = await ConfirmAsync(
+            "Set project inactive?",
+            "This sets Active = N (soft delete). You can reactivate later from Edit → Active = Y.",
+            "Set inactive",
+            Color.Warning,
+            p.ProjectCode,
+            [
+                new("Code", p.ProjectCode ?? ""),
+                new("Name", p.ProjectName),
+                new("Current Active", p.IsActive, "accent")
+            ],
+            Icons.Material.Filled.DeleteOutline);
+        if (!ok) return;
+
+        await MasterService.SoftDeleteProjectAsync(p.ProjectId, AuthService.CurrentUser!.PfNo);
+        Snackbar.Add($"Project '{p.ProjectName}' set inactive (Active = N).", Severity.Success);
+        if (_editProject?.ProjectId == p.ProjectId) _editProject = null;
         await OnFilterSection(_filterSectionId);
     }
 
@@ -1087,10 +1254,48 @@
 
     private async Task EnableMonthUnlockAsync(string month)
     {
+        if (_unlockMode == "CAPITAL" && !_unlockProjectId.HasValue)
+        {
+            Snackbar.Add("Select the required project first.", Severity.Warning);
+            return;
+        }
+        if (_unlockMode == "REVENUE" && !_unlockSectionId.HasValue)
+        {
+            Snackbar.Add("Select the required section first.", Severity.Warning);
+            return;
+        }
+
+        var fy = AppConstants.CurrentFinancialYear();
+        var details = new List<ConfirmDialog.DialogDetailRow>
+        {
+            new("Unlock type", _unlockMode == "CAPITAL" ? "Capital (project)" : "Revenue (section)"),
+            new("Financial year", fy),
+            new("Month", month, "accent")
+        };
+        if (_unlockMode == "CAPITAL")
+        {
+            var p = _unlockProjects.FirstOrDefault(x => x.ProjectId == _unlockProjectId);
+            details.Add(new("Project", p?.ProjectName ?? _unlockProjectId?.ToString() ?? ""));
+        }
+        else
+        {
+            var s = _unlockSections.FirstOrDefault(x => x.SectionId == _unlockSectionId);
+            details.Add(new("Section", s?.SectionName ?? _unlockSectionId?.ToString() ?? ""));
+        }
+
+        var confirmed = await ConfirmAsync(
+            "Confirm month unlock",
+            "Enable this month for Maker entry after the deadline? This writes ENTRY_MONTH_UNLOCK.",
+            "Enable month",
+            Color.Primary,
+            month,
+            details,
+            Icons.Material.Filled.LockOpen);
+        if (!confirmed) return;
+
         _unlockBusy = true;
         try
         {
-            var fy = AppConstants.CurrentFinancialYear();
             var actor = AuthService.CurrentUser!.PfNo;
 
             ServiceResult result;
@@ -1122,6 +1327,38 @@
         {
             _unlockBusy = false;
         }
+    }
+
+    private async Task<bool> ConfirmAsync(
+        string title,
+        string message,
+        string confirmText,
+        Color color,
+        string? subtitle,
+        List<ConfirmDialog.DialogDetailRow>? details,
+        string? icon = null)
+    {
+        var parameters = new DialogParameters<ConfirmDialog>
+        {
+            { x => x.Title, title },
+            { x => x.Subtitle, subtitle },
+            { x => x.Message, message },
+            { x => x.Details, details },
+            { x => x.ConfirmText, confirmText },
+            { x => x.CancelText, "Cancel" },
+            { x => x.ConfirmColor, color },
+            { x => x.Icon, icon }
+        };
+        var options = new DialogOptions
+        {
+            CloseOnEscapeKey = true,
+            MaxWidth = MaxWidth.Small,
+            FullWidth = true,
+            BackdropClick = false
+        };
+        var dialog = await DialogService.ShowAsync<ConfirmDialog>(title, parameters, options);
+        var result = await dialog.Result;
+        return result is { Canceled: false };
     }
 
     private sealed class UnlockMonthRow

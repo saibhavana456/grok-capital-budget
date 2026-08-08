@@ -239,6 +239,19 @@ public class MasterService : IMasterService
                 await EnsureDefaultCapitalSectionAsync(existing.DeptId, name, actorPf);
             }
 
+            // Allow Admin to reactivate (Y) or keep inactive (N) from Edit — soft-delete only sets N.
+            existing.IsActive = NormalizeYn(dept.IsActive);
+            if (existing.IsActive == "Y" && AppConstants.IsDitDepartment(existing.DeptCode))
+            {
+                var otherActiveDit = (await _db.Departments.AsNoTracking()
+                        .Where(d => d.IsActive == "Y" && d.DeptId != existing.DeptId)
+                        .Select(d => d.DeptCode)
+                        .ToListAsync())
+                    .Any(c => string.Equals(c, AppConstants.DitDeptCode, StringComparison.OrdinalIgnoreCase));
+                if (otherActiveDit)
+                    return ServiceResult.Fail(AppConstants.DitAlreadyExistsMessage);
+            }
+
             existing.UpdatedAt = DateTime.Now;
             existing.UpdatedBy = actorPf;
             await _db.SaveChangesAsync();
@@ -246,6 +259,9 @@ public class MasterService : IMasterService
 
         return ServiceResult.Ok("Department saved.");
     }
+
+    private static string NormalizeYn(string? value) =>
+        string.Equals(value?.Trim(), "Y", StringComparison.OrdinalIgnoreCase) ? "Y" : "N";
 
     /// <summary>
     /// Non-DIT departments have no real Sections UX — create/reuse GENERAL section for projects.
@@ -330,6 +346,7 @@ public class MasterService : IMasterService
             existing.DeptId = section.DeptId;
             existing.MakerPf = section.MakerPf;
             existing.CheckerPf = section.CheckerPf;
+            existing.IsActive = NormalizeYn(section.IsActive);
             existing.UpdatedAt = DateTime.Now;
             existing.UpdatedBy = actorPf;
             await _db.SaveChangesAsync();
@@ -396,6 +413,7 @@ public class MasterService : IMasterService
             existing.SectionId = project.SectionId;
             existing.MakerPf = project.MakerPf;
             existing.CheckerPf = project.CheckerPf;
+            existing.IsActive = NormalizeYn(project.IsActive);
             existing.UpdatedAt = DateTime.Now;
             existing.UpdatedBy = actorPf;
             await _db.SaveChangesAsync();
