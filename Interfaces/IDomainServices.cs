@@ -23,7 +23,8 @@ public interface IMasterService
     Task<ProjectFyAllotment?> GetProjectAllotmentAsync(long projectId, string financialYear);
     Task<SectionFyRevenueAllotment?> GetSectionRevenueAllotmentAsync(long sectionId, string financialYear);
     Task<ServiceResult> SaveDepartmentAsync(Department dept, string actorPf);
-    Task<ServiceResult> SaveSectionAsync(Section section, string actorPf, decimal? revenueAllotted = null, string? financialYear = null);
+    Task<ServiceResult> SaveSectionAsync(Section section, string actorPf, decimal? revenueAllotted = null, string? financialYear = null, bool forRevenue = false);
+    Task<Section> EnsureDefaultCapitalSectionAsync(long deptId, string? deptName, string actorPf);
     Task<ServiceResult> SaveProjectAsync(Project project, string actorPf, decimal? spillover = null, decimal? fresh = null, string? financialYear = null);
     Task SoftDeleteDepartmentAsync(long deptId, string actorPf);
     Task SoftDeleteSectionAsync(long sectionId, string actorPf);

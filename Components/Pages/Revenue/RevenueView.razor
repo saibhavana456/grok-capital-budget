@@ -161,13 +161,11 @@
             <MudPaper Class="pa-4 mt-3 portal-card" Elevation="0">
                 <MudText Class="section-heading mb-3">Checker action</MudText>
                 <MudText Typo="Typo.caption" Class="mb-2" Style="color:#64748b;">
-                    Approve locks the entry. Return / Reject send it back to the Maker with a required remark so they can correct and resubmit the same month.
+                    Approve locks the entry. Reject sends it back to the Maker with a required remark so they can correct and resubmit the same month.
                 </MudText>
                 <MudStack Row="true" Spacing="2">
                     <MudButton Variant="Variant.Filled" Color="Color.Success" Disabled="_busy"
                                OnClick="@(() => Act("APPROVED"))">Approve</MudButton>
-                    <MudButton Variant="Variant.Outlined" Color="Color.Warning" Disabled="_busy"
-                               OnClick="@(() => Act("RETURNED"))">Return</MudButton>
                     <MudButton Variant="Variant.Outlined" Color="Color.Error" Disabled="_busy"
                                OnClick="@(() => Act("REJECTED"))">Reject</MudButton>
                 </MudStack>
@@ -256,11 +254,10 @@
 
     private async Task<(bool Confirmed, string? Remark)> PromptRemark(string action, List<ConfirmDialog.DialogDetailRow> details)
     {
-        var required = action is "RETURNED" or "REJECTED";
+        var required = action is "REJECTED";
         var (title, confirmText, color) = action switch
         {
             "APPROVED" => ("Approve submission", "Approve", Color.Success),
-            "RETURNED" => ("Return to maker", "Return", Color.Warning),
             "REJECTED" => ("Reject submission", "Reject", Color.Error),
             _ => ("Remark", "Confirm", Color.Primary)
         };
@@ -269,7 +266,7 @@
             { x => x.Title, title },
             { x => x.Subtitle, "Checker review action" },
             { x => x.Prompt, required
-                ? "Enter a remark for the maker. This is required for Return and Reject."
+                ? "Enter a remark for the maker. This is required for Reject."
                 : "Optional remark for the maker." },
             { x => x.RemarkRequired, required },
             { x => x.Details, details },

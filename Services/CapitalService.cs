@@ -149,8 +149,12 @@ public class CapitalService : ICapitalService
             if (!AppConstants.IsEditableStatus(existing.EntryStatus))
                 return ServiceResult.Fail("This entry cannot be resubmitted.");
 
-            if (!AppConstants.IsAllowedEntryMonth(form.EntryMonth))
-                return ServiceResult.Fail(AppConstants.EntryMonthWindowMessage);
+            var reopenOk = await CanOpenMonthForCapitalAsync(form.ProjectId, form.FinancialYear, form.EntryMonth);
+            if (!reopenOk.Success) return reopenOk;
+
+            var gap = await FindEarliestMissingCapitalMonthAsync(form.ProjectId, form.FinancialYear, form.EntryMonth);
+            if (gap != null)
+                return ServiceResult.Fail(string.Format(AppConstants.PreviousMonthsRequiredMessage, gap));
 
             existing.ActualSpillover = form.ActualSpillover;
             existing.ActualFresh = form.ActualFresh;
@@ -173,8 +177,12 @@ public class CapitalService : ICapitalService
             return ServiceResult.Ok(AppConstants.SuccessResubmit);
         }
 
-        if (!AppConstants.CanSubmitNewEntry(form.FinancialYear, form.EntryMonth))
-            return ServiceResult.Fail(AppConstants.EntryMonthWindowMessage);
+        var monthOpen = await CanOpenMonthForCapitalAsync(form.ProjectId, form.FinancialYear, form.EntryMonth);
+        if (!monthOpen.Success) return monthOpen;
+
+        var missing = await FindEarliestMissingCapitalMonthAsync(form.ProjectId, form.FinancialYear, form.EntryMonth);
+        if (missing != null)
+            return ServiceResult.Fail(string.Format(AppConstants.PreviousMonthsRequiredMessage, missing));
 
         var entry = new CapitalMonthlyEntry
         {
@@ -363,11 +371,10 @@ public class CapitalService : ICapitalService
             return ServiceResult.Fail("You are not the Checker for this project/department.");
 
         var normalized = action.Trim().ToUpperInvariant();
-        if (normalized is not (AppConstants.EntryStatus.Approved or AppConstants.EntryStatus.Rejected or AppConstants.EntryStatus.Returned))
-            return ServiceResult.Fail("Invalid checker action.");
+        if (normalized is not (AppConstants.EntryStatus.Approved or AppConstants.EntryStatus.Rejected))
+            return ServiceResult.Fail("Invalid checker action. Use Approve or Reject only.");
 
-        if ((normalized == AppConstants.EntryStatus.Rejected || normalized == AppConstants.EntryStatus.Returned)
-            && string.IsNullOrWhiteSpace(remark))
+        if (normalized == AppConstants.EntryStatus.Rejected && string.IsNullOrWhiteSpace(remark))
             return ServiceResult.Fail(AppConstants.RemarkRequiredMessage);
 
         entry.EntryStatus = normalized;
@@ -381,12 +388,43 @@ public class CapitalService : ICapitalService
         _logger.LogInformation("Capital checker action EntryId={EntryId} Action={Action} CheckerPf={Pf}",
             entryId, normalized, checkerPf);
 
-        return ServiceResult.Ok(normalized switch
-        {
-            AppConstants.EntryStatus.Approved => AppConstants.SuccessApprove,
-            AppConstants.EntryStatus.Returned => AppConstants.SuccessReturn,
-            _ => AppConstants.SuccessReject
-        });
+        return ServiceResult.Ok(normalized == AppConstants.EntryStatus.Approved
+            ? AppConstants.SuccessApprove
+            : AppConstants.SuccessReject);
+    }
+
+    private async Task<ServiceResult> CanOpenMonthForCapitalAsync(long projectId, string fy, string month)
+    {
+        if (AppConstants.IsMonthWithinDeadline(month))
+            return ServiceResult.Ok("ok");
+
+        var unlocked = await _db.EntryMonthUnlocks.AsNoTracking()
+            .AnyAsync(u => u.ProjectId == projectId
+                           && u.FinancialYear == fy
+                           && u.EntryMonth == month
+                           && u.IsEnabled == "Y");
+        if (unlocked) return ServiceResult.Ok("ok");
+        return ServiceResult.Fail(string.Format(AppConstants.MonthDeadlineClosedMessage, month));
+    }
+
+    /// <summary>Returns earliest prior FY month without PENDING/APPROVED submission, or null.</summary>
+    private async Task<string?> FindEarliestMissingCapitalMonthAsync(long projectId, string fy, string entryMonth)
+    {
+        var prior = AppConstants.PriorFyMonthsRequired(entryMonth);
+        if (prior.Count == 0) return null;
+
+        var done = await _db.CapitalMonthlyEntries.AsNoTracking()
+            .Where(e => e.ProjectId == projectId
+                        && e.FinancialYear == fy
+                        && e.IsActive == "Y"
+                        && (e.EntryStatus == AppConstants.EntryStatus.Pending
+                            || e.EntryStatus == AppConstants.EntryStatus.Approved)
+                        && prior.Contains(e.EntryMonth))
+            .Select(e => e.EntryMonth)
+            .ToListAsync();
+
+        return prior.FirstOrDefault(m =>
+            !done.Any(d => string.Equals(d, m, StringComparison.OrdinalIgnoreCase)));
     }
 
     private async Task<decimal> SumApprovedUtilizedThroughAsync(long projectId, string financialYear, string throughMonth)

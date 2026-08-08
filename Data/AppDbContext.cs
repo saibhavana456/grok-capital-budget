@@ -26,6 +26,7 @@ public class AppDbContext : DbContext
     public DbSet<UserSectionMap> UserSectionMaps => Set<UserSectionMap>();
     public DbSet<UserToken> UserTokens => Set<UserToken>();
     public DbSet<LoginCaptchaQuestion> LoginCaptchaQuestions => Set<LoginCaptchaQuestion>();
+    public DbSet<EntryMonthUnlock> EntryMonthUnlocks => Set<EntryMonthUnlock>();
 
     /// <summary>Optional Oracle STAFF_DETAILS (EMPLID) — same shape as Organisations staff master.</summary>
     public DbSet<OrgStaffDetail> OracleStaffDetails => Set<OrgStaffDetail>();
@@ -35,6 +36,9 @@ public class AppDbContext : DbContext
         base.OnModelCreating(modelBuilder);
 
         modelBuilder.Entity<OrgStaffDetail>().HasNoKey().ToTable("STAFF_DETAILS");
+
+        modelBuilder.Entity<EntryMonthUnlock>()
+            .HasIndex(e => new { e.ProjectId, e.SectionId, e.FinancialYear, e.EntryMonth });
 
         modelBuilder.Entity<CapitalMonthlyEntry>()
             .HasIndex(e => new { e.ProjectId, e.FinancialYear, e.EntryMonth })

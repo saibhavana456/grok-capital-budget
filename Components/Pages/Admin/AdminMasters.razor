@@ -1,19 +1,22 @@
 @page "/admin/masters"
 @attribute [Authorize(Roles = "ADMIN")]
+@using Microsoft.EntityFrameworkCore
+@using IT_BUDGET_MONITORING_PORTAL.Data
 @inject IMasterService MasterService
 @inject IAuthService AuthService
 @inject IStaffLookupService StaffLookup
 @inject ISnackbar Snackbar
+@inject IDbContextFactory<AppDbContext> DbFactory
 
 <div class="admin-page">
 <MudText Typo="Typo.h5" Style="color:#003366;font-weight:700;">Admin Masters</MudText>
-<MudText Typo="Typo.body2" Class="mb-3" Style="color:#64748b;">Department, Section, and Project masters</MudText>
+    <MudText Typo="Typo.body2" Class="mb-3" Style="color:#64748b;">Department, Section, and Project masters</MudText>
 
 <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Dense="true" Class="mb-4">
-    <b>Where to set Maker / Checker</b><br />
-    <b>DIT</b> — Capital Maker/Checker on each <b>Project</b>. Revenue Maker/Checker on each <b>Section</b> (not on the department).<br />
-    <b>Other departments</b> — one Maker + one Checker on the <b>Department</b> only.<br />
-    <b>DIT Capital setup</b> — there is no separate “capital section”. Create/use a Section (Sections tab), then add a <b>Project</b> under it (Projects tab) with Capital Maker/Checker + allotment.<br />
+    <b>DIT Capital</b> = Maker/Checker on each <b>Project</b>.<br />
+    <b>DIT Revenue</b> = Maker/Checker on each <b>Section</b> (Revenue is section-wise, not project).<br />
+    <b>Other departments</b> = one Maker + one Checker on the <b>Department</b> only (capital). New Department cannot create DIT.<br />
+    <b>Non-DIT projects</b> use an auto <b>General</b> section — use the Projects tab (Sections tab is optional).<br />
     <b>Staff lookup (View)</b> — Oracle <code>STAFF_DETAILS</code> (EMPLID). Empty table / missing PF → “not found” (not a connection error).
 </MudAlert>
 
@@ -51,30 +54,35 @@
                 <MudText Typo="Typo.subtitle1" Class="mb-3" Style="color:#003366;font-weight:700;">
                     @(_editDept.DeptId == 0 ? "New" : "Edit") Department
                 </MudText>
-                <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Dense="true" Class="mb-3">
-                    <b>DIT</b> (Code = DIT): do <b>not</b> set Maker/Checker here — Capital on Projects, Revenue on Sections.<br />
-                    <b>Other departments</b>: set one Maker + one Checker here for the whole department.
-                </MudAlert>
+
+                @if (_editDept.DeptId == 0)
+                {
+                    <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Dense="true" Class="mb-3">
+                        New departments are capital-only (non-DIT). Code cannot be <b>DIT</b> — edit the existing DIT row instead.
+                    </MudAlert>
+                }
+
                 <MudGrid>
-                    <MudItem xs="12" md="4">
+                    <MudItem xs="12" md="6">
                         <MudTextField Value="_editDept.DeptCode" Label="Code *" Variant="Variant.Outlined" Required="true"
+                                      Disabled="@(_editDept.DeptId != 0 && _editDeptIsDit)"
                                       ValueChanged="@((string code) => OnDeptCodeChanged(code))" />
                     </MudItem>
-                    <MudItem xs="12" md="4">
+                    <MudItem xs="12" md="6">
                         <MudTextField @bind-Value="_editDept.DeptName" Label="Name *" Variant="Variant.Outlined" Required="true" />
-                    </MudItem>
-                    <MudItem xs="12" md="4">
-                        <MudSelect T="string" @bind-Value="_editDept.HasRevenue" Label="Has Revenue" Variant="Variant.Outlined">
-                            <MudSelectItem Value="@("Y")">Y (DIT revenue)</MudSelectItem>
-                            <MudSelectItem Value="@("N")">N</MudSelectItem>
-                        </MudSelect>
                     </MudItem>
                 </MudGrid>
 
-                @if (!_editDeptIsDit)
+                @if (_editDept.DeptId != 0 && _editDeptIsDit)
+                {
+                    <MudAlert Severity="Severity.Success" Variant="Variant.Outlined" Dense="true" Class="mt-3">
+                        Capital Maker/Checker on <b>Projects</b> · Revenue Maker/Checker on <b>Sections</b>.
+                    </MudAlert>
+                }
+                else if (!_editDeptIsDit || _editDept.DeptId == 0)
                 {
                     <MudText Typo="Typo.subtitle2" Class="mt-4 mb-2" Style="color:#003366;">
-                        Department Maker / Checker (required for non-DIT)
+                        Department Maker / Checker
                     </MudText>
                     <MudGrid>
                         <MudItem xs="12" md="6">
@@ -125,12 +133,6 @@
                         </MudTable>
                     }
                 }
-                else
-                {
-                    <MudAlert Severity="Severity.Success" Variant="Variant.Outlined" Dense="true" Class="mt-3">
-                        DIT selected — assign <b>Capital</b> Maker/Checker on each <b>Project</b>, and <b>Revenue</b> Maker/Checker on each <b>Section</b>.
-                    </MudAlert>
-                }
 
                 <MudText Typo="Typo.caption" Class="mt-3 mb-2" Style="color:#64748b;">
                     View Maker/Checker reads <code>STAFF_DETAILS</code> by EMPLID (scale, email, phone). Empty sample data → PF not found.
@@ -146,7 +148,7 @@
 
     <MudTabPanel Text="Sections">
         <MudGrid Class="admin-filter-row mb-2" Spacing="2">
-            <MudItem xs="12" md="6" lg="4">
+            <MudItem xs="12" md="4" lg="3">
                 <MudSelect T="long?" Value="_filterDeptId" Label="Department" Variant="Variant.Outlined" Dense="true"
                            ValueChanged="OnFilterDept" Class="admin-filter-field">
                     @foreach (var d in _departments)
@@ -155,32 +157,55 @@
                     }
                 </MudSelect>
             </MudItem>
-            <MudItem xs="12" md="6" lg="4" Class="d-flex align-end">
-                <MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="!_filterDeptId.HasValue" OnClick="NewSection"
+            @if (_filterDeptIsDit)
+            {
+                <MudItem xs="12" md="4" lg="3">
+                    <MudSelect T="string" Value="_ditBudgetType" Label="Budget type *" Variant="Variant.Outlined" Dense="true"
+                               ValueChanged="OnDitBudgetTypeChanged" Class="admin-filter-field"
+                               Disabled="!_filterDeptId.HasValue">
+                        <MudSelectItem T="string" Value="@("CAPITAL")">Capital</MudSelectItem>
+                        <MudSelectItem T="string" Value="@("REVENUE")">Revenue</MudSelectItem>
+                    </MudSelect>
+                </MudItem>
+            }
+            <MudItem xs="12" md="4" lg="3" Class="d-flex align-end">
+                <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                           Disabled="@(!CanAddSection)" OnClick="NewSection"
                            Class="admin-filter-action">
                     Add Section
                 </MudButton>
             </MudItem>
         </MudGrid>
 
-        @if (_filterDeptId.HasValue && _filterDeptHasRevenue)
+        @if (_filterDeptId.HasValue && _filterDeptIsDit && string.IsNullOrEmpty(_ditBudgetType))
+        {
+            <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Dense="true" Class="mb-3">
+                Select <b>Capital</b> or <b>Revenue</b> before adding or editing a section.
+            </MudAlert>
+        }
+        else if (_sectionIsRevenueMode)
         {
             <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Dense="true" Class="mb-3">
-                Section = shared folder for Capital <b>and</b> Revenue. Here set <b>Revenue</b> Maker/Checker (+ allotment).
-                For Capital, open <b>Projects</b> → pick this section → Add Project.
+                DIT Revenue — set <b>Revenue</b> Maker/Checker + allotment on each section (section-wise, not project).
             </MudAlert>
         }
-        else if (_filterDeptId.HasValue && !_filterDeptHasRevenue)
+        else if (_sectionIsCapitalMode)
+        {
+            <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Dense="true" Class="mb-3">
+                DIT Capital — section is code/name only. Capital Maker/Checker go on each <b>Project</b>.
+            </MudAlert>
+        }
+        else if (_filterDeptId.HasValue && !_filterDeptIsDit)
         {
             <MudAlert Severity="Severity.Normal" Variant="Variant.Outlined" Dense="true" Class="mb-3">
-                This department has no Revenue. Section form is code/name only.
-                Capital Maker/Checker: @( _filterDeptIsDit ? "Projects tab" : "Department tab" ).
+                Non-DIT uses Projects tab (auto General section). Sections tab optional.
             </MudAlert>
         }
+
         <MudTable Items="_sections" Dense="true" Hover="true" Class="admin-masters-table">
             <HeaderContent>
                 <MudTh>Code</MudTh><MudTh>Name</MudTh>
-                @if (_filterDeptHasRevenue)
+                @if (_sectionIsRevenueMode)
                 {
                     <MudTh>Rev Maker</MudTh><MudTh>Rev Checker</MudTh>
                 }
@@ -189,14 +214,16 @@
             <RowTemplate>
                 <MudTd>@context.SectionCode</MudTd>
                 <MudTd>@context.SectionName</MudTd>
-                @if (_filterDeptHasRevenue)
+                @if (_sectionIsRevenueMode)
                 {
                     <MudTd>@(context.MakerPf ?? "—")</MudTd>
                     <MudTd>@(context.CheckerPf ?? "—")</MudTd>
                 }
                 <MudTd>@context.IsActive</MudTd>
                 <MudTd Style="text-align:right;white-space:nowrap;">
-                    <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(() => EditSection(context))" />
+                    <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
+                                   Disabled="@(_filterDeptIsDit && string.IsNullOrEmpty(_ditBudgetType))"
+                                   OnClick="@(() => EditSection(context))" />
                     <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error"
                                    OnClick="@(() => SoftDeleteSection(context.SectionId))" />
                 </MudTd>
@@ -212,6 +239,8 @@
             <MudPaper Class="pa-4 mt-3 admin-form-card" Elevation="1">
                 <MudText Typo="Typo.subtitle2" Class="mb-2" Style="color:#003366;">
                     @(_editSection.SectionId == 0 ? "New" : "Edit") Section
+                    @if (_sectionIsRevenueMode) { <text> (Revenue)</text> }
+                    else if (_sectionIsCapitalMode) { <text> (Capital)</text> }
                 </MudText>
                 <MudGrid>
                     <MudItem xs="12" md="6">
@@ -222,15 +251,11 @@
                     </MudItem>
                 </MudGrid>
 
-                @* Revenue Maker/Checker only when department HasRevenue=Y (DIT). Capital stays on Projects. *@
-                @if (_filterDeptHasRevenue)
+                @if (_sectionIsRevenueMode)
                 {
                     <MudDivider Class="my-3" />
                     <MudText Typo="Typo.subtitle2" Class="mb-1" Style="color:#003366;">
                         Revenue Maker / Checker (section-wise)
-                    </MudText>
-                    <MudText Typo="Typo.caption" Class="mb-2" Style="color:#64748b;">
-                        These PFs are only for Revenue submissions of this section. Capital Maker/Checker are on each Project.
                     </MudText>
                     <MudGrid>
                         <MudItem xs="12" md="4">
@@ -265,7 +290,7 @@
 
     <MudTabPanel Text="Projects">
         <MudGrid Class="admin-filter-row mb-2" Spacing="2">
-            <MudItem xs="12" md="4">
+            <MudItem xs="12" md="4" lg="3">
                 <MudSelect T="long?" Value="_filterDeptId" Label="Department" Variant="Variant.Outlined" Dense="true"
                            ValueChanged="OnFilterDeptForProjects" Class="admin-filter-field">
                     @foreach (var d in _departments)
@@ -274,17 +299,27 @@
                     }
                 </MudSelect>
             </MudItem>
-            <MudItem xs="12" md="4">
-                <MudSelect T="long?" Value="_filterSectionId" Label="Section" Variant="Variant.Outlined" Dense="true"
-                           ValueChanged="OnFilterSection" Class="admin-filter-field"
-                           Disabled="!_filterDeptId.HasValue">
-                    @foreach (var s in _sections)
-                    {
-                        <MudSelectItem T="long?" Value="@((long?)s.SectionId)">@s.SectionName</MudSelectItem>
-                    }
-                </MudSelect>
-            </MudItem>
-            <MudItem xs="12" md="4" Class="d-flex align-end">
+            @if (_filterDeptIsDit)
+            {
+                <MudItem xs="12" md="4" lg="3">
+                    <MudSelect T="long?" Value="_filterSectionId" Label="Section" Variant="Variant.Outlined" Dense="true"
+                               ValueChanged="OnFilterSection" Class="admin-filter-field"
+                               Disabled="!_filterDeptId.HasValue">
+                        @foreach (var s in _sections)
+                        {
+                            <MudSelectItem T="long?" Value="@((long?)s.SectionId)">@s.SectionName</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+            }
+            else if (_filterDeptId.HasValue)
+            {
+                <MudItem xs="12" md="4" lg="3">
+                    <MudTextField Value="@(_generalSectionLabel)" Label="Section" Variant="Variant.Outlined"
+                                  Disabled="true" Class="admin-filter-field" />
+                </MudItem>
+            }
+            <MudItem xs="12" md="4" lg="3" Class="d-flex align-end">
                 <MudButton Variant="Variant.Filled" Color="Color.Primary"
                            Disabled="!_filterSectionId.HasValue" OnClick="NewProject"
                            Class="admin-filter-action">
@@ -296,24 +331,23 @@
         @if (_filterDeptId.HasValue && _filterDeptIsDit)
         {
             <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Dense="true" Class="mb-3">
-                <b>DIT Capital</b> = add a <b>Project</b> under a section (not a separate capital section).
-                Select Department → Section → Add Project, then set Capital Maker/Checker + allotment. Maker ≠ Checker on the same project.
+                <b>DIT Capital</b> — select Section → Add Project with Capital Maker/Checker + allotment. Maker ≠ Checker on the same project.
             </MudAlert>
         }
         else if (_filterDeptId.HasValue && !_filterDeptIsDit)
         {
             <MudAlert Severity="Severity.Normal" Variant="Variant.Outlined" Dense="true" Class="mb-3">
-                Non-DIT: Maker/Checker are on the Department — project form is name + allotment only.
+                Non-DIT: Maker/Checker are on the Department. Projects use auto <b>General</b> section — name/code/allotment only.
             </MudAlert>
         }
 
-        @if (_filterDeptId.HasValue && _sections.Count == 0)
+        @if (_filterDeptId.HasValue && _filterDeptIsDit && _sections.Count == 0)
         {
             <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Dense="true" Class="mb-3">
-                No sections for this department yet. Open the <b>Sections</b> tab, Add Section, then return here to Add Project.
+                No sections for this department yet. Open the <b>Sections</b> tab (Budget type = Capital), Add Section, then return here.
             </MudAlert>
         }
-        else if (_filterDeptId.HasValue && !_filterSectionId.HasValue)
+        else if (_filterDeptId.HasValue && _filterDeptIsDit && !_filterSectionId.HasValue)
         {
             <MudText Typo="Typo.caption" Class="mb-3" Style="color:#64748b;">
                 Select a Section above to list projects and enable Add Project.
@@ -346,7 +380,7 @@
             </RowTemplate>
             <NoRecordsContent>
                 <MudText Typo="Typo.body2" Style="color:#64748b;">
-                    @(_filterSectionId.HasValue ? "No projects in this section yet." : "Select a section to view projects.")
+                    @(_filterSectionId.HasValue ? "No projects in this section yet." : "Select a department/section to view projects.")
                 </MudText>
             </NoRecordsContent>
         </MudTable>
@@ -382,9 +416,6 @@
                     <MudText Typo="Typo.subtitle2" Class="mb-1" Style="color:#003366;">
                         Capital Maker / Checker (project-wise — DIT)
                     </MudText>
-                    <MudText Typo="Typo.caption" Class="mb-2" Style="color:#64748b;">
-                        Each DIT project has its own Capital Maker and Checker. Same PF may be Maker on one project and Checker on another.
-                    </MudText>
                     <MudGrid>
                         <MudItem xs="12" md="6">
                             <MudTextField @bind-Value="_editProject.MakerPf" Label="Capital Maker PF *" Variant="Variant.Outlined" />
@@ -409,6 +440,84 @@
                 </MudStack>
             </MudPaper>
         }
+    </MudTabPanel>
+
+    <MudTabPanel Text="Month Unlock">
+        <MudText Typo="Typo.caption" Class="mb-3" Style="color:#64748b;">
+            After a month’s deadline (end of next calendar month), Admin can enable entry for months with no PENDING/APPROVED submission.
+            Capital unlocks are project-wise; Revenue unlocks are section-wise (DIT).
+        </MudText>
+
+        <MudGrid Class="admin-filter-row mb-3" Spacing="2">
+            <MudItem xs="12" md="3">
+                <MudSelect T="string" Value="_unlockMode" Label="Unlock type" Variant="Variant.Outlined" Dense="true"
+                           ValueChanged="OnUnlockModeChanged" Class="admin-filter-field">
+                    <MudSelectItem T="string" Value="@("CAPITAL")">Capital (project)</MudSelectItem>
+                    <MudSelectItem T="string" Value="@("REVENUE")">Revenue (section)</MudSelectItem>
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="12" md="3">
+                <MudSelect T="long?" Value="_unlockDeptId" Label="Department" Variant="Variant.Outlined" Dense="true"
+                           ValueChanged="OnUnlockDeptChanged" Class="admin-filter-field">
+                    @foreach (var d in UnlockDepartments)
+                    {
+                        <MudSelectItem T="long?" Value="@((long?)d.DeptId)">@d.DeptName (@d.DeptCode)</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="12" md="3">
+                <MudSelect T="long?" Value="_unlockSectionId" Label="Section" Variant="Variant.Outlined" Dense="true"
+                           ValueChanged="OnUnlockSectionChanged" Class="admin-filter-field"
+                           Disabled="!_unlockDeptId.HasValue">
+                    @foreach (var s in _unlockSections)
+                    {
+                        <MudSelectItem T="long?" Value="@((long?)s.SectionId)">@s.SectionName</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+            @if (_unlockMode == "CAPITAL")
+            {
+                <MudItem xs="12" md="3">
+                    <MudSelect T="long?" Value="_unlockProjectId" Label="Project" Variant="Variant.Outlined" Dense="true"
+                               ValueChanged="OnUnlockProjectChanged" Class="admin-filter-field"
+                               Disabled="!_unlockSectionId.HasValue">
+                        @foreach (var p in _unlockProjects)
+                        {
+                            <MudSelectItem T="long?" Value="@((long?)p.ProjectId)">@p.ProjectName</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+            }
+        </MudGrid>
+
+        <MudText Typo="Typo.subtitle2" Class="mb-2" Style="color:#003366;">
+            Unlockable months — FY @_unlockFy
+        </MudText>
+        <MudTable Items="_unlockableMonths" Dense="true" Hover="true" Class="admin-masters-table">
+            <HeaderContent>
+                <MudTh>Month</MudTh>
+                <MudTh>Deadline ended</MudTh>
+                <MudTh>Prior months still open</MudTh>
+                <MudTh Style="text-align:right;">Action</MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd>@context.Month</MudTd>
+                <MudTd>@context.DeadlineEnd.ToString("dd-MMM-yyyy")</MudTd>
+                <MudTd>@context.PriorGaps</MudTd>
+                <MudTd Style="text-align:right;">
+                    <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Primary"
+                               Disabled="_unlockBusy"
+                               OnClick="@(() => EnableMonthUnlockAsync(context.Month))">
+                        Enable
+                    </MudButton>
+                </MudTd>
+            </RowTemplate>
+            <NoRecordsContent>
+                <MudText Typo="Typo.body2" Style="color:#64748b;">
+                    @UnlockEmptyMessage
+                </MudText>
+            </NoRecordsContent>
+        </MudTable>
     </MudTabPanel>
 
     <MudTabPanel Text="Revenue Heads">
@@ -440,6 +549,8 @@
     private Project? _editProject;
     private long? _filterDeptId;
     private long? _filterSectionId;
+    /// <summary>DIT Sections tab mode: "CAPITAL" | "REVENUE" | null.</summary>
+    private string? _ditBudgetType;
     private StaffLookupResult? _makerStaff;
     private StaffLookupResult? _checkerStaff;
     private bool _lookupBusy;
@@ -447,13 +558,46 @@
     private decimal _projectSpillover;
     private decimal _projectFresh;
     private string _allotmentFy = AppConstants.CurrentFinancialYear();
+    private string _generalSectionLabel = AppConstants.DefaultCapitalSectionName;
 
-    private bool _filterDeptHasRevenue =>
-        _departments.FirstOrDefault(d => d.DeptId == _filterDeptId)?.HasRevenue == "Y";
+    // Month Unlock
+    private string _unlockMode = "CAPITAL";
+    private long? _unlockDeptId;
+    private long? _unlockSectionId;
+    private long? _unlockProjectId;
+    private List<Section> _unlockSections = new();
+    private List<Project> _unlockProjects = new();
+    private List<UnlockMonthRow> _unlockableMonths = new();
+    private string _unlockFy = AppConstants.CurrentFinancialYear();
+    private bool _unlockBusy;
+
     private bool _filterDeptIsDit =>
         AppConstants.IsDitDepartment(_departments.FirstOrDefault(d => d.DeptId == _filterDeptId)?.DeptCode);
     private bool _editDeptIsDit =>
         _editDept != null && AppConstants.IsDitDepartment(_editDept.DeptCode);
+    private bool _sectionIsRevenueMode =>
+        _filterDeptIsDit && string.Equals(_ditBudgetType, "REVENUE", StringComparison.OrdinalIgnoreCase);
+    private bool _sectionIsCapitalMode =>
+        _filterDeptIsDit && string.Equals(_ditBudgetType, "CAPITAL", StringComparison.OrdinalIgnoreCase);
+    private bool CanAddSection =>
+        _filterDeptId.HasValue && (!_filterDeptIsDit || !string.IsNullOrEmpty(_ditBudgetType));
+
+    private IEnumerable<Department> UnlockDepartments =>
+        _unlockMode == "REVENUE"
+            ? _departments.Where(d => AppConstants.IsDitDepartment(d.DeptCode))
+            : _departments;
+
+    private string UnlockEmptyMessage
+    {
+        get
+        {
+            if (_unlockMode == "CAPITAL" && !_unlockProjectId.HasValue)
+                return "Select department → section → project to list unlockable months.";
+            if (_unlockMode == "REVENUE" && !_unlockSectionId.HasValue)
+                return "Select DIT department → section to list unlockable months.";
+            return "No months need unlock (deadline not passed, already submitted, or already enabled).";
+        }
+    }
 
     private IEnumerable<StaffPreviewRow> StaffPreviewRows
     {
@@ -470,6 +614,7 @@
     {
         await ReloadDepts();
         _heads = await MasterService.GetRevenueHeadsAsync();
+        _unlockFy = AppConstants.CurrentFinancialYear();
     }
 
     private async Task ReloadDepts() =>
@@ -497,14 +642,9 @@
     {
         if (_editDept == null) return;
         _editDept.DeptCode = code;
-        if (AppConstants.IsDitDepartment(code))
-        {
-            _editDept.MakerPf = null;
-            _editDept.CheckerPf = null;
-            _editDept.HasRevenue = "Y";
-            _makerStaff = null;
-            _checkerStaff = null;
-        }
+        // New Department cannot create DIT — block as soon as code is typed DIT.
+        if (_editDept.DeptId == 0 && AppConstants.IsDitDepartment(code))
+            Snackbar.Add(AppConstants.DitAlreadyExistsMessage, Severity.Warning);
     }
 
     private void CancelDept()
@@ -555,11 +695,28 @@
     private async Task SaveDept()
     {
         if (_editDept == null) return;
-        if (AppConstants.IsDitDepartment(_editDept.DeptCode))
+
+        // New Department: always capital-only; cannot create DIT.
+        if (_editDept.DeptId == 0)
+        {
+            if (AppConstants.IsDitDepartment(_editDept.DeptCode))
+            {
+                Snackbar.Add(AppConstants.DitAlreadyExistsMessage, Severity.Error);
+                return;
+            }
+            _editDept.HasRevenue = "N";
+        }
+        else if (AppConstants.IsDitDepartment(_editDept.DeptCode))
         {
             _editDept.MakerPf = null;
             _editDept.CheckerPf = null;
+            _editDept.HasRevenue = "Y";
         }
+        else
+        {
+            _editDept.HasRevenue = "N";
+        }
+
         var r = await MasterService.SaveDepartmentAsync(_editDept, AuthService.CurrentUser!.PfNo);
         Snackbar.Add(r.Message, r.Success ? Severity.Success : Severity.Error);
         if (!r.Success) return;
@@ -576,6 +733,7 @@
     private async Task OnFilterDept(long? id)
     {
         _filterDeptId = id;
+        _ditBudgetType = null;
         _sections = id.HasValue ? await MasterService.GetSectionsByDeptAsync(id.Value, false) : new();
         _projects.Clear();
         _filterSectionId = null;
@@ -583,15 +741,56 @@
         _editProject = null;
         _makerStaff = null;
         _checkerStaff = null;
+        _generalSectionLabel = AppConstants.DefaultCapitalSectionName;
+    }
+
+    private async Task OnDitBudgetTypeChanged(string? type)
+    {
+        _ditBudgetType = type;
+        _editSection = null;
+        _makerStaff = null;
+        _checkerStaff = null;
+        await Task.CompletedTask;
     }
 
     private async Task OnFilterDeptForProjects(long? id)
     {
-        await OnFilterDept(id);
+        _filterDeptId = id;
+        _editProject = null;
+        _editSection = null;
+        _makerStaff = null;
+        _checkerStaff = null;
+        _projects.Clear();
+        _filterSectionId = null;
+        _generalSectionLabel = AppConstants.DefaultCapitalSectionName;
+
+        if (!id.HasValue)
+        {
+            _sections = new();
+            return;
+        }
+
+        var dept = _departments.FirstOrDefault(d => d.DeptId == id.Value);
+        if (dept != null && !AppConstants.IsDitDepartment(dept.DeptCode))
+        {
+            var section = await MasterService.EnsureDefaultCapitalSectionAsync(
+                id.Value, dept.DeptName, AuthService.CurrentUser!.PfNo);
+            _sections = await MasterService.GetSectionsByDeptAsync(id.Value, false);
+            _filterSectionId = section.SectionId;
+            _generalSectionLabel = string.IsNullOrWhiteSpace(section.SectionName)
+                ? AppConstants.DefaultCapitalSectionName
+                : section.SectionName;
+            _projects = await MasterService.GetProjectsBySectionAsync(section.SectionId, false);
+        }
+        else
+        {
+            _sections = await MasterService.GetSectionsByDeptAsync(id.Value, false);
+        }
     }
 
     private void NewSection()
     {
+        if (!CanAddSection) return;
         _editSection = new Section { DeptId = _filterDeptId!.Value, IsActive = "Y" };
         _sectionRevenueAllotted = 0;
         _allotmentFy = AppConstants.CurrentFinancialYear();
@@ -601,6 +800,12 @@
 
     private async Task EditSection(Section s)
     {
+        if (_filterDeptIsDit && string.IsNullOrEmpty(_ditBudgetType))
+        {
+            Snackbar.Add("Select Capital or Revenue budget type first.", Severity.Warning);
+            return;
+        }
+
         _editSection = new Section
         {
             SectionId = s.SectionId, DeptId = s.DeptId, SectionCode = s.SectionCode,
@@ -608,8 +813,15 @@
             MakerPf = s.MakerPf, CheckerPf = s.CheckerPf
         };
         _allotmentFy = AppConstants.CurrentFinancialYear();
-        var allot = await MasterService.GetSectionRevenueAllotmentAsync(s.SectionId, _allotmentFy);
-        _sectionRevenueAllotted = allot?.TotalAllotted ?? 0;
+        if (_sectionIsRevenueMode)
+        {
+            var allot = await MasterService.GetSectionRevenueAllotmentAsync(s.SectionId, _allotmentFy);
+            _sectionRevenueAllotted = allot?.TotalAllotted ?? 0;
+        }
+        else
+        {
+            _sectionRevenueAllotted = 0;
+        }
         _makerStaff = null;
         _checkerStaff = null;
     }
@@ -617,24 +829,31 @@
     private async Task SaveSection()
     {
         if (_editSection == null) return;
-        if (!_filterDeptHasRevenue)
+
+        var forRevenue = _sectionIsRevenueMode;
+        if (!forRevenue)
         {
             _editSection.MakerPf = null;
             _editSection.CheckerPf = null;
         }
-        decimal? rev = _filterDeptHasRevenue ? _sectionRevenueAllotted : null;
+
+        decimal? rev = forRevenue ? _sectionRevenueAllotted : null;
         var r = await MasterService.SaveSectionAsync(
-            _editSection, AuthService.CurrentUser!.PfNo, rev, _allotmentFy);
+            _editSection, AuthService.CurrentUser!.PfNo, rev, _allotmentFy, forRevenue: forRevenue);
         Snackbar.Add(r.Message, r.Success ? Severity.Success : Severity.Error);
         if (!r.Success) return;
         _editSection = null;
+        var savedType = _ditBudgetType;
         await OnFilterDept(_filterDeptId);
+        _ditBudgetType = savedType;
     }
 
     private async Task SoftDeleteSection(long id)
     {
+        var savedType = _ditBudgetType;
         await MasterService.SoftDeleteSectionAsync(id, AuthService.CurrentUser!.PfNo);
         await OnFilterDept(_filterDeptId);
+        _ditBudgetType = savedType;
     }
 
     private async Task OnFilterSection(long? id)
@@ -693,6 +912,225 @@
     {
         await MasterService.SoftDeleteProjectAsync(id, AuthService.CurrentUser!.PfNo);
         await OnFilterSection(_filterSectionId);
+    }
+
+    // ── Month Unlock ──────────────────────────────────────────────────────────
+
+    private async Task OnUnlockModeChanged(string mode)
+    {
+        _unlockMode = mode;
+        _unlockDeptId = null;
+        _unlockSectionId = null;
+        _unlockProjectId = null;
+        _unlockSections = new();
+        _unlockProjects = new();
+        _unlockableMonths = new();
+        await Task.CompletedTask;
+    }
+
+    private async Task OnUnlockDeptChanged(long? id)
+    {
+        _unlockDeptId = id;
+        _unlockSectionId = null;
+        _unlockProjectId = null;
+        _unlockProjects = new();
+        _unlockableMonths = new();
+        _unlockSections = id.HasValue
+            ? await MasterService.GetSectionsByDeptAsync(id.Value, true)
+            : new();
+    }
+
+    private async Task OnUnlockSectionChanged(long? id)
+    {
+        _unlockSectionId = id;
+        _unlockProjectId = null;
+        _unlockableMonths = new();
+        if (_unlockMode == "CAPITAL")
+        {
+            _unlockProjects = id.HasValue
+                ? await MasterService.GetProjectsBySectionAsync(id.Value, true)
+                : new();
+        }
+        else if (_unlockMode == "REVENUE" && id.HasValue)
+        {
+            await LoadUnlockableMonthsAsync();
+        }
+    }
+
+    private async Task OnUnlockProjectChanged(long? id)
+    {
+        _unlockProjectId = id;
+        _unlockableMonths = new();
+        if (id.HasValue)
+            await LoadUnlockableMonthsAsync();
+    }
+
+    private async Task LoadUnlockableMonthsAsync()
+    {
+        _unlockFy = AppConstants.CurrentFinancialYear();
+        var now = DateTime.Now;
+        await using var db = await DbFactory.CreateDbContextAsync();
+
+        HashSet<string> submitted;
+        HashSet<string> unlocked;
+
+        if (_unlockMode == "CAPITAL" && _unlockProjectId.HasValue)
+        {
+            var projectId = _unlockProjectId.Value;
+            submitted = (await db.CapitalMonthlyEntries.AsNoTracking()
+                    .Where(e => e.ProjectId == projectId
+                                && e.FinancialYear == _unlockFy
+                                && e.IsActive == "Y"
+                                && (e.EntryStatus == AppConstants.EntryStatus.Pending
+                                    || e.EntryStatus == AppConstants.EntryStatus.Approved))
+                    .Select(e => e.EntryMonth)
+                    .ToListAsync())
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            unlocked = (await db.EntryMonthUnlocks.AsNoTracking()
+                    .Where(u => u.ProjectId == projectId
+                                && u.FinancialYear == _unlockFy
+                                && u.IsEnabled == "Y")
+                    .Select(u => u.EntryMonth)
+                    .ToListAsync())
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        }
+        else if (_unlockMode == "REVENUE" && _unlockSectionId.HasValue)
+        {
+            var sectionId = _unlockSectionId.Value;
+            submitted = (await db.RevenueMonthlyEntries.AsNoTracking()
+                    .Where(e => e.SectionId == sectionId
+                                && e.FinancialYear == _unlockFy
+                                && e.IsActive == "Y"
+                                && (e.EntryStatus == AppConstants.EntryStatus.Pending
+                                    || e.EntryStatus == AppConstants.EntryStatus.Approved))
+                    .Select(e => e.EntryMonth)
+                    .ToListAsync())
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            unlocked = (await db.EntryMonthUnlocks.AsNoTracking()
+                    .Where(u => u.SectionId == sectionId
+                                && u.FinancialYear == _unlockFy
+                                && u.IsEnabled == "Y")
+                    .Select(u => u.EntryMonth)
+                    .ToListAsync())
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        }
+        else
+        {
+            _unlockableMonths = new();
+            return;
+        }
+
+        // Expired months with no PENDING/APPROVED entry and not already unlocked.
+        _unlockableMonths = new();
+        foreach (var m in AppConstants.FyMonths)
+        {
+            var deadline = AppConstants.GetMonthDeadlineEnd(m, now);
+            if (now <= deadline) continue;
+            if (submitted.Contains(m) || unlocked.Contains(m)) continue;
+            // PriorFyMonthsRequired: makers must still gap-fill April…prior(M) before submitting M.
+            var priors = AppConstants.PriorFyMonthsRequired(m);
+            _unlockableMonths.Add(new UnlockMonthRow
+            {
+                Month = m,
+                DeadlineEnd = deadline,
+                PriorGaps = priors.Count(p => !submitted.Contains(p))
+            });
+        }
+    }
+
+    private async Task EnableMonthUnlockAsync(string month)
+    {
+        _unlockBusy = true;
+        try
+        {
+            await using var db = await DbFactory.CreateDbContextAsync();
+            var fy = AppConstants.CurrentFinancialYear();
+            var actor = AuthService.CurrentUser!.PfNo;
+            var now = DateTime.Now;
+
+            if (_unlockMode == "CAPITAL" && _unlockProjectId.HasValue)
+            {
+                var projectId = _unlockProjectId.Value;
+                var existing = await db.EntryMonthUnlocks
+                    .FirstOrDefaultAsync(u => u.ProjectId == projectId
+                                              && u.FinancialYear == fy
+                                              && u.EntryMonth == month);
+                if (existing != null)
+                {
+                    existing.IsEnabled = "Y";
+                    existing.EnabledBy = actor;
+                    existing.EnabledAt = now;
+                    existing.UpdatedAt = now;
+                }
+                else
+                {
+                    db.EntryMonthUnlocks.Add(new EntryMonthUnlock
+                    {
+                        ProjectId = projectId,
+                        SectionId = null,
+                        FinancialYear = fy,
+                        EntryMonth = month,
+                        IsEnabled = "Y",
+                        EnabledBy = actor,
+                        EnabledAt = now
+                    });
+                }
+            }
+            else if (_unlockMode == "REVENUE" && _unlockSectionId.HasValue)
+            {
+                var sectionId = _unlockSectionId.Value;
+                var existing = await db.EntryMonthUnlocks
+                    .FirstOrDefaultAsync(u => u.SectionId == sectionId
+                                              && u.FinancialYear == fy
+                                              && u.EntryMonth == month);
+                if (existing != null)
+                {
+                    existing.IsEnabled = "Y";
+                    existing.EnabledBy = actor;
+                    existing.EnabledAt = now;
+                    existing.UpdatedAt = now;
+                }
+                else
+                {
+                    db.EntryMonthUnlocks.Add(new EntryMonthUnlock
+                    {
+                        ProjectId = null,
+                        SectionId = sectionId,
+                        FinancialYear = fy,
+                        EntryMonth = month,
+                        IsEnabled = "Y",
+                        EnabledBy = actor,
+                        EnabledAt = now
+                    });
+                }
+            }
+            else
+            {
+                Snackbar.Add("Select the required project or section first.", Severity.Warning);
+                return;
+            }
+
+            await db.SaveChangesAsync();
+            Snackbar.Add($"Enabled {month} for FY {fy}.", Severity.Success);
+            await LoadUnlockableMonthsAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Unlock failed: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _unlockBusy = false;
+        }
+    }
+
+    private sealed class UnlockMonthRow
+    {
+        public string Month { get; set; } = "";
+        public DateTime DeadlineEnd { get; set; }
+        public int PriorGaps { get; set; }
     }
 
     private sealed class StaffPreviewRow

@@ -151,20 +151,36 @@ public class MasterService : IMasterService
         if (string.IsNullOrWhiteSpace(dept.DeptName))
             return ServiceResult.Fail("Department name is required.");
 
-        var isDit = AppConstants.IsDitDepartment(dept.DeptCode);
-        var makerPf = dept.MakerPf?.Trim() ?? "";
-        var checkerPf = dept.CheckerPf?.Trim() ?? "";
-        dept.MakerPf = string.IsNullOrWhiteSpace(makerPf) ? null : makerPf;
-        dept.CheckerPf = string.IsNullOrWhiteSpace(checkerPf) ? null : checkerPf;
+        var code = dept.DeptCode.Trim();
+        var name = dept.DeptName.Trim();
+        dept.DeptCode = code;
+        dept.DeptName = name;
 
-        // DIT: Maker/Checker live on project (capital) / section (revenue) — clear dept fields.
+        var isDit = AppConstants.IsDitDepartment(code);
+
+        // Only one DIT; New Department is for non-DIT capital-only depts.
         if (isDit)
         {
+            var ditExists = (await _db.Departments.AsNoTracking()
+                    .Where(d => d.IsActive == "Y" && d.DeptId != dept.DeptId)
+                    .Select(d => d.DeptCode)
+                    .ToListAsync())
+                .Any(c => string.Equals(c, AppConstants.DitDeptCode, StringComparison.OrdinalIgnoreCase));
+            if (ditExists || dept.DeptId == 0)
+                return ServiceResult.Fail(AppConstants.DitAlreadyExistsMessage);
+
+            dept.HasRevenue = "Y";
             dept.MakerPf = null;
             dept.CheckerPf = null;
         }
         else
         {
+            dept.HasRevenue = "N";
+            var makerPf = dept.MakerPf?.Trim() ?? "";
+            var checkerPf = dept.CheckerPf?.Trim() ?? "";
+            dept.MakerPf = string.IsNullOrWhiteSpace(makerPf) ? null : makerPf;
+            dept.CheckerPf = string.IsNullOrWhiteSpace(checkerPf) ? null : checkerPf;
+
             if (string.IsNullOrEmpty(makerPf))
                 return ServiceResult.Fail(AppConstants.MakerPfRequiredMessage);
             if (string.IsNullOrEmpty(checkerPf))
@@ -177,31 +193,96 @@ public class MasterService : IMasterService
                 return ServiceResult.Fail(string.Join(" ", assignErrors));
         }
 
+        var others = await _db.Departments.AsNoTracking()
+            .Where(d => d.IsActive == "Y" && d.DeptId != dept.DeptId)
+            .Select(d => new { d.DeptCode, d.DeptName })
+            .ToListAsync();
+        if (others.Any(d => string.Equals(d.DeptCode, code, StringComparison.OrdinalIgnoreCase)))
+            return ServiceResult.Fail(string.Format(AppConstants.DuplicateDeptCodeMessage, code));
+        if (others.Any(d => string.Equals(d.DeptName, name, StringComparison.OrdinalIgnoreCase)))
+            return ServiceResult.Fail(string.Format(AppConstants.DuplicateDeptNameMessage, name));
+
         if (dept.DeptId == 0)
         {
+            if (isDit)
+                return ServiceResult.Fail(AppConstants.DitAlreadyExistsMessage);
+
             dept.CreatedAt = DateTime.Now;
             dept.CreatedBy = actorPf;
             dept.IsActive = "Y";
             _db.Departments.Add(dept);
+            await _db.SaveChangesAsync();
+
+            // Non-DIT capital-only: auto default section so Admin can add Projects without Sections tab.
+            await EnsureDefaultCapitalSectionAsync(dept.DeptId, name, actorPf);
         }
         else
         {
             var existing = await _db.Departments.FirstOrDefaultAsync(d => d.DeptId == dept.DeptId);
             if (existing == null) return ServiceResult.Fail("Department not found.");
-            existing.DeptCode = dept.DeptCode;
-            existing.DeptName = dept.DeptName;
-            existing.HasRevenue = dept.HasRevenue;
-            existing.MakerPf = dept.MakerPf;
-            existing.CheckerPf = dept.CheckerPf;
+
+            if (AppConstants.IsDitDepartment(existing.DeptCode))
+            {
+                // Existing DIT: keep code DIT; allow name update only; never dept M/C.
+                existing.DeptName = name;
+                existing.HasRevenue = "Y";
+                existing.MakerPf = null;
+                existing.CheckerPf = null;
+            }
+            else
+            {
+                existing.DeptCode = code;
+                existing.DeptName = name;
+                existing.HasRevenue = "N";
+                existing.MakerPf = dept.MakerPf;
+                existing.CheckerPf = dept.CheckerPf;
+                await EnsureDefaultCapitalSectionAsync(existing.DeptId, name, actorPf);
+            }
+
             existing.UpdatedAt = DateTime.Now;
             existing.UpdatedBy = actorPf;
+            await _db.SaveChangesAsync();
         }
-        await _db.SaveChangesAsync();
+
         return ServiceResult.Ok("Department saved.");
     }
 
+    /// <summary>
+    /// Non-DIT departments have no real Sections UX — create/reuse GENERAL section for projects.
+    /// </summary>
+    public async Task<Section> EnsureDefaultCapitalSectionAsync(long deptId, string? deptName, string actorPf)
+    {
+        var existing = await _db.Sections
+            .FirstOrDefaultAsync(s => s.DeptId == deptId
+                                      && s.IsActive == "Y"
+                                      && (s.SectionCode == AppConstants.DefaultCapitalSectionCode
+                                          || s.SectionName == AppConstants.DefaultCapitalSectionName));
+        if (existing != null) return existing;
+
+        var any = await _db.Sections.FirstOrDefaultAsync(s => s.DeptId == deptId && s.IsActive == "Y");
+        if (any != null) return any;
+
+        var section = new Section
+        {
+            DeptId = deptId,
+            SectionCode = AppConstants.DefaultCapitalSectionCode,
+            SectionName = string.IsNullOrWhiteSpace(deptName)
+                ? AppConstants.DefaultCapitalSectionName
+                : $"{deptName.Trim()} — {AppConstants.DefaultCapitalSectionName}",
+            MakerPf = null,
+            CheckerPf = null,
+            IsActive = "Y",
+            CreatedAt = DateTime.Now,
+            CreatedBy = actorPf
+        };
+        _db.Sections.Add(section);
+        await _db.SaveChangesAsync();
+        return section;
+    }
+
     public async Task<ServiceResult> SaveSectionAsync(
-        Section section, string actorPf, decimal? revenueAllotted = null, string? financialYear = null)
+        Section section, string actorPf, decimal? revenueAllotted = null, string? financialYear = null,
+        bool forRevenue = false)
     {
         if (string.IsNullOrWhiteSpace(section.SectionName))
             return ServiceResult.Fail("Section name is required.");
@@ -214,8 +295,8 @@ public class MasterService : IMasterService
         section.MakerPf = string.IsNullOrWhiteSpace(makerPf) ? null : makerPf;
         section.CheckerPf = string.IsNullOrWhiteSpace(checkerPf) ? null : checkerPf;
 
-        // Revenue (DIT HasRevenue=Y): section-wise Maker/Checker. Otherwise clear — capital uses project/dept.
-        if (AppConstants.IsDitDepartment(dept.DeptCode) && dept.HasRevenue == "Y")
+        // DIT Revenue: section-wise Maker/Checker (Priyadarshini). Capital sections: no section M/C.
+        if (forRevenue && AppConstants.IsDitDepartment(dept.DeptCode) && dept.HasRevenue == "Y")
         {
             if (string.IsNullOrEmpty(makerPf) || string.IsNullOrEmpty(checkerPf))
                 return ServiceResult.Fail("DIT revenue section requires Maker PF and Checker PF.");
@@ -255,7 +336,7 @@ public class MasterService : IMasterService
             section.SectionId = existing.SectionId;
         }
 
-        if (revenueAllotted.HasValue && dept.HasRevenue == "Y")
+        if (revenueAllotted.HasValue && forRevenue && dept.HasRevenue == "Y")
         {
             var fy = string.IsNullOrWhiteSpace(financialYear)
                 ? AppConstants.CurrentFinancialYear()

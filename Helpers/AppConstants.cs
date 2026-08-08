@@ -74,7 +74,17 @@ public static class AppConstants
     public const string ConfirmOverBudgetTitle = "Amount exceeds allotment";
     public const string ConfirmOverBudgetMessage =
         "The amount you have entered has exceeded the allocated budget of the respective section. This is for your information. Do you still want to submit?";
-    public const string RemarkRequiredMessage = "Remark is required for Return and Reject.";
+    public const string RemarkRequiredMessage = "Remark is required for Reject.";
+    public const string DuplicateDeptCodeMessage = "Department code '{0}' already exists.";
+    public const string DuplicateDeptNameMessage = "Department name '{0}' already exists.";
+    public const string DitAlreadyExistsMessage =
+        "DIT already exists. Only one DIT department is allowed. Edit the existing DIT row instead.";
+    public const string PreviousMonthsRequiredMessage =
+        "Submit earlier months first. Earliest missing month: {0}. You cannot skip months.";
+    public const string MonthDeadlineClosedMessage =
+        "Deadline for {0} has passed (open until end of next calendar month). Ask Admin to enable this month for your project/section.";
+    public const string DefaultCapitalSectionCode = "GEN";
+    public const string DefaultCapitalSectionName = "General";
     public const string JustificationRequiredMessage = "Justification is required.";
 
     /// <summary>DIT uses project-level (capital) and section-level (revenue) Maker/Checker.</summary>
@@ -97,7 +107,7 @@ public static class AppConstants
     public const string PreviousFyViewOnlyMessage =
         "Previous financial years are view-only. New entry is allowed only for the current financial year.";
     public const string EntryMonthWindowMessage =
-        "New entry is allowed only for the current month or the previous calendar month.";
+        "Entry month must be within deadline (until end of next calendar month) or Admin-enabled after deadline.";
 
     public static bool IsEditableStatus(string? status) =>
         string.Equals(status, EntryStatus.Returned, StringComparison.OrdinalIgnoreCase)
@@ -184,11 +194,42 @@ public static class AppConstants
     }
 
     /// <summary>
-    /// Maker may submit only in the current FY for current or previous calendar month
-    /// (or resubmit RETURNED/REJECTED in that same window — enforced by caller with status).
+    /// Maker may submit in current FY when month is within deadline
+    /// (deadline = last day of next calendar month) — Admin unlock handled by caller.
     /// </summary>
     public static bool CanSubmitNewEntry(string? financialYear, string? month, DateTime? asOf = null) =>
-        IsCurrentFinancialYear(financialYear, asOf) && IsAllowedEntryMonth(month, asOf);
+        IsCurrentFinancialYear(financialYear, asOf) && IsMonthWithinDeadline(month, asOf);
+
+    /// <summary>
+    /// Deadline for entry month M = last calendar day of the month after M.
+    /// Example: July → 31 Aug; August → 30 Sep.
+    /// </summary>
+    public static DateTime GetMonthDeadlineEnd(string month, DateTime? asOf = null)
+    {
+        var now = asOf ?? DateTime.Now;
+        if (!TryFyMonthDate(month, now, out var monthStart))
+            return DateTime.MinValue;
+        var nextMonthStart = monthStart.AddMonths(1);
+        return new DateTime(nextMonthStart.Year, nextMonthStart.Month,
+            DateTime.DaysInMonth(nextMonthStart.Year, nextMonthStart.Month),
+            23, 59, 59);
+    }
+
+    public static bool IsMonthWithinDeadline(string? month, DateTime? asOf = null)
+    {
+        if (string.IsNullOrWhiteSpace(month)) return false;
+        var now = asOf ?? DateTime.Now;
+        if (IsFutureMonth(month, now)) return false;
+        return now <= GetMonthDeadlineEnd(month, now);
+    }
+
+    /// <summary>Months from April through previous of <paramref name="entryMonth"/> (gaps that must be filled).</summary>
+    public static IReadOnlyList<string> PriorFyMonthsRequired(string entryMonth)
+    {
+        var idx = Array.FindIndex(FyMonths, m => string.Equals(m, entryMonth, StringComparison.OrdinalIgnoreCase));
+        if (idx <= 0) return Array.Empty<string>();
+        return FyMonths.Take(idx).ToArray();
+    }
 
     /// <summary>FY months from April through <paramref name="throughMonth"/> inclusive.</summary>
     public static IEnumerable<string> MonthsFromAprilThrough(string throughMonth)
@@ -206,29 +247,19 @@ public static class AppConstants
         return dt.ToString("MMMM", CultureInfo.InvariantCulture);
     }
 
-    /// <summary>
-    /// Entry months allowed for Maker entry: calendar previous + current only.
-    /// Next-month figures are estimates on the same form — not a selectable entry month.
-    /// </summary>
+    /// <summary>Months still within deadline (not future, deadline not passed).</summary>
     public static IReadOnlyList<string> AllowedEntryMonths(DateTime? asOf = null)
     {
-        var current = CalendarMonthName(asOf);
-        var previous = PreviousMonth(current);
-        return new[] { previous, current };
+        var now = asOf ?? DateTime.Now;
+        return FyMonths.Where(m => IsMonthWithinDeadline(m, now)).ToArray();
     }
 
-    public static bool IsAllowedEntryMonth(string? month, DateTime? asOf = null)
-    {
-        if (string.IsNullOrWhiteSpace(month)) return false;
-        return AllowedEntryMonths(asOf)
-            .Any(m => string.Equals(m, month, StringComparison.OrdinalIgnoreCase));
-    }
+    public static bool IsAllowedEntryMonth(string? month, DateTime? asOf = null) =>
+        IsMonthWithinDeadline(month, asOf);
 
-    /// <summary>
-    /// Month selectable on Maker entry/portal: only current + previous (not older completed months, not future).
-    /// </summary>
+    /// <summary>Month selectable on Maker portal when within deadline (Admin unlock checked separately).</summary>
     public static bool IsEntryMonthSelectable(string? month, DateTime? asOf = null) =>
-        IsAllowedEntryMonth(month, asOf);
+        IsMonthWithinDeadline(month, asOf);
 
     public static string DefaultEntryMonth(DateTime? asOf = null) => CalendarMonthName(asOf);
 

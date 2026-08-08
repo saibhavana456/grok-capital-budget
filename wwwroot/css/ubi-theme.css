@@ -529,7 +529,8 @@ html, body {
   border: 1px solid var(--ubi-border);
   border-radius: 10px;
   background: #fff;
-  max-width: 960px;
+  width: 100%;
+  max-width: none;
 }
 
 .admin-page .mud-table-cell {
